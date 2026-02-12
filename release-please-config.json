@@ -1,0 +1,15 @@
+{
+  "packages": {
+    ".": {
+      "release-type": "node",
+      "changelog-sections": [
+        { "type": "feat", "section": "Features" },
+        { "type": "fix", "section": "Bug Fixes" },
+        { "type": "chore", "section": "Miscellaneous" },
+        { "type": "docs", "section": "Documentation" },
+        { "type": "test", "section": "Tests" }
+      ]
+    }
+  },
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json"
+}

@@ -26,6 +26,7 @@ npm run format:check # Check formatting without writing
 npm test           # Run unit/component tests (vitest)
 npm run test:watch # Watch mode for TDD red/green cycles
 npm run test:e2e   # Run E2E tests (playwright, starts dev server)
+npm run type-check # TypeScript type checking
 ```
 
 Use red/green TDD per `app_description.md`: write a failing test first, then implement.
@@ -33,6 +34,8 @@ Use red/green TDD per `app_description.md`: write a failing test first, then imp
 ### Code Quality
 
 Pre-commit hook (husky + lint-staged) automatically runs ESLint and Prettier on staged files. Do not skip hooks with `--no-verify`.
+
+CI (GitHub Actions) runs lint, format check, type check, tests, and build on every PR and push to main. Releases are managed by release-please using conventional commits — use prefixes like `feat:`, `fix:`, `chore:`, `docs:`, `test:`.
 
 ### Test Structure
 
