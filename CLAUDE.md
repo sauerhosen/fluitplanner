@@ -48,8 +48,8 @@ CI (GitHub Actions) runs lint, format check, type check, tests, and build on eve
 
 - **Next.js** (App Router) on **Vercel** with Fluid Compute enabled (`cacheComponents: true` in next.config.ts)
 - **Supabase** for database, auth, and backend (via `@supabase/ssr`)
-- **TailwindCSS** with CSS variables for theming (dark mode via class strategy)
-- **shadcn/ui** (new-york style, RSC-enabled) — add components via `npx shadcn@latest add <component>`
+- **TailwindCSS v4** with CSS-first configuration (no `tailwind.config.ts`). All theme config is in `app/globals.css` via `@theme inline`. Dark mode uses `@custom-variant dark` with class strategy.
+- **shadcn/ui** (new-york style, RSC-enabled) — add components via `npx shadcn@latest add <component>`. Components use `data-slot` attributes (not `forwardRef`).
 - **next-themes** for dark/light mode switching
 
 ## Key Patterns
