@@ -5,10 +5,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Project Overview
 
 Fluitplanner: a field hockey umpire availability and match assignment app. Two interfaces:
+
 1. **Planner (admin)**: upload matches (excel/csv/paste), CRUD matches & umpires, assign umpires to matches, generate availability poll links
 2. **Umpire (user)**: mobile-responsive availability polls (yes/if need be/no) for time slots, similar to Rallly/Doodle
 
 Availability polls use 2-hour time slots (not exact match times). Slots start at least 30 min before match time, rounded to nearest quarter hour. Each match requires two umpires.
+
+## Git Workflow
+
+Never commit directly to `main`. Always create a feature branch before making any changes (e.g., `git checkout -b feat/my-feature`). Use pull requests to merge into `main`.
 
 ## Commands
 
@@ -16,12 +21,18 @@ Availability polls use 2-hour time slots (not exact match times). Slots start at
 npm run dev        # Start dev server (localhost:3000)
 npm run build      # Production build
 npm run lint       # ESLint
+npm run format     # Format all files with Prettier
+npm run format:check # Check formatting without writing
 npm test           # Run unit/component tests (vitest)
 npm run test:watch # Watch mode for TDD red/green cycles
 npm run test:e2e   # Run E2E tests (playwright, starts dev server)
 ```
 
 Use red/green TDD per `app_description.md`: write a failing test first, then implement.
+
+### Code Quality
+
+Pre-commit hook (husky + lint-staged) automatically runs ESLint and Prettier on staged files. Do not skip hooks with `--no-verify`.
 
 ### Test Structure
 
@@ -41,19 +52,24 @@ Use red/green TDD per `app_description.md`: write a failing test first, then imp
 ## Key Patterns
 
 ### Supabase Client Creation
+
 - **Server**: `import { createClient } from "@/lib/supabase/server"` — always `await createClient()` fresh per request (never store in a global due to Fluid Compute)
 - **Client**: `import { createClient } from "@/lib/supabase/client"` — browser client
 - **Proxy** (`proxy.ts`): refreshes auth sessions, redirects unauthenticated users to `/auth/login` (except `/` and `/auth/*` routes)
 
 ### Path Aliases
+
 `@/*` maps to project root (e.g., `@/components`, `@/lib`)
 
 ### Route Structure
+
 - `/` — public landing page
 - `/auth/*` — login, sign-up, forgot-password, update-password, confirmation
 - `/protected/*` — authenticated pages (layout includes nav with auth button)
 
 ### Environment Variables
+
 Required in `.env.local`:
+
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`

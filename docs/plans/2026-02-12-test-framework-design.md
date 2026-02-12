@@ -26,6 +26,7 @@ e2e/                    # Playwright E2E tests
 ## Dependencies
 
 Dev dependencies:
+
 - `vitest`, `@vitejs/plugin-react`
 - `@testing-library/react`, `@testing-library/jest-dom`, `jsdom`
 - `@playwright/test`
