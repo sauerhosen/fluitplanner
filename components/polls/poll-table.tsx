@@ -20,7 +20,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, Eye, Trash2 } from "lucide-react";
+import { MoreHorizontal, Eye, Trash2, Inbox } from "lucide-react";
 import { SharePollButton } from "./share-poll-button";
 
 function formatDateRange(min: string | null, max: string | null): string {
@@ -57,8 +57,9 @@ export function PollTable({
 
   if (polls.length === 0) {
     return (
-      <div className="text-center py-12 text-muted-foreground">
-        No polls yet. Create your first availability poll to get started.
+      <div className="flex flex-col items-center gap-3 py-12 text-center text-muted-foreground">
+        <Inbox className="h-10 w-10" />
+        <p>No polls yet. Create your first availability poll to get started.</p>
       </div>
     );
   }

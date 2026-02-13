@@ -25,6 +25,7 @@ import {
   Trash2,
   ChevronDown,
   ChevronRight,
+  Inbox,
 } from "lucide-react";
 
 const LEVEL_LABELS: Record<number, string> = {
@@ -103,8 +104,9 @@ export function MatchTable({
 
   if (matches.length === 0) {
     return (
-      <div className="text-center py-12 text-muted-foreground">
-        No matches yet. Upload a schedule or add a match manually.
+      <div className="flex flex-col items-center gap-3 py-12 text-center text-muted-foreground">
+        <Inbox className="h-10 w-10" />
+        <p>No matches yet. Upload a schedule or add a match manually.</p>
       </div>
     );
   }

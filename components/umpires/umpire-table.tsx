@@ -19,7 +19,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, Pencil, Trash2, Check, X } from "lucide-react";
+import { MoreHorizontal, Pencil, Trash2, Check, X, Inbox } from "lucide-react";
 
 const LEVEL_LABELS: Record<number, string> = {
   1: "Any",
@@ -57,9 +57,12 @@ export function UmpireTable({
 
   if (umpires.length === 0) {
     return (
-      <div className="text-center py-12 text-muted-foreground">
-        No umpires yet. Umpires will appear here when they respond to an
-        availability poll, or you can add them manually.
+      <div className="flex flex-col items-center gap-3 py-12 text-center text-muted-foreground">
+        <Inbox className="h-10 w-10" />
+        <p>
+          No umpires yet. Umpires will appear here when they respond to an
+          availability poll, or you can add them manually.
+        </p>
       </div>
     );
   }
