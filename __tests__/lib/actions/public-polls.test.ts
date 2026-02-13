@@ -207,3 +207,96 @@ describe("findUmpireById", () => {
     expect(result).toBeNull();
   });
 });
+
+/* ================================================================== */
+/*  getMyResponses                                                     */
+/* ================================================================== */
+
+describe("getMyResponses", () => {
+  it("returns responses for a given poll and umpire", async () => {
+    const responses = [
+      {
+        id: "resp-1",
+        poll_id: "poll-1",
+        slot_id: "slot-1",
+        participant_name: "Jan",
+        response: "yes",
+        umpire_id: "ump-1",
+        created_at: "2026-02-01T00:00:00Z",
+        updated_at: "2026-02-01T00:00:00Z",
+      },
+    ];
+
+    // .from("availability_responses").select("*").eq("poll_id", ...).eq("umpire_id", ...) → responses
+    // First eq returns chainable (default), second eq resolves with data
+    mockEq.mockReturnValueOnce(chainable());
+    mockEq.mockResolvedValueOnce({ data: responses, error: null });
+
+    const { getMyResponses } = await import("@/lib/actions/public-polls");
+    const result = await getMyResponses("poll-1", "ump-1");
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe("resp-1");
+  });
+});
+
+/* ================================================================== */
+/*  submitResponses                                                    */
+/* ================================================================== */
+
+describe("submitResponses", () => {
+  it("throws when poll is closed", async () => {
+    // .from("polls").select("status").eq("id", ...).single() → closed poll
+    mockSingle.mockResolvedValueOnce({
+      data: { status: "closed" },
+      error: null,
+    });
+
+    const { submitResponses } = await import("@/lib/actions/public-polls");
+    await expect(
+      submitResponses("poll-1", "ump-1", "Jan", [
+        { slotId: "slot-1", response: "yes" },
+      ]),
+    ).rejects.toThrow("Poll is closed");
+  });
+
+  it("throws when poll is not found", async () => {
+    mockSingle.mockResolvedValueOnce({
+      data: null,
+      error: { message: "not found" },
+    });
+
+    const { submitResponses } = await import("@/lib/actions/public-polls");
+    await expect(
+      submitResponses("bad-poll", "ump-1", "Jan", [
+        { slotId: "slot-1", response: "yes" },
+      ]),
+    ).rejects.toThrow("Poll not found");
+  });
+
+  it("returns early when responses array is empty", async () => {
+    const { submitResponses } = await import("@/lib/actions/public-polls");
+    // Should not throw and should not call supabase
+    await submitResponses("poll-1", "ump-1", "Jan", []);
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+
+  it("upserts responses for an open poll", async () => {
+    // .from("polls").select("status").eq("id", ...).single() → open poll
+    mockSingle.mockResolvedValueOnce({
+      data: { status: "open" },
+      error: null,
+    });
+
+    // upsert call → success
+    mockUpsert.mockResolvedValueOnce({ error: null });
+
+    const { submitResponses } = await import("@/lib/actions/public-polls");
+    await submitResponses("poll-1", "ump-1", "Jan", [
+      { slotId: "slot-1", response: "yes" },
+      { slotId: "slot-2", response: "no" },
+    ]);
+
+    // Verify upsert was called
+    expect(mockUpsert).toHaveBeenCalled();
+  });
+});

@@ -1,7 +1,12 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import type { Poll, PollSlot, Umpire } from "@/lib/types/domain";
+import type {
+  Poll,
+  PollSlot,
+  Umpire,
+  AvailabilityResponse,
+} from "@/lib/types/domain";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -10,6 +15,11 @@ import type { Poll, PollSlot, Umpire } from "@/lib/types/domain";
 export type PublicPollData = {
   poll: Poll;
   slots: PollSlot[];
+};
+
+export type ResponseInput = {
+  slotId: string;
+  response: "yes" | "if_need_be" | "no";
 };
 
 /* ------------------------------------------------------------------ */
@@ -87,4 +97,65 @@ export async function findUmpireById(id: string): Promise<Umpire | null> {
 
   if (error || !data) return null;
   return data;
+}
+
+/* ------------------------------------------------------------------ */
+/*  getMyResponses                                                     */
+/* ------------------------------------------------------------------ */
+
+export async function getMyResponses(
+  pollId: string,
+  umpireId: string,
+): Promise<AvailabilityResponse[]> {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("availability_responses")
+    .select("*")
+    .eq("poll_id", pollId)
+    .eq("umpire_id", umpireId);
+
+  if (error) return [];
+  return data ?? [];
+}
+
+/* ------------------------------------------------------------------ */
+/*  submitResponses                                                    */
+/* ------------------------------------------------------------------ */
+
+export async function submitResponses(
+  pollId: string,
+  umpireId: string,
+  participantName: string,
+  responses: ResponseInput[],
+): Promise<void> {
+  if (responses.length === 0) return;
+
+  const supabase = await createClient();
+
+  // Verify poll is open
+  const { data: poll, error: pollError } = await supabase
+    .from("polls")
+    .select("status")
+    .eq("id", pollId)
+    .single();
+
+  if (pollError || !poll) throw new Error("Poll not found");
+  if (poll.status === "closed") throw new Error("Poll is closed");
+
+  // Upsert responses
+  const rows = responses.map((r) => ({
+    poll_id: pollId,
+    slot_id: r.slotId,
+    participant_name: participantName,
+    response: r.response,
+    umpire_id: umpireId,
+    updated_at: new Date().toISOString(),
+  }));
+
+  const { error } = await supabase
+    .from("availability_responses")
+    .upsert(rows, { onConflict: "poll_id,slot_id,participant_name" });
+
+  if (error) throw new Error(error.message);
 }
