@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { getPoll, getAvailableMatches } from "@/lib/actions/polls";
+import { getUmpiresForPoll } from "@/lib/actions/assignments";
 import { PollDetailClient } from "@/components/polls/poll-detail-client";
 
 async function PollDetailLoader({
@@ -11,14 +12,16 @@ async function PollDetailLoader({
   const { id } = await params;
 
   try {
-    const [poll, availableMatches] = await Promise.all([
+    const [poll, availableMatches, umpires] = await Promise.all([
       getPoll(id),
       getAvailableMatches(id),
+      getUmpiresForPoll(id),
     ]);
     return (
       <PollDetailClient
         initialPoll={poll}
         availableMatches={availableMatches}
+        umpires={umpires}
       />
     );
   } catch {

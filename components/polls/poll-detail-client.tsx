@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import type { Match } from "@/lib/types/domain";
+import type { Match, Umpire } from "@/lib/types/domain";
 import type { PollDetail } from "@/lib/actions/polls";
 import {
   getPoll,
@@ -15,7 +15,9 @@ import { groupMatchesIntoSlots } from "@/lib/domain/slots";
 import { MatchSelector } from "./match-selector";
 import { SlotPreview } from "./slot-preview";
 import { ResponseSummary } from "./response-summary";
+import { AssignmentGrid } from "./assignment-grid";
 import { SharePollButton } from "./share-poll-button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -25,9 +27,14 @@ import { Pencil, Check, Trash2 } from "lucide-react";
 type Props = {
   initialPoll: PollDetail;
   availableMatches: Match[];
+  umpires: Umpire[];
 };
 
-export function PollDetailClient({ initialPoll, availableMatches }: Props) {
+export function PollDetailClient({
+  initialPoll,
+  availableMatches,
+  umpires,
+}: Props) {
   const router = useRouter();
   const [poll, setPoll] = useState(initialPoll);
   const [editingTitle, setEditingTitle] = useState(false);
@@ -333,15 +340,30 @@ export function PollDetailClient({ initialPoll, availableMatches }: Props) {
         )}
       </div>
 
-      {/* Responses */}
-      <div className="flex flex-col gap-2">
-        <Label>
-          Responses (
-          {[...new Set(poll.responses.map((r) => r.participant_name))].length}{" "}
-          umpires)
-        </Label>
-        <ResponseSummary slots={poll.slots} responses={poll.responses} />
-      </div>
+      {/* Responses & Assignments */}
+      <Tabs defaultValue="responses">
+        <TabsList>
+          <TabsTrigger value="responses">
+            Responses (
+            {[...new Set(poll.responses.map((r) => r.participant_name))].length}
+            )
+          </TabsTrigger>
+          <TabsTrigger value="assignments">Assignments</TabsTrigger>
+        </TabsList>
+        <TabsContent value="responses">
+          <ResponseSummary slots={poll.slots} responses={poll.responses} />
+        </TabsContent>
+        <TabsContent value="assignments">
+          <AssignmentGrid
+            pollId={poll.id}
+            matches={poll.matches}
+            slots={poll.slots}
+            responses={poll.responses}
+            assignments={poll.assignments}
+            umpires={umpires}
+          />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
