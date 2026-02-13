@@ -67,6 +67,9 @@ __pycache__/
 *.tar.gz
 *.tar.bz2
 
+# worktrees
+.worktrees/
+
 # project-specific
 AREAS/
 _resources/
