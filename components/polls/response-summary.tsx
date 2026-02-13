@@ -1,34 +1,51 @@
+import { Check, X, HelpCircle } from "lucide-react";
 import type { PollSlot, AvailabilityResponse } from "@/lib/types/domain";
 
-const RESPONSE_COLORS: Record<string, string> = {
-  yes: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
-  if_need_be:
-    "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
-  no: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
+const RESPONSE_ICONS: Record<
+  string,
+  { icon: typeof Check; className: string }
+> = {
+  yes: { icon: Check, className: "text-green-600 dark:text-green-400" },
+  if_need_be: {
+    icon: HelpCircle,
+    className: "text-yellow-500 dark:text-yellow-400",
+  },
+  no: { icon: X, className: "text-red-500 dark:text-red-400" },
 };
 
-const RESPONSE_LABELS: Record<string, string> = {
-  yes: "Yes",
-  if_need_be: "If need be",
-  no: "No",
+type DateGroup = {
+  weekday: string;
+  day: string;
+  slots: PollSlot[];
 };
 
-function formatSlotHeader(slot: PollSlot): string {
-  const start = new Date(slot.start_time);
-  const date = start.toLocaleDateString("nl-NL", {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-  });
-  const time = start.toLocaleTimeString("nl-NL", {
+function groupSlotsByDate(slots: PollSlot[]): DateGroup[] {
+  const groups: DateGroup[] = [];
+  for (const slot of slots) {
+    const date = new Date(slot.start_time);
+    const dateKey = date.toDateString();
+    const last = groups[groups.length - 1];
+    if (last && new Date(last.slots[0].start_time).toDateString() === dateKey) {
+      last.slots.push(slot);
+    } else {
+      groups.push({
+        weekday: date.toLocaleDateString("nl-NL", { weekday: "short" }),
+        day: date.toLocaleDateString("nl-NL", {
+          day: "numeric",
+          month: "short",
+        }),
+        slots: [slot],
+      });
+    }
+  }
+  return groups;
+}
+
+function formatTime(isoString: string): string {
+  return new Date(isoString).toLocaleTimeString("nl-NL", {
     hour: "2-digit",
     minute: "2-digit",
   });
-  const endTime = new Date(slot.end_time).toLocaleTimeString("nl-NL", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-  return `${date} ${time}\u2013${endTime}`;
 }
 
 type Props = {
@@ -56,46 +73,77 @@ export function ResponseSummary({ slots, responses }: Props) {
     responseMap.get(r.slot_id)!.set(r.participant_name, r.response);
   }
 
+  const dateGroups = groupSlotsByDate(slots);
+
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm border-collapse">
+    <div className="scrollbar-visible overflow-x-auto pb-2">
+      <table className="min-w-full text-sm border-collapse">
         <thead>
+          {/* Date header row */}
           <tr>
-            <th className="text-left p-2 border-b font-medium sticky left-0 bg-background">
-              Umpire
-            </th>
-            {slots.map((slot) => (
+            <th
+              rowSpan={2}
+              className="text-left p-2 font-medium sticky left-0 z-10 bg-background align-bottom"
+            />
+            {dateGroups.map((group, i) => (
               <th
-                key={slot.id}
-                className="text-center p-2 border-b font-medium min-w-[100px]"
+                key={i}
+                colSpan={group.slots.length}
+                className={`text-center px-1 pt-3 pb-1 align-bottom whitespace-nowrap ${i > 0 ? "border-l-2 border-border" : ""}`}
               >
-                {formatSlotHeader(slot)}
+                <div className="text-muted-foreground text-[10px] uppercase tracking-wider">
+                  {group.weekday}
+                </div>
+                <div className="text-base font-bold leading-tight">
+                  {group.day}
+                </div>
               </th>
             ))}
+          </tr>
+          {/* Time header row */}
+          <tr>
+            {dateGroups.flatMap((group, gi) =>
+              group.slots.map((slot, si) => (
+                <th
+                  key={slot.id}
+                  className={`text-center px-1 pt-1 pb-2 border-b font-normal whitespace-nowrap text-[11px] text-muted-foreground min-w-16 ${gi > 0 && si === 0 ? "border-l-2 border-border" : ""}`}
+                >
+                  {formatTime(slot.start_time)}
+                  <br />
+                  {formatTime(slot.end_time)}
+                </th>
+              )),
+            )}
           </tr>
         </thead>
         <tbody>
           {participants.map((name) => (
             <tr key={name}>
-              <td className="p-2 border-b font-medium sticky left-0 bg-background">
+              <td className="p-2 border-b font-medium sticky left-0 z-10 bg-background whitespace-nowrap">
                 {name}
               </td>
-              {slots.map((slot) => {
-                const response = responseMap.get(slot.id)?.get(name);
-                return (
-                  <td key={slot.id} className="p-2 border-b text-center">
-                    {response ? (
-                      <span
-                        className={`inline-block rounded px-2 py-1 text-xs font-medium ${RESPONSE_COLORS[response]}`}
-                      >
-                        {RESPONSE_LABELS[response]}
-                      </span>
-                    ) : (
-                      <span className="text-muted-foreground">{"\u2014"}</span>
-                    )}
-                  </td>
-                );
-              })}
+              {dateGroups.flatMap((group, gi) =>
+                group.slots.map((slot, si) => {
+                  const response = responseMap.get(slot.id)?.get(name);
+                  const config = response ? RESPONSE_ICONS[response] : null;
+                  return (
+                    <td
+                      key={slot.id}
+                      className={`border-b text-center ${gi > 0 && si === 0 ? "border-l-2 border-border" : ""}`}
+                    >
+                      {config ? (
+                        <config.icon
+                          className={`mx-auto h-5 w-5 ${config.className}`}
+                        />
+                      ) : (
+                        <span className="text-muted-foreground text-xs">
+                          {"\u2014"}
+                        </span>
+                      )}
+                    </td>
+                  );
+                }),
+              )}
             </tr>
           ))}
         </tbody>
