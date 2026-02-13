@@ -22,11 +22,11 @@ const testUmpire: Umpire = {
 };
 
 describe("UmpireIdentifier", () => {
-  let onIdentified: ReturnType<typeof vi.fn>;
+  let onIdentified: ReturnType<typeof vi.fn<(umpire: Umpire) => void>>;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    onIdentified = vi.fn();
+    onIdentified = vi.fn<(umpire: Umpire) => void>();
   });
 
   it("renders email input form initially", () => {
