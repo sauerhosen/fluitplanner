@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import type { Match } from "@/lib/types/domain";
+import type { Match, Umpire } from "@/lib/types/domain";
 import type { PollDetail } from "@/lib/actions/polls";
 import {
   getPoll,
@@ -15,19 +15,26 @@ import { groupMatchesIntoSlots } from "@/lib/domain/slots";
 import { MatchSelector } from "./match-selector";
 import { SlotPreview } from "./slot-preview";
 import { ResponseSummary } from "./response-summary";
+import { AssignmentGrid } from "./assignment-grid";
 import { SharePollButton } from "./share-poll-button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Pencil, Check, Trash2 } from "lucide-react";
+import { Pencil, Check, Trash2, ArrowRightLeft } from "lucide-react";
 
 type Props = {
   initialPoll: PollDetail;
   availableMatches: Match[];
+  umpires: Umpire[];
 };
 
-export function PollDetailClient({ initialPoll, availableMatches }: Props) {
+export function PollDetailClient({
+  initialPoll,
+  availableMatches,
+  umpires,
+}: Props) {
   const router = useRouter();
   const [poll, setPoll] = useState(initialPoll);
   const [editingTitle, setEditingTitle] = useState(false);
@@ -38,6 +45,8 @@ export function PollDetailClient({ initialPoll, availableMatches }: Props) {
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState("matches");
+  const [transposed, setTransposed] = useState(false);
 
   const allSelectableMatches = useMemo(() => {
     const pollMatchIds = new Set(poll.matches.map((m) => m.id));
@@ -120,8 +129,8 @@ export function PollDetailClient({ initialPoll, availableMatches }: Props) {
       )}
 
       {/* Header: title + status + actions */}
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex-1">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+        <div className="flex-1 min-w-0">
           {editingTitle ? (
             <div className="flex items-center gap-2">
               <Input
@@ -188,160 +197,194 @@ export function PollDetailClient({ initialPoll, availableMatches }: Props) {
         <SharePollButton token={poll.token} />
       </div>
 
-      {/* Matches & Slots */}
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center justify-between">
-          <Label>
-            Matches ({poll.matches.length}) &middot; Slots ({poll.slots.length})
-          </Label>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              if (editingMatches) {
-                setSelectedMatchIds(poll.matches.map((m) => m.id));
-                setEditingMatches(false);
-              } else {
-                setSelectedMatchIds(poll.matches.map((m) => m.id));
-                setEditingMatches(true);
+      {/* Matches, Responses & Assignments */}
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <div className="flex items-center justify-between gap-2">
+          <TabsList>
+            <TabsTrigger value="matches">
+              Matches ({poll.matches.length})
+            </TabsTrigger>
+            <TabsTrigger value="responses">
+              Responses (
+              {
+                [...new Set(poll.responses.map((r) => r.participant_name))]
+                  .length
               }
-            }}
-          >
-            {editingMatches ? "Cancel" : "Edit Matches"}
-          </Button>
-        </div>
-
-        {editingMatches ? (
-          <div className="flex flex-col gap-4">
-            <MatchSelector
-              matches={allSelectableMatches}
-              selectedIds={selectedMatchIds}
-              onSelectionChange={setSelectedMatchIds}
-            />
-            <div className="flex flex-col gap-2">
-              <Label>Updated Time Slots Preview</Label>
-              <SlotPreview slots={previewSlots} />
-            </div>
-            <Button onClick={handleSaveMatches} disabled={saving}>
-              {saving ? "Saving..." : "Save Match Changes"}
+              )
+            </TabsTrigger>
+            <TabsTrigger value="assignments">Assignments</TabsTrigger>
+          </TabsList>
+          {activeTab === "assignments" && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="hidden sm:inline-flex"
+              onClick={() => setTransposed((t) => !t)}
+              aria-label="Swap rows and columns"
+            >
+              <ArrowRightLeft className="mr-2 h-4 w-4" />
+              Swap axes
             </Button>
-          </div>
-        ) : (
+          )}
+        </div>
+        <TabsContent value="matches">
           <div className="flex flex-col gap-4">
-            {(() => {
-              const sortedSlots = poll.slots
-                .slice()
-                .sort(
-                  (a, b) =>
-                    new Date(a.start_time).getTime() -
-                    new Date(b.start_time).getTime(),
-                );
-              const dateGroups: {
-                dateKey: string;
-                label: string;
-                slots: typeof sortedSlots;
-              }[] = [];
-              for (const slot of sortedSlots) {
-                const dateKey = new Date(slot.start_time).toDateString();
-                const last = dateGroups[dateGroups.length - 1];
-                if (last && last.dateKey === dateKey) {
-                  last.slots.push(slot);
-                } else {
-                  dateGroups.push({
-                    dateKey,
-                    label: new Date(slot.start_time).toLocaleDateString(
-                      "nl-NL",
-                      {
-                        weekday: "long",
-                        day: "numeric",
-                        month: "long",
-                      },
-                    ),
-                    slots: [slot],
-                  });
-                }
-              }
-              return dateGroups.map((group) => (
-                <div key={group.dateKey}>
-                  <div className="text-muted-foreground mb-2 text-xs font-semibold uppercase tracking-wide">
-                    {group.label}
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    {group.slots.map((slot) => {
-                      const slotStart = new Date(slot.start_time).getTime();
-                      const slotEnd = new Date(slot.end_time).getTime();
-                      const slotMatches = poll.matches.filter((m) => {
-                        if (!m.start_time) return false;
-                        const mt = new Date(m.start_time).getTime();
-                        return mt >= slotStart && mt < slotEnd;
-                      });
-                      return (
-                        <div key={slot.id} className="rounded-lg border">
-                          <div className="bg-muted px-3 py-2 text-sm font-medium">
-                            {new Date(slot.start_time).toLocaleTimeString(
-                              "nl-NL",
-                              {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              },
-                            )}
-                            {" – "}
-                            {new Date(slot.end_time).toLocaleTimeString(
-                              "nl-NL",
-                              {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              },
-                            )}
-                          </div>
-                          {slotMatches.length > 0 ? (
-                            <div className="divide-y px-3">
-                              {slotMatches.map((match) => (
-                                <div
-                                  key={match.id}
-                                  className="flex items-baseline justify-between py-1.5 text-sm"
-                                >
-                                  <span>
-                                    {match.home_team} – {match.away_team}
-                                  </span>
-                                  {match.start_time && (
-                                    <span className="text-muted-foreground text-xs">
-                                      {new Date(
-                                        match.start_time,
-                                      ).toLocaleTimeString("nl-NL", {
-                                        hour: "2-digit",
-                                        minute: "2-digit",
-                                      })}
-                                    </span>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          ) : (
-                            <div className="text-muted-foreground px-3 py-1.5 text-sm">
-                              No matches in this slot
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              ));
-            })()}
-          </div>
-        )}
-      </div>
+            <div className="flex items-center justify-between">
+              <Label>Slots ({poll.slots.length})</Label>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  if (editingMatches) {
+                    setSelectedMatchIds(poll.matches.map((m) => m.id));
+                    setEditingMatches(false);
+                  } else {
+                    setSelectedMatchIds(poll.matches.map((m) => m.id));
+                    setEditingMatches(true);
+                  }
+                }}
+              >
+                {editingMatches ? "Cancel" : "Edit Matches"}
+              </Button>
+            </div>
 
-      {/* Responses */}
-      <div className="flex flex-col gap-2">
-        <Label>
-          Responses (
-          {[...new Set(poll.responses.map((r) => r.participant_name))].length}{" "}
-          umpires)
-        </Label>
-        <ResponseSummary slots={poll.slots} responses={poll.responses} />
-      </div>
+            {editingMatches ? (
+              <div className="flex flex-col gap-4">
+                <MatchSelector
+                  matches={allSelectableMatches}
+                  selectedIds={selectedMatchIds}
+                  onSelectionChange={setSelectedMatchIds}
+                />
+                <div className="flex flex-col gap-2">
+                  <Label>Updated Time Slots Preview</Label>
+                  <SlotPreview slots={previewSlots} />
+                </div>
+                <Button onClick={handleSaveMatches} disabled={saving}>
+                  {saving ? "Saving..." : "Save Match Changes"}
+                </Button>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-4">
+                {(() => {
+                  const sortedSlots = poll.slots
+                    .slice()
+                    .sort(
+                      (a, b) =>
+                        new Date(a.start_time).getTime() -
+                        new Date(b.start_time).getTime(),
+                    );
+                  const dateGroups: {
+                    dateKey: string;
+                    label: string;
+                    slots: typeof sortedSlots;
+                  }[] = [];
+                  for (const slot of sortedSlots) {
+                    const dateKey = new Date(slot.start_time).toDateString();
+                    const last = dateGroups[dateGroups.length - 1];
+                    if (last && last.dateKey === dateKey) {
+                      last.slots.push(slot);
+                    } else {
+                      dateGroups.push({
+                        dateKey,
+                        label: new Date(slot.start_time).toLocaleDateString(
+                          "nl-NL",
+                          {
+                            weekday: "long",
+                            day: "numeric",
+                            month: "long",
+                          },
+                        ),
+                        slots: [slot],
+                      });
+                    }
+                  }
+                  return dateGroups.map((group) => (
+                    <div key={group.dateKey}>
+                      <div className="text-muted-foreground mb-2 text-xs font-semibold uppercase tracking-wide">
+                        {group.label}
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        {group.slots.map((slot) => {
+                          const slotStart = new Date(slot.start_time).getTime();
+                          const slotEnd = new Date(slot.end_time).getTime();
+                          const slotMatches = poll.matches.filter((m) => {
+                            if (!m.start_time) return false;
+                            const mt = new Date(m.start_time).getTime();
+                            return mt >= slotStart && mt < slotEnd;
+                          });
+                          return (
+                            <div key={slot.id} className="rounded-lg border">
+                              <div className="bg-muted px-3 py-2 text-sm font-medium">
+                                {new Date(slot.start_time).toLocaleTimeString(
+                                  "nl-NL",
+                                  {
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  },
+                                )}
+                                {" – "}
+                                {new Date(slot.end_time).toLocaleTimeString(
+                                  "nl-NL",
+                                  {
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  },
+                                )}
+                              </div>
+                              {slotMatches.length > 0 ? (
+                                <div className="divide-y px-3">
+                                  {slotMatches.map((match) => (
+                                    <div
+                                      key={match.id}
+                                      className="flex items-baseline justify-between py-1.5 text-sm"
+                                    >
+                                      <span>
+                                        {match.home_team} – {match.away_team}
+                                      </span>
+                                      {match.start_time && (
+                                        <span className="text-muted-foreground text-xs">
+                                          {new Date(
+                                            match.start_time,
+                                          ).toLocaleTimeString("nl-NL", {
+                                            hour: "2-digit",
+                                            minute: "2-digit",
+                                          })}
+                                        </span>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <div className="text-muted-foreground px-3 py-1.5 text-sm">
+                                  No matches in this slot
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ));
+                })()}
+              </div>
+            )}
+          </div>
+        </TabsContent>
+        <TabsContent value="responses">
+          <ResponseSummary slots={poll.slots} responses={poll.responses} />
+        </TabsContent>
+        <TabsContent value="assignments">
+          <AssignmentGrid
+            pollId={poll.id}
+            matches={poll.matches}
+            slots={poll.slots}
+            responses={poll.responses}
+            assignments={poll.assignments}
+            umpires={umpires}
+            transposed={transposed}
+          />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

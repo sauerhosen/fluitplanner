@@ -13,11 +13,11 @@ export default function ProtectedLayout({
   return (
     <main className="min-h-screen flex flex-col items-center">
       <div className="flex-1 w-full flex flex-col gap-20 items-center">
-        <nav className="w-full flex justify-center border-b border-b-foreground/10 h-16">
-          <div className="w-full max-w-5xl flex justify-between items-center p-3 px-5 text-sm">
-            <div className="flex gap-5 items-center font-semibold">
+        <nav className="w-full flex justify-center border-b border-b-foreground/10 h-12 sm:h-16">
+          <div className="w-full max-w-5xl flex justify-between items-center p-3 px-4 sm:px-5 text-sm">
+            <div className="flex gap-3 sm:gap-5 items-center font-semibold">
               <Link href="/protected">Fluitplanner</Link>
-              <div className="flex items-center gap-4 text-sm font-normal">
+              <div className="flex items-center gap-2 sm:gap-4 text-xs sm:text-sm font-normal">
                 <Link href="/protected/matches" className="hover:underline">
                   Matches
                 </Link>
@@ -27,7 +27,10 @@ export default function ProtectedLayout({
                 <Link href="/protected/umpires" className="hover:underline">
                   Umpires
                 </Link>
-                <Link href="/protected/settings" className="hover:underline">
+                <Link
+                  href="/protected/settings"
+                  className="hover:underline hidden sm:inline"
+                >
                   Settings
                 </Link>
               </div>

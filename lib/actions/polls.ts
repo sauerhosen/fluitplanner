@@ -8,6 +8,7 @@ import type {
   Poll,
   PollSlot,
   AvailabilityResponse,
+  Assignment,
 } from "@/lib/types/domain";
 import { revalidatePath } from "next/cache";
 import { nanoid } from "nanoid";
@@ -26,6 +27,7 @@ export type PollDetail = Poll & {
   matches: Match[];
   slots: PollSlot[];
   responses: AvailabilityResponse[];
+  assignments: Assignment[];
 };
 
 /* ------------------------------------------------------------------ */
@@ -189,11 +191,20 @@ export async function getPoll(id: string): Promise<PollDetail> {
 
   if (respError) throw new Error(respError.message);
 
+  // Fetch assignments
+  const { data: assignments, error: assignError } = await supabase
+    .from("assignments")
+    .select("*")
+    .eq("poll_id", id);
+
+  if (assignError) throw new Error(assignError.message);
+
   return {
     ...poll,
     matches,
     slots: slots ?? [],
     responses: responses ?? [],
+    assignments: assignments ?? [],
   };
 }
 
