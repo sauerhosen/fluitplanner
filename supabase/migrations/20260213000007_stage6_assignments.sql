@@ -6,7 +6,7 @@ CREATE TABLE public.assignments (
   match_id uuid REFERENCES public.matches ON DELETE CASCADE NOT NULL,
   umpire_id uuid REFERENCES public.umpires ON DELETE CASCADE NOT NULL,
   created_at timestamptz DEFAULT now() NOT NULL,
-  UNIQUE(match_id, umpire_id)
+  UNIQUE(poll_id, match_id, umpire_id)
 );
 
 CREATE INDEX idx_assignments_poll_id ON public.assignments (poll_id);
@@ -21,8 +21,18 @@ CREATE POLICY "Authenticated users can select assignments"
 
 CREATE POLICY "Authenticated users can insert assignments"
   ON public.assignments FOR INSERT TO authenticated
-  WITH CHECK (true);
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM public.polls
+      WHERE polls.id = poll_id AND polls.created_by = auth.uid()
+    )
+  );
 
 CREATE POLICY "Authenticated users can delete assignments"
   ON public.assignments FOR DELETE TO authenticated
-  USING (true);
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.polls
+      WHERE polls.id = poll_id AND polls.created_by = auth.uid()
+    )
+  );
