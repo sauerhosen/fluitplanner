@@ -1,11 +1,13 @@
 export type Match = {
   id: string;
   date: string;
-  start_time: string;
+  start_time: string | null;
   home_team: string;
   away_team: string;
   competition: string | null;
   venue: string | null;
+  field: string | null;
+  required_level: 1 | 2 | 3;
   created_by: string;
   created_at: string;
 };
@@ -34,6 +36,14 @@ export type AvailabilityResponse = {
   response: "yes" | "if_need_be" | "no";
   created_at: string;
   updated_at: string;
+};
+
+export type ManagedTeam = {
+  id: string;
+  name: string;
+  required_level: 1 | 2 | 3;
+  created_by: string;
+  created_at: string;
 };
 
 export type TimeSlot = {
