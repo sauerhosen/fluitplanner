@@ -60,7 +60,9 @@ export function MatchFormDialog({
     try {
       const matchData = {
         date,
-        start_time: startTime ? `${date}T${startTime}:00` : null,
+        start_time: startTime
+          ? new Date(`${date}T${startTime}`).toISOString()
+          : null,
         home_team: homeTeam,
         away_team: awayTeam,
         venue: venue || null,
