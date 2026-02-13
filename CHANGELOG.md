@@ -2,28 +2,26 @@
 
 ## [1.2.0](https://github.com/sauerhosen/fluitplanner/compare/v1.1.0...v1.2.0) (2026-02-13)
 
-
 ### Features
 
-* add availability form with slot rows for poll responses ([8905c10](https://github.com/sauerhosen/fluitplanner/commit/8905c1052562f51ca20c30c18d3a3d9d244c5617))
-* add findOrCreateUmpire and findUmpireById server actions ([bc95da0](https://github.com/sauerhosen/fluitplanner/commit/bc95da04dbe3c9ea11fb7e65f6540bbae328982c))
-* add getMyResponses and submitResponses server actions ([3dd3430](https://github.com/sauerhosen/fluitplanner/commit/3dd3430508b29117d4e7361ef3795b77ea0e48bd))
-* add getPollByToken server action for public poll access ([1d32578](https://github.com/sauerhosen/fluitplanner/commit/1d32578f62c89136174f2c9a8c3eb8029782b4df))
-* add poll response page and umpire identifier components ([e65ebd5](https://github.com/sauerhosen/fluitplanner/commit/e65ebd50a0305698181f3e571b6ffeb84d894b7a))
-* add public poll page server component ([391f341](https://github.com/sauerhosen/fluitplanner/commit/391f341b6bcb46d443339be3c4b017874de9d5a9))
-* add Stage 5 public poll response page ([470844e](https://github.com/sauerhosen/fluitplanner/commit/470844e787df175d9668c13bb76c08114fb1f212))
-* add umpire_id field to AvailabilityResponse type ([a1fad5c](https://github.com/sauerhosen/fluitplanner/commit/a1fad5c131714575ee99e3e2ff5f4554a32daf72))
-* group poll slots by date, add toggle behavior for response buttons ([e024099](https://github.com/sauerhosen/fluitplanner/commit/e024099bdd0424a96fc240fe14ed22097e60aaa3))
-* improve poll detail UI with combined slots/matches view and Rallly-style response grid ([c86a617](https://github.com/sauerhosen/fluitplanner/commit/c86a617a5386ba2c11fbc32046661597f76ce5f6))
-* stage 6 — umpire assignment grid ([0f185df](https://github.com/sauerhosen/fluitplanner/commit/0f185dfe32884050cfa24203a4b085aa561fedb5))
-
+- add availability form with slot rows for poll responses ([8905c10](https://github.com/sauerhosen/fluitplanner/commit/8905c1052562f51ca20c30c18d3a3d9d244c5617))
+- add findOrCreateUmpire and findUmpireById server actions ([bc95da0](https://github.com/sauerhosen/fluitplanner/commit/bc95da04dbe3c9ea11fb7e65f6540bbae328982c))
+- add getMyResponses and submitResponses server actions ([3dd3430](https://github.com/sauerhosen/fluitplanner/commit/3dd3430508b29117d4e7361ef3795b77ea0e48bd))
+- add getPollByToken server action for public poll access ([1d32578](https://github.com/sauerhosen/fluitplanner/commit/1d32578f62c89136174f2c9a8c3eb8029782b4df))
+- add poll response page and umpire identifier components ([e65ebd5](https://github.com/sauerhosen/fluitplanner/commit/e65ebd50a0305698181f3e571b6ffeb84d894b7a))
+- add public poll page server component ([391f341](https://github.com/sauerhosen/fluitplanner/commit/391f341b6bcb46d443339be3c4b017874de9d5a9))
+- add Stage 5 public poll response page ([470844e](https://github.com/sauerhosen/fluitplanner/commit/470844e787df175d9668c13bb76c08114fb1f212))
+- add umpire_id field to AvailabilityResponse type ([a1fad5c](https://github.com/sauerhosen/fluitplanner/commit/a1fad5c131714575ee99e3e2ff5f4554a32daf72))
+- group poll slots by date, add toggle behavior for response buttons ([e024099](https://github.com/sauerhosen/fluitplanner/commit/e024099bdd0424a96fc240fe14ed22097e60aaa3))
+- improve poll detail UI with combined slots/matches view and Rallly-style response grid ([c86a617](https://github.com/sauerhosen/fluitplanner/commit/c86a617a5386ba2c11fbc32046661597f76ce5f6))
+- stage 6 — umpire assignment grid ([0f185df](https://github.com/sauerhosen/fluitplanner/commit/0f185dfe32884050cfa24203a4b085aa561fedb5))
 
 ### Bug Fixes
 
-* add RLS policies for authenticated users, exclude /poll from proxy, add Suspense boundary ([b95a2b7](https://github.com/sauerhosen/fluitplanner/commit/b95a2b7945533f79ef4b807a031af29c1a7465c2))
-* format CHANGELOG.md to pass prettier check ([27d7ed3](https://github.com/sauerhosen/fluitplanner/commit/27d7ed3ba2c58da5a82c16ee9c700052f9ce972d))
-* type vi.fn() for onIdentified prop in umpire-identifier test ([4272413](https://github.com/sauerhosen/fluitplanner/commit/42724131b5b2572e7f41826c0288e20308e6c0ba))
-* use umpire_id for response upsert and fix cookie restore race condition ([3bdf982](https://github.com/sauerhosen/fluitplanner/commit/3bdf982ca36c8bee24a93b84b126f37a277592eb))
+- add RLS policies for authenticated users, exclude /poll from proxy, add Suspense boundary ([b95a2b7](https://github.com/sauerhosen/fluitplanner/commit/b95a2b7945533f79ef4b807a031af29c1a7465c2))
+- format CHANGELOG.md to pass prettier check ([27d7ed3](https://github.com/sauerhosen/fluitplanner/commit/27d7ed3ba2c58da5a82c16ee9c700052f9ce972d))
+- type vi.fn() for onIdentified prop in umpire-identifier test ([4272413](https://github.com/sauerhosen/fluitplanner/commit/42724131b5b2572e7f41826c0288e20308e6c0ba))
+- use umpire_id for response upsert and fix cookie restore race condition ([3bdf982](https://github.com/sauerhosen/fluitplanner/commit/3bdf982ca36c8bee24a93b84b126f37a277592eb))
 
 ## [1.1.0](https://github.com/sauerhosen/fluitplanner/compare/v1.0.0...v1.1.0) (2026-02-13)
 
