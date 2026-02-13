@@ -166,7 +166,7 @@ export function AssignmentGrid({
         setSaving(null);
       }
     },
-    [saving, assignmentSet, assignmentCounts, pollId],
+    [saving, assignmentSet, assignmentCounts, pollId, setAssignments],
   );
 
   const sortedMatches = useMemo(
@@ -207,10 +207,19 @@ export function AssignmentGrid({
     const assignedStyle =
       isAssigned && !conflict ? "ring-2 ring-primary font-bold" : "";
 
+    const title = conflict
+      ? conflict.severity === "hard"
+        ? "Conflict: umpire has overlapping match"
+        : "Warning: umpire has another match same day"
+      : isAssigned
+        ? "Assigned"
+        : undefined;
+
     return (
       <button
         key={key}
         data-testid={`cell-${key}`}
+        title={title}
         className={`relative flex h-10 w-full min-w-10 items-center justify-center rounded transition-all ${bgColor} ${conflictBorder || assignedStyle} ${isSaving ? "opacity-50" : "cursor-pointer hover:opacity-80"}`}
         onClick={() => handleToggle(matchId, umpireId)}
         disabled={isSaving}

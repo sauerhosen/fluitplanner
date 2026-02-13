@@ -15,14 +15,17 @@ CREATE TABLE public.assignments (
   match_id uuid REFERENCES public.matches ON DELETE CASCADE NOT NULL,
   umpire_id uuid REFERENCES public.umpires ON DELETE CASCADE NOT NULL,
   created_at timestamptz DEFAULT now() NOT NULL,
-  UNIQUE(match_id, umpire_id)
+  UNIQUE(poll_id, match_id, umpire_id)
 );
 
 CREATE INDEX idx_assignments_poll_id ON public.assignments (poll_id);
 CREATE INDEX idx_assignments_match_id ON public.assignments (match_id);
 ```
 
-RLS: authenticated users can manage assignments for polls they created (`created_by = auth.uid()`). Read access follows the same pattern as existing poll RLS.
+RLS policies:
+
+- **SELECT**: all authenticated users (consistent with existing poll RLS)
+- **INSERT/DELETE**: restricted to poll owners via `EXISTS (SELECT 1 FROM polls WHERE polls.id = poll_id AND polls.created_by = auth.uid())`
 
 ## UI Location
 
