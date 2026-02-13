@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { AvailabilityForm } from "@/components/poll-response/availability-form";
 import { UmpireIdentifier } from "@/components/poll-response/umpire-identifier";
 import { findUmpireById, getMyResponses } from "@/lib/actions/public-polls";
 import type {
@@ -47,7 +48,6 @@ type Props = {
 export function PollResponsePage({ poll, slots }: Props) {
   const [loading, setLoading] = useState(true);
   const [umpire, setUmpire] = useState<Umpire | null>(null);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [existingResponses, setExistingResponses] = useState<
     AvailabilityResponse[]
   >([]);
@@ -151,9 +151,13 @@ export function PollResponsePage({ poll, slots }: Props) {
           Not you?
         </Button>
       </div>
-      <p className="text-muted-foreground text-sm">
-        Availability form coming next...
-      </p>
+      <AvailabilityForm
+        pollId={poll.id}
+        umpireId={umpire.id}
+        umpireName={umpire.name}
+        slots={slots}
+        existingResponses={existingResponses}
+      />
     </div>
   );
 }
