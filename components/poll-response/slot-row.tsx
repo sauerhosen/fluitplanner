@@ -8,21 +8,12 @@ type Props = {
   startTime: string;
   endTime: string;
   value: ResponseValue | null;
-  onChange: (value: ResponseValue) => void;
+  onChange: (value: ResponseValue | null) => void;
 };
 
-function formatSlotTime(isoString: string): string {
+function formatTime(isoString: string): string {
   const date = new Date(isoString);
   return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-}
-
-function formatSlotDate(isoString: string): string {
-  const date = new Date(isoString);
-  return date.toLocaleDateString([], {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-  });
 }
 
 const BUTTONS: {
@@ -50,12 +41,11 @@ const BUTTONS: {
 
 export function SlotRow({ startTime, endTime, value, onChange }: Props) {
   return (
-    <div className="flex flex-col gap-2 rounded-lg border p-3">
-      <div className="text-sm font-medium">
-        {formatSlotDate(startTime)}, {formatSlotTime(startTime)} &ndash;{" "}
-        {formatSlotTime(endTime)}
+    <div className="flex items-center justify-between border-b py-3 last:border-b-0">
+      <div className="text-sm">
+        {formatTime(startTime)} &ndash; {formatTime(endTime)}
       </div>
-      <div className="flex gap-2">
+      <div className="flex gap-1.5">
         {BUTTONS.map((btn) => (
           <Button
             key={btn.value}
@@ -63,7 +53,7 @@ export function SlotRow({ startTime, endTime, value, onChange }: Props) {
             variant={value === btn.value ? "default" : "outline"}
             size="sm"
             className={value === btn.value ? btn.activeClass : ""}
-            onClick={() => onChange(btn.value)}
+            onClick={() => onChange(value === btn.value ? null : btn.value)}
           >
             {btn.label}
           </Button>

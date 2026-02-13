@@ -14,9 +14,10 @@ describe("SlotRow", () => {
     vi.clearAllMocks();
   });
 
-  it("renders date and time", () => {
+  it("renders time range", () => {
     render(<SlotRow {...defaultProps} />);
-    expect(screen.getByText(/feb/i)).toBeTruthy();
+    // SlotRow shows times only (date is in the group header)
+    expect(screen.getByText(/–/)).toBeTruthy();
   });
 
   it("renders three buttons", () => {

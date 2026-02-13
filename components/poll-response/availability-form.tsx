@@ -16,6 +16,34 @@ type Props = {
   existingResponses: AvailabilityResponse[];
 };
 
+function formatDateHeading(isoString: string): string {
+  const date = new Date(isoString);
+  return date.toLocaleDateString([], {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  });
+}
+
+function groupSlotsByDate(slots: PollSlot[]) {
+  const groups: { dateKey: string; label: string; slots: PollSlot[] }[] = [];
+  for (const slot of slots) {
+    const date = new Date(slot.start_time);
+    const dateKey = date.toDateString();
+    const last = groups[groups.length - 1];
+    if (last && last.dateKey === dateKey) {
+      last.slots.push(slot);
+    } else {
+      groups.push({
+        dateKey,
+        label: formatDateHeading(slot.start_time),
+        slots: [slot],
+      });
+    }
+  }
+  return groups;
+}
+
 export function AvailabilityForm({
   pollId,
   umpireId,
@@ -35,7 +63,7 @@ export function AvailabilityForm({
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  function handleChange(slotId: string, value: ResponseValue) {
+  function handleChange(slotId: string, value: ResponseValue | null) {
     setResponses((prev) => ({ ...prev, [slotId]: value }));
     setSaved(false);
   }
@@ -63,16 +91,27 @@ export function AvailabilityForm({
     }
   }
 
+  const dateGroups = groupSlotsByDate(slots);
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-3">
-      {slots.map((slot) => (
-        <SlotRow
-          key={slot.id}
-          startTime={slot.start_time}
-          endTime={slot.end_time}
-          value={responses[slot.id]}
-          onChange={(value) => handleChange(slot.id, value)}
-        />
+    <form onSubmit={handleSubmit} className="space-y-4">
+      {dateGroups.map((group) => (
+        <div key={group.dateKey}>
+          <div className="bg-muted text-muted-foreground mb-1 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide">
+            {group.label}
+          </div>
+          <div className="px-3">
+            {group.slots.map((slot) => (
+              <SlotRow
+                key={slot.id}
+                startTime={slot.start_time}
+                endTime={slot.end_time}
+                value={responses[slot.id]}
+                onChange={(value) => handleChange(slot.id, value)}
+              />
+            ))}
+          </div>
+        </div>
       ))}
       {error && <p className="text-sm text-red-600">{error}</p>}
       {saved && (
