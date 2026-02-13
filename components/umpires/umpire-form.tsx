@@ -37,12 +37,14 @@ export function UmpireFormDialog({
   const [email, setEmail] = useState(umpire?.email ?? "");
   const [level, setLevel] = useState<string>(String(umpire?.level ?? 1));
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!name || !email) return;
 
     setSaving(true);
+    setError(null);
     try {
       if (isEditing) {
         await updateUmpire(umpire.id, {
@@ -59,6 +61,8 @@ export function UmpireFormDialog({
       }
       onSaved();
       onOpenChange(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save umpire");
     } finally {
       setSaving(false);
     }
@@ -105,6 +109,8 @@ export function UmpireFormDialog({
               </SelectContent>
             </Select>
           </div>
+
+          {error && <p className="text-sm text-destructive">{error}</p>}
 
           <div className="flex justify-end gap-2">
             <Button

@@ -16,9 +16,10 @@ export async function getUmpires(filters?: UmpireFilters): Promise<Umpire[]> {
     query = query.eq("level", filters.level);
   }
   if (filters?.search) {
-    query = query.or(
-      `name.ilike.%${filters.search}%,email.ilike.%${filters.search}%`,
-    );
+    const sanitized = filters.search.replace(/[%_,().]/g, "");
+    if (sanitized) {
+      query = query.or(`name.ilike.%${sanitized}%,email.ilike.%${sanitized}%`);
+    }
   }
 
   const { data, error } = await query;
@@ -56,6 +57,10 @@ export async function updateUmpire(
   updates: Partial<{ name: string; email: string; level: 1 | 2 | 3 }>,
 ): Promise<Umpire> {
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
 
   const cleanUpdates: Record<string, unknown> = {};
   if (updates.name !== undefined) cleanUpdates.name = updates.name.trim();
@@ -76,6 +81,11 @@ export async function updateUmpire(
 
 export async function deleteUmpire(id: string): Promise<void> {
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
   const { error } = await supabase.from("umpires").delete().eq("id", id);
   if (error) throw new Error(error.message);
 }
