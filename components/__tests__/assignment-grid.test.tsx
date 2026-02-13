@@ -223,12 +223,10 @@ describe("AssignmentGrid", () => {
     expect(mockDelete).toHaveBeenCalledWith("poll-1", "m1", "u1");
   });
 
-  it("can toggle between matches-as-rows and umpires-as-rows", () => {
-    render(<AssignmentGrid {...defaultProps} />);
+  it("renders transposed view when transposed prop is true", () => {
+    render(<AssignmentGrid {...defaultProps} transposed />);
 
-    const toggleButton = screen.getByRole("button", { name: /swap/i });
-    fireEvent.click(toggleButton);
-
-    expect(toggleButton).toBeInTheDocument();
+    // In transposed view, the first column header is "Umpire"
+    expect(screen.getByText("Umpire")).toBeInTheDocument();
   });
 });

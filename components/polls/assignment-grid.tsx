@@ -1,9 +1,8 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
-import { Check, Ban, AlertTriangle, ArrowRightLeft } from "lucide-react";
+import { Fragment, useState, useMemo, useCallback } from "react";
+import { Check, Ban, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { createAssignment, deleteAssignment } from "@/lib/actions/assignments";
 import { mapMatchesToSlots } from "@/lib/domain/match-slot-mapping";
@@ -26,6 +25,7 @@ type Props = {
   responses: AvailabilityResponse[];
   assignments: Assignment[];
   umpires: Umpire[];
+  transposed?: boolean;
 };
 
 const AVAILABILITY_COLORS: Record<string, string> = {
@@ -43,10 +43,10 @@ export function AssignmentGrid({
   responses,
   assignments: initialAssignments,
   umpires,
+  transposed = false,
 }: Props) {
   const [assignments, setAssignments] = useState(initialAssignments);
   const [saving, setSaving] = useState<string | null>(null);
-  const [transposed, setTransposed] = useState(false);
 
   const matchSlotMap = useMemo(
     () => mapMatchesToSlots(matches, slots),
@@ -75,6 +75,14 @@ export function AssignmentGrid({
     const counts = new Map<string, number>();
     for (const a of assignments) {
       counts.set(a.match_id, (counts.get(a.match_id) ?? 0) + 1);
+    }
+    return counts;
+  }, [assignments]);
+
+  const umpireAssignmentCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const a of assignments) {
+      counts.set(a.umpire_id, (counts.get(a.umpire_id) ?? 0) + 1);
     }
     return counts;
   }, [assignments]);
@@ -178,6 +186,34 @@ export function AssignmentGrid({
     [matches],
   );
 
+  const dateGroups = useMemo(() => {
+    const groups: {
+      date: string;
+      label: string;
+      matches: typeof sortedMatches;
+    }[] = [];
+    for (const match of sortedMatches) {
+      const last = groups[groups.length - 1];
+      if (last && last.date === match.date) {
+        last.matches.push(match);
+      } else {
+        groups.push({
+          date: match.date,
+          label: new Date(match.date + "T12:00:00").toLocaleDateString(
+            "nl-NL",
+            {
+              weekday: "short",
+              day: "numeric",
+              month: "short",
+            },
+          ),
+          matches: [match],
+        });
+      }
+    }
+    return groups;
+  }, [sortedMatches]);
+
   if (umpires.length === 0) {
     return (
       <p className="text-sm text-muted-foreground py-4">
@@ -245,63 +281,79 @@ export function AssignmentGrid({
   if (!transposed) {
     return (
       <div className="flex flex-col gap-2">
-        <div className="flex justify-end">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setTransposed(true)}
-            aria-label="Swap rows and columns"
-          >
-            <ArrowRightLeft className="mr-2 h-4 w-4" />
-            Swap axes
-          </Button>
-        </div>
-        <div className="scrollbar-visible overflow-x-auto pb-2">
+        <div className="overflow-auto max-h-[70vh] pb-2">
           <table className="min-w-full text-sm border-collapse">
-            <thead>
-              <tr>
-                <th className="text-left p-2 font-medium sticky left-0 z-10 bg-background min-w-48">
+            <thead className="sticky top-0 z-20">
+              <tr className="bg-background">
+                <th className="text-left p-2 font-medium sticky left-0 z-30 bg-background max-w-[40vw]">
                   Match
                 </th>
-                <th className="p-2 text-center font-medium min-w-12" />
+                <th className="p-2 text-center font-medium min-w-12 bg-background" />
                 {umpires.map((u) => (
                   <th
                     key={u.id}
-                    className="p-2 text-center font-medium whitespace-nowrap min-w-20"
+                    className="p-2 text-center font-medium whitespace-nowrap min-w-16 bg-background"
                   >
-                    {u.name}
+                    <div className="flex flex-col items-center gap-0.5">
+                      <span>{u.name}</span>
+                      <span className="text-[11px] font-normal text-muted-foreground tabular-nums">
+                        {umpireAssignmentCounts.get(u.id) ?? 0}
+                      </span>
+                    </div>
                   </th>
                 ))}
               </tr>
+              <tr className="bg-background">
+                <td
+                  colSpan={2 + umpires.length}
+                  className="h-px bg-border p-0"
+                />
+              </tr>
             </thead>
             <tbody>
-              {sortedMatches.map((match) => (
-                <tr key={match.id} className="border-b">
-                  <td className="p-2 sticky left-0 z-10 bg-background">
-                    <div className="flex flex-col">
-                      <span className="font-medium">
-                        {match.home_team} &ndash; {match.away_team}
+              {dateGroups.map((group) => (
+                <Fragment key={group.date}>
+                  <tr>
+                    <td className="pt-4 pb-1 px-2 bg-background sticky left-0 z-10">
+                      <span className="text-sm font-semibold capitalize whitespace-nowrap">
+                        {group.label}
                       </span>
-                      <span className="text-xs text-muted-foreground">
-                        {new Date(match.date).toLocaleDateString("nl-NL", {
-                          weekday: "short",
-                          day: "numeric",
-                          month: "short",
-                        })}
-                        {match.start_time &&
-                          ` ${new Date(match.start_time).toLocaleTimeString("nl-NL", { hour: "2-digit", minute: "2-digit" })}`}
-                      </span>
-                    </div>
-                  </td>
-                  <td className="p-2 text-center">
-                    {renderCountBadge(match.id)}
-                  </td>
-                  {umpires.map((u) => (
-                    <td key={u.id} className="p-1">
-                      {renderCell(match.id, u.id)}
                     </td>
+                    <td
+                      colSpan={1 + umpires.length}
+                      className="pt-4 pb-1 bg-background align-bottom"
+                    >
+                      <div className="h-px bg-border" />
+                    </td>
+                  </tr>
+                  {group.matches.map((match) => (
+                    <tr key={match.id} className="border-b border-border/50">
+                      <td className="py-1.5 px-2 sticky left-0 z-10 bg-background max-w-[40vw]">
+                        <div className="flex items-baseline gap-2">
+                          {match.start_time && (
+                            <span className="text-xs tabular-nums text-muted-foreground shrink-0">
+                              {new Date(match.start_time).toLocaleTimeString(
+                                "nl-NL",
+                                { hour: "2-digit", minute: "2-digit" },
+                              )}
+                            </span>
+                          )}
+                          <span className="font-medium truncate">
+                            {match.home_team} &ndash; {match.away_team}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="py-1.5 px-1 text-center">
+                        {renderCountBadge(match.id)}
+                      </td>
+                      {umpires.map((u) => (
+                        <td key={u.id} className="p-1">
+                          {renderCell(match.id, u.id)}
+                        </td>
+                      ))}
+                    </tr>
                   ))}
-                </tr>
+                </Fragment>
               ))}
             </tbody>
           </table>
@@ -312,17 +364,6 @@ export function AssignmentGrid({
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="flex justify-end">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setTransposed(false)}
-          aria-label="Swap rows and columns"
-        >
-          <ArrowRightLeft className="mr-2 h-4 w-4" />
-          Swap axes
-        </Button>
-      </div>
       <div className="scrollbar-visible overflow-x-auto pb-2">
         <table className="min-w-full text-sm border-collapse">
           <thead>
@@ -330,39 +371,68 @@ export function AssignmentGrid({
               <th className="text-left p-2 font-medium sticky left-0 z-10 bg-background min-w-32">
                 Umpire
               </th>
-              {sortedMatches.map((match) => (
-                <th
-                  key={match.id}
-                  className="p-2 text-center font-medium whitespace-nowrap min-w-24"
-                >
-                  <div className="flex flex-col items-center gap-1">
-                    <span className="text-xs text-muted-foreground">
-                      {new Date(match.date).toLocaleDateString("nl-NL", {
-                        weekday: "short",
-                        day: "numeric",
-                        month: "short",
-                      })}
-                    </span>
-                    <span className="text-[11px]">
-                      {match.home_team} &ndash; {match.away_team}
-                    </span>
-                    {renderCountBadge(match.id)}
-                  </div>
-                </th>
-              ))}
+              {sortedMatches.map((match, i) => {
+                const prevMatch = sortedMatches[i - 1];
+                const showDate = !prevMatch || prevMatch.date !== match.date;
+                return (
+                  <th
+                    key={match.id}
+                    className={`p-2 text-center font-medium whitespace-nowrap min-w-24 ${showDate && i > 0 ? "border-l-2 border-border" : ""}`}
+                  >
+                    <div className="flex flex-col items-center gap-0.5">
+                      {showDate && (
+                        <span className="text-xs font-semibold text-foreground capitalize">
+                          {new Date(
+                            match.date + "T12:00:00",
+                          ).toLocaleDateString("nl-NL", {
+                            weekday: "short",
+                            day: "numeric",
+                            month: "short",
+                          })}
+                        </span>
+                      )}
+                      {match.start_time && (
+                        <span className="text-[11px] tabular-nums text-muted-foreground">
+                          {new Date(match.start_time).toLocaleTimeString(
+                            "nl-NL",
+                            { hour: "2-digit", minute: "2-digit" },
+                          )}
+                        </span>
+                      )}
+                      <span className="text-[11px] leading-tight">
+                        {match.home_team} &ndash; {match.away_team}
+                      </span>
+                      {renderCountBadge(match.id)}
+                    </div>
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody>
             {umpires.map((u) => (
               <tr key={u.id} className="border-b">
                 <td className="p-2 font-medium sticky left-0 z-10 bg-background whitespace-nowrap">
-                  {u.name}
+                  <div className="flex items-baseline gap-2">
+                    <span>{u.name}</span>
+                    <span className="text-[11px] font-normal text-muted-foreground tabular-nums">
+                      {umpireAssignmentCounts.get(u.id) ?? 0}
+                    </span>
+                  </div>
                 </td>
-                {sortedMatches.map((match) => (
-                  <td key={match.id} className="p-1">
-                    {renderCell(match.id, u.id)}
-                  </td>
-                ))}
+                {sortedMatches.map((match, i) => {
+                  const prevMatch = sortedMatches[i - 1];
+                  const showBorder =
+                    i > 0 && (!prevMatch || prevMatch.date !== match.date);
+                  return (
+                    <td
+                      key={match.id}
+                      className={`p-1 ${showBorder ? "border-l-2 border-border" : ""}`}
+                    >
+                      {renderCell(match.id, u.id)}
+                    </td>
+                  );
+                })}
               </tr>
             ))}
           </tbody>
