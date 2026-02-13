@@ -1,5 +1,33 @@
 # Changelog
 
+## [1.1.0](https://github.com/sauerhosen/fluitplanner/compare/v1.0.0...v1.1.0) (2026-02-13)
+
+
+### Features
+
+* add KNHB mapper and file parsers (CSV, Excel, paste) ([87a9af1](https://github.com/sauerhosen/fluitplanner/commit/87a9af1600472e9d1203d925bf8c061a6337d6a2))
+* add ManagedTeam type, update Match with field/required_level, add parser types ([679defa](https://github.com/sauerhosen/fluitplanner/commit/679defa84d82c961f018705e505745479e2841e5))
+* add server actions for managed teams and matches ([9afa5a1](https://github.com/sauerhosen/fluitplanner/commit/9afa5a13d11d2a9a44b6494f146ac3fd9e3e2d62))
+* add settings page, matches page, and navigation ([0e7ebae](https://github.com/sauerhosen/fluitplanner/commit/0e7ebae4aac5251d642e9a4a13fc1530e4a8713e))
+* add Stage 1 database schema and core domain logic ([19dcc5c](https://github.com/sauerhosen/fluitplanner/commit/19dcc5c39889ca404a8264ede92136883daebdc1))
+* add Stage 2 schema — managed_teams table, matches field/level columns, upsert constraint ([e50e7fe](https://github.com/sauerhosen/fluitplanner/commit/e50e7feb752063459afc0591b56ee47fa820db7b))
+* add Stage 3 umpire management ([66592a0](https://github.com/sauerhosen/fluitplanner/commit/66592a0b2a28ad5b62675eb7422014dd0b5b1f80))
+* add Stage 3 umpire management with CRUD, E2E tests, and automated auth ([77e826d](https://github.com/sauerhosen/fluitplanner/commit/77e826d3a0f389691394eccfe1270169b6681ca6))
+* add Stage 4 availability poll creation and management ([#10](https://github.com/sauerhosen/fluitplanner/issues/10)) ([39d5429](https://github.com/sauerhosen/fluitplanner/commit/39d54299cca1d11bf255545c79bbc2b9e8f8497e))
+* migrate to Tailwind CSS v4 ([5eaf898](https://github.com/sauerhosen/fluitplanner/commit/5eaf898c3350a2c55fee44a553be6bcde05758c8))
+* migrate to Tailwind CSS v4 with CSS-first configuration ([1e46b88](https://github.com/sauerhosen/fluitplanner/commit/1e46b880d2e10305df13b7bbf809fb1a4728d8cd))
+* Stage 1 — database schema and core domain logic ([da4e849](https://github.com/sauerhosen/fluitplanner/commit/da4e84960107ece135e9d0acbeb44d06797d0ebd))
+* Stage 2 — Match management (planner) ([d30439f](https://github.com/sauerhosen/fluitplanner/commit/d30439fa6c135665c8661405bcec938636395e8b))
+
+
+### Bug Fixes
+
+* add Next.js build cache to CI ([2ed1234](https://github.com/sauerhosen/fluitplanner/commit/2ed12341ae91c0133d7ee21fa592866ede49f17d))
+* add Next.js build cache to CI workflow ([a70a712](https://github.com/sauerhosen/fluitplanner/commit/a70a7125669c8a925668ad0fa33964541afbb45c))
+* format CHANGELOG.md to pass prettier check ([2fab33c](https://github.com/sauerhosen/fluitplanner/commit/2fab33cc5071ed6f092b7a5133fa460506cd0970))
+* preserve timezone when persisting edited match start times ([dacf076](https://github.com/sauerhosen/fluitplanner/commit/dacf07669fafb1e86c05091df8970fc1cd83b8ea))
+* sanitize search filter input, add auth checks, and show form errors ([321a6b7](https://github.com/sauerhosen/fluitplanner/commit/321a6b714931834f68552a6c5a44884b0489f9ba))
+
 ## 1.0.0 (2026-02-12)
 
 ### Features
