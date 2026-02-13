@@ -61,3 +61,11 @@ export type TimeSlot = {
   start: Date;
   end: Date;
 };
+
+export type Assignment = {
+  id: string;
+  poll_id: string;
+  match_id: string;
+  umpire_id: string;
+  created_at: string;
+};
