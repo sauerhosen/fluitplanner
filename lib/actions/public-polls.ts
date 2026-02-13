@@ -155,7 +155,7 @@ export async function submitResponses(
 
   const { error } = await supabase
     .from("availability_responses")
-    .upsert(rows, { onConflict: "poll_id,slot_id,participant_name" });
+    .upsert(rows, { onConflict: "poll_id,slot_id,umpire_id" });
 
   if (error) throw new Error(error.message);
 }

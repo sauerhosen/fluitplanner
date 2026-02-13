@@ -58,9 +58,9 @@ export function PollResponsePage({ poll, slots }: Props) {
       if (savedId) {
         const found = await findUmpireById(savedId);
         if (found) {
-          setUmpire(found);
           const responses = await getMyResponses(poll.id, found.id);
           setExistingResponses(responses);
+          setUmpire(found);
         } else {
           deleteCookie(COOKIE_NAME);
         }
