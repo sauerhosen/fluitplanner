@@ -46,6 +46,16 @@ export type ManagedTeam = {
   created_at: string;
 };
 
+export type Umpire = {
+  id: string;
+  auth_user_id: string | null;
+  name: string;
+  email: string;
+  level: 1 | 2 | 3;
+  created_at: string;
+  updated_at: string;
+};
+
 export type TimeSlot = {
   start: Date;
   end: Date;
