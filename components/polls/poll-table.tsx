@@ -65,67 +65,71 @@ export function PollTable({
   }
 
   return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>Title</TableHead>
-          <TableHead>Dates</TableHead>
-          <TableHead className="w-24">Status</TableHead>
-          <TableHead className="w-24">Responses</TableHead>
-          <TableHead className="w-40">Share</TableHead>
-          <TableHead className="w-12"></TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {polls.map((poll) => (
-          <TableRow key={poll.id}>
-            <TableCell
-              className="font-medium cursor-pointer hover:underline"
-              onClick={() => router.push(`/protected/polls/${poll.id}`)}
-            >
-              {poll.title}
-            </TableCell>
-            <TableCell>
-              {formatDateRange(poll.match_date_min, poll.match_date_max)}
-            </TableCell>
-            <TableCell>
-              <Badge variant={poll.status === "open" ? "default" : "secondary"}>
-                {poll.status === "open" ? "Open" : "Closed"}
-              </Badge>
-            </TableCell>
-            <TableCell>{poll.response_count}</TableCell>
-            <TableCell>
-              <SharePollButton token={poll.token} />
-            </TableCell>
-            <TableCell>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8">
-                    <MoreHorizontal className="h-4 w-4" />
-                    <span className="sr-only">More actions</span>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem
-                    onClick={() => router.push(`/protected/polls/${poll.id}`)}
-                  >
-                    <Eye className="mr-2 h-4 w-4" />
-                    View Details
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => handleDelete(poll.id)}
-                    disabled={deletingId === poll.id}
-                    className="text-destructive"
-                  >
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    Delete
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </TableCell>
+    <div className="overflow-x-auto">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Title</TableHead>
+            <TableHead>Dates</TableHead>
+            <TableHead className="w-24">Status</TableHead>
+            <TableHead className="w-24">Responses</TableHead>
+            <TableHead className="w-40">Share</TableHead>
+            <TableHead className="w-12"></TableHead>
           </TableRow>
-        ))}
-      </TableBody>
-    </Table>
+        </TableHeader>
+        <TableBody>
+          {polls.map((poll) => (
+            <TableRow key={poll.id}>
+              <TableCell
+                className="font-medium cursor-pointer hover:underline"
+                onClick={() => router.push(`/protected/polls/${poll.id}`)}
+              >
+                {poll.title}
+              </TableCell>
+              <TableCell>
+                {formatDateRange(poll.match_date_min, poll.match_date_max)}
+              </TableCell>
+              <TableCell>
+                <Badge
+                  variant={poll.status === "open" ? "default" : "secondary"}
+                >
+                  {poll.status === "open" ? "Open" : "Closed"}
+                </Badge>
+              </TableCell>
+              <TableCell>{poll.response_count}</TableCell>
+              <TableCell>
+                <SharePollButton token={poll.token} />
+              </TableCell>
+              <TableCell>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                      <MoreHorizontal className="h-4 w-4" />
+                      <span className="sr-only">More actions</span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem
+                      onClick={() => router.push(`/protected/polls/${poll.id}`)}
+                    >
+                      <Eye className="mr-2 h-4 w-4" />
+                      View Details
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => handleDelete(poll.id)}
+                      disabled={deletingId === poll.id}
+                      className="text-destructive"
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Delete
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
   );
 }

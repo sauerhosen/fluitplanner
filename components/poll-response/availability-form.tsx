@@ -113,9 +113,11 @@ export function AvailabilityForm({
           </div>
         </div>
       ))}
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && (
+        <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+      )}
       {saved && (
-        <p className="text-sm text-green-600">
+        <p className="text-sm text-green-600 dark:text-green-400">
           Your availability has been saved!
         </p>
       )}

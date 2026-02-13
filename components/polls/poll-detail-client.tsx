@@ -199,7 +199,7 @@ export function PollDetailClient({
 
       {/* Matches, Responses & Assignments */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center justify-between gap-2 overflow-x-auto">
           <TabsList>
             <TabsTrigger value="matches">
               Matches ({poll.matches.length})
