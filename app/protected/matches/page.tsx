@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { TableSkeleton } from "@/components/skeletons";
 import { getMatches } from "@/lib/actions/matches";
 import { getManagedTeams } from "@/lib/actions/managed-teams";
 import { MatchesPageClient } from "@/components/matches/matches-page-client";
@@ -23,11 +24,7 @@ export default function MatchesPage() {
           Upload match schedules and manage individual matches.
         </p>
       </div>
-      <Suspense
-        fallback={
-          <div className="text-muted-foreground">Loading matches...</div>
-        }
-      >
+      <Suspense fallback={<TableSkeleton />}>
         <MatchesLoader />
       </Suspense>
     </div>

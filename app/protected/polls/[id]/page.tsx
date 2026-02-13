@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { PollDetailSkeleton } from "@/components/skeletons";
 import { notFound } from "next/navigation";
 import { getPoll, getAvailableMatches } from "@/lib/actions/polls";
 import { getUmpiresForPoll } from "@/lib/actions/assignments";
@@ -35,9 +36,7 @@ export default function PollDetailPage({
   params: Promise<{ id: string }>;
 }) {
   return (
-    <Suspense
-      fallback={<div className="text-muted-foreground">Loading poll...</div>}
-    >
+    <Suspense fallback={<PollDetailSkeleton />}>
       <PollDetailLoader params={params} />
     </Suspense>
   );

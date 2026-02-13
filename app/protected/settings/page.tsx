@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { TableSkeleton } from "@/components/skeletons";
 import { getManagedTeams } from "@/lib/actions/managed-teams";
 import { ManagedTeamsList } from "@/components/settings/managed-teams-list";
 
@@ -19,11 +20,7 @@ export default function SettingsPage() {
       </div>
       <div>
         <h2 className="text-lg font-semibold mb-4">Managed Teams</h2>
-        <Suspense
-          fallback={
-            <div className="text-muted-foreground">Loading teams...</div>
-          }
-        >
+        <Suspense fallback={<TableSkeleton rows={3} cols={3} />}>
           <ManagedTeamsLoader />
         </Suspense>
       </div>

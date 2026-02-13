@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { TableSkeleton } from "@/components/skeletons";
 import { getUmpires } from "@/lib/actions/umpires";
 import { UmpiresPageClient } from "@/components/umpires/umpires-page-client";
 
@@ -18,11 +19,7 @@ export default function UmpiresPage() {
           respond to an availability poll.
         </p>
       </div>
-      <Suspense
-        fallback={
-          <div className="text-muted-foreground">Loading umpires...</div>
-        }
-      >
+      <Suspense fallback={<TableSkeleton />}>
         <UmpiresLoader />
       </Suspense>
     </div>
