@@ -112,3 +112,98 @@ describe("getPollByToken", () => {
     expect(result!.slots[0].id).toBe("slot-1");
   });
 });
+
+/* ================================================================== */
+/*  findOrCreateUmpire                                                 */
+/* ================================================================== */
+
+describe("findOrCreateUmpire", () => {
+  it("returns existing umpire when email matches", async () => {
+    const umpire = {
+      id: "ump-1",
+      auth_user_id: null,
+      name: "Jan",
+      email: "jan@example.com",
+      level: 1,
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+    };
+
+    // .from("umpires").select("*").eq("email", ...).single() → umpire
+    mockSingle.mockResolvedValueOnce({ data: umpire, error: null });
+
+    const { findOrCreateUmpire } = await import("@/lib/actions/public-polls");
+    const result = await findOrCreateUmpire("Jan@Example.com");
+    expect(result).toEqual(umpire);
+  });
+
+  it("returns null when email not found and no name provided", async () => {
+    mockSingle.mockResolvedValueOnce({
+      data: null,
+      error: { message: "not found", code: "PGRST116" },
+    });
+
+    const { findOrCreateUmpire } = await import("@/lib/actions/public-polls");
+    const result = await findOrCreateUmpire("unknown@example.com");
+    expect(result).toBeNull();
+  });
+
+  it("creates new umpire when email not found and name provided", async () => {
+    const newUmpire = {
+      id: "ump-new",
+      auth_user_id: null,
+      name: "Piet",
+      email: "piet@example.com",
+      level: 1,
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+    };
+
+    // First: lookup fails
+    mockSingle.mockResolvedValueOnce({
+      data: null,
+      error: { message: "not found", code: "PGRST116" },
+    });
+    // Second: insert → select → single → new umpire
+    mockSingle.mockResolvedValueOnce({ data: newUmpire, error: null });
+
+    const { findOrCreateUmpire } = await import("@/lib/actions/public-polls");
+    const result = await findOrCreateUmpire("Piet@Example.com", "Piet");
+    expect(result).toEqual(newUmpire);
+  });
+});
+
+/* ================================================================== */
+/*  findUmpireById                                                     */
+/* ================================================================== */
+
+describe("findUmpireById", () => {
+  it("returns umpire when found", async () => {
+    const umpire = {
+      id: "ump-1",
+      auth_user_id: null,
+      name: "Jan",
+      email: "jan@example.com",
+      level: 1,
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+    };
+
+    mockSingle.mockResolvedValueOnce({ data: umpire, error: null });
+
+    const { findUmpireById } = await import("@/lib/actions/public-polls");
+    const result = await findUmpireById("ump-1");
+    expect(result).toEqual(umpire);
+  });
+
+  it("returns null when not found", async () => {
+    mockSingle.mockResolvedValueOnce({
+      data: null,
+      error: { message: "not found" },
+    });
+
+    const { findUmpireById } = await import("@/lib/actions/public-polls");
+    const result = await findUmpireById("bad-id");
+    expect(result).toBeNull();
+  });
+});
