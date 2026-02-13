@@ -21,6 +21,9 @@ export default function ProtectedLayout({
                 <Link href="/protected/matches" className="hover:underline">
                   Matches
                 </Link>
+                <Link href="/protected/polls" className="hover:underline">
+                  Polls
+                </Link>
                 <Link href="/protected/umpires" className="hover:underline">
                   Umpires
                 </Link>
