@@ -34,6 +34,7 @@ export type AvailabilityResponse = {
   slot_id: string;
   participant_name: string;
   response: "yes" | "if_need_be" | "no";
+  umpire_id: string | null;
   created_at: string;
   updated_at: string;
 };
