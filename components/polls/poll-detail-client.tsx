@@ -112,7 +112,7 @@ export function PollDetailClient({ initialPoll, availableMatches }: Props) {
   }
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex min-w-0 flex-col gap-8">
       {error && (
         <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
           {error}
@@ -188,10 +188,12 @@ export function PollDetailClient({ initialPoll, availableMatches }: Props) {
         <SharePollButton token={poll.token} />
       </div>
 
-      {/* Matches */}
+      {/* Matches & Slots */}
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between">
-          <Label>Matches ({poll.matches.length})</Label>
+          <Label>
+            Matches ({poll.matches.length}) &middot; Slots ({poll.slots.length})
+          </Label>
           <Button
             variant="outline"
             size="sm"
@@ -225,44 +227,111 @@ export function PollDetailClient({ initialPoll, availableMatches }: Props) {
             </Button>
           </div>
         ) : (
-          <div className="flex flex-col gap-1">
-            {poll.matches.map((match) => (
-              <div
-                key={match.id}
-                className="border-b py-1 text-sm last:border-0"
-              >
-                <span className="font-medium">
-                  {match.home_team} – {match.away_team}
-                </span>
-                {match.start_time && (
-                  <span className="text-muted-foreground ml-2">
-                    {new Date(match.start_time).toLocaleString("nl-NL", {
-                      weekday: "short",
-                      day: "numeric",
-                      month: "short",
-                      hour: "2-digit",
-                      minute: "2-digit",
+          <div className="flex flex-col gap-4">
+            {(() => {
+              const sortedSlots = poll.slots
+                .slice()
+                .sort(
+                  (a, b) =>
+                    new Date(a.start_time).getTime() -
+                    new Date(b.start_time).getTime(),
+                );
+              const dateGroups: {
+                dateKey: string;
+                label: string;
+                slots: typeof sortedSlots;
+              }[] = [];
+              for (const slot of sortedSlots) {
+                const dateKey = new Date(slot.start_time).toDateString();
+                const last = dateGroups[dateGroups.length - 1];
+                if (last && last.dateKey === dateKey) {
+                  last.slots.push(slot);
+                } else {
+                  dateGroups.push({
+                    dateKey,
+                    label: new Date(slot.start_time).toLocaleDateString(
+                      "nl-NL",
+                      {
+                        weekday: "long",
+                        day: "numeric",
+                        month: "long",
+                      },
+                    ),
+                    slots: [slot],
+                  });
+                }
+              }
+              return dateGroups.map((group) => (
+                <div key={group.dateKey}>
+                  <div className="text-muted-foreground mb-2 text-xs font-semibold uppercase tracking-wide">
+                    {group.label}
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    {group.slots.map((slot) => {
+                      const slotStart = new Date(slot.start_time).getTime();
+                      const slotEnd = new Date(slot.end_time).getTime();
+                      const slotMatches = poll.matches.filter((m) => {
+                        if (!m.start_time) return false;
+                        const mt = new Date(m.start_time).getTime();
+                        return mt >= slotStart && mt < slotEnd;
+                      });
+                      return (
+                        <div key={slot.id} className="rounded-lg border">
+                          <div className="bg-muted px-3 py-2 text-sm font-medium">
+                            {new Date(slot.start_time).toLocaleTimeString(
+                              "nl-NL",
+                              {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              },
+                            )}
+                            {" – "}
+                            {new Date(slot.end_time).toLocaleTimeString(
+                              "nl-NL",
+                              {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              },
+                            )}
+                          </div>
+                          {slotMatches.length > 0 ? (
+                            <div className="divide-y px-3">
+                              {slotMatches.map((match) => (
+                                <div
+                                  key={match.id}
+                                  className="flex items-baseline justify-between py-1.5 text-sm"
+                                >
+                                  <span>
+                                    {match.home_team} – {match.away_team}
+                                  </span>
+                                  {match.start_time && (
+                                    <span className="text-muted-foreground text-xs">
+                                      {new Date(
+                                        match.start_time,
+                                      ).toLocaleTimeString("nl-NL", {
+                                        hour: "2-digit",
+                                        minute: "2-digit",
+                                      })}
+                                    </span>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="text-muted-foreground px-3 py-1.5 text-sm">
+                              No matches in this slot
+                            </div>
+                          )}
+                        </div>
+                      );
                     })}
-                  </span>
-                )}
-              </div>
-            ))}
+                  </div>
+                </div>
+              ));
+            })()}
           </div>
         )}
       </div>
-
-      {/* Time Slots */}
-      {!editingMatches && (
-        <div className="flex flex-col gap-2">
-          <Label>Time Slots ({poll.slots.length})</Label>
-          <SlotPreview
-            slots={poll.slots.map((s) => ({
-              start: new Date(s.start_time),
-              end: new Date(s.end_time),
-            }))}
-          />
-        </div>
-      )}
 
       {/* Responses */}
       <div className="flex flex-col gap-2">
