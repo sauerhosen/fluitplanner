@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { getPollByToken } from "@/lib/actions/public-polls";
 import { PollResponsePage } from "@/components/poll-response/poll-response-page";
 
@@ -5,7 +6,7 @@ type Props = {
   params: Promise<{ token: string }>;
 };
 
-export default async function PublicPollPage({ params }: Props) {
+async function PollLoader({ params }: Props) {
   const { token } = await params;
   const data = await getPollByToken(token);
 
@@ -26,5 +27,19 @@ export default async function PublicPollPage({ params }: Props) {
     <div className="mx-auto min-h-screen max-w-lg p-4">
       <PollResponsePage poll={data.poll} slots={data.slots} />
     </div>
+  );
+}
+
+export default function PublicPollPage({ params }: Props) {
+  return (
+    <Suspense
+      fallback={
+        <div className="text-muted-foreground flex min-h-screen items-center justify-center p-4">
+          Loading poll...
+        </div>
+      }
+    >
+      <PollLoader params={params} />
+    </Suspense>
   );
 }
