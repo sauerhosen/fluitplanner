@@ -368,29 +368,33 @@ export function AssignmentGrid({
         <table className="min-w-full text-sm border-collapse">
           <thead>
             <tr>
-              <th className="text-left p-2 font-medium sticky left-0 z-10 bg-background min-w-32">
+              <th
+                rowSpan={2}
+                className="text-left p-2 font-medium sticky left-0 z-10 bg-background min-w-32 align-bottom"
+              >
                 Umpire
               </th>
+              {dateGroups.map((group, gi) => (
+                <th
+                  key={group.date}
+                  colSpan={group.matches.length}
+                  className={`p-1 pb-0 text-center font-semibold text-xs capitalize ${gi > 0 ? "border-l-2 border-border" : ""}`}
+                >
+                  {group.label}
+                </th>
+              ))}
+            </tr>
+            <tr>
               {sortedMatches.map((match, i) => {
                 const prevMatch = sortedMatches[i - 1];
-                const showDate = !prevMatch || prevMatch.date !== match.date;
+                const showBorder =
+                  i > 0 && (!prevMatch || prevMatch.date !== match.date);
                 return (
                   <th
                     key={match.id}
-                    className={`p-2 text-center font-medium whitespace-nowrap min-w-24 ${showDate && i > 0 ? "border-l-2 border-border" : ""}`}
+                    className={`p-2 pt-0 text-center font-medium whitespace-nowrap min-w-24 ${showBorder ? "border-l-2 border-border" : ""}`}
                   >
                     <div className="flex flex-col items-center gap-0.5">
-                      {showDate && (
-                        <span className="text-xs font-semibold text-foreground capitalize">
-                          {new Date(
-                            match.date + "T12:00:00",
-                          ).toLocaleDateString("nl-NL", {
-                            weekday: "short",
-                            day: "numeric",
-                            month: "short",
-                          })}
-                        </span>
-                      )}
                       {match.start_time && (
                         <span className="text-[11px] tabular-nums text-muted-foreground">
                           {new Date(match.start_time).toLocaleTimeString(
