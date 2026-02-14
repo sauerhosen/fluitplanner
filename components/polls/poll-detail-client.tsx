@@ -371,7 +371,11 @@ export function PollDetailClient({
           </div>
         </TabsContent>
         <TabsContent value="responses">
-          <ResponseSummary slots={poll.slots} responses={poll.responses} />
+          <ResponseSummary
+            pollId={poll.id}
+            slots={poll.slots}
+            responses={poll.responses}
+          />
         </TabsContent>
         <TabsContent value="assignments">
           <AssignmentGrid
