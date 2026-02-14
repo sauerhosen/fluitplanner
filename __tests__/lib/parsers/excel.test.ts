@@ -44,6 +44,23 @@ describe("parseExcel", () => {
     expect(rows).toEqual([]);
   });
 
+  it("skips blank rows", async () => {
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet("Sheet1");
+    sheet.addRow(["Name", "Email"]);
+    sheet.addRow(["Alice", "a@b.com"]);
+    sheet.addRow([]); // blank row
+    sheet.addRow(["Bob", "b@c.com"]);
+    const result = await workbook.xlsx.writeBuffer();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const buf = (result as any).buffer as ArrayBuffer;
+
+    const rows = await parseExcel(buf);
+    expect(rows).toHaveLength(2);
+    expect(rows[0]["Name"]).toBe("Alice");
+    expect(rows[1]["Name"]).toBe("Bob");
+  });
+
   it("handles empty cells as empty strings", async () => {
     const buf = await buildExcelBuffer([
       { Name: "Alice", Email: "" },

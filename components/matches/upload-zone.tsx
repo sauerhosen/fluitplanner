@@ -39,7 +39,7 @@ export function UploadZone({
   );
 
   async function handleFile(file: File) {
-    if (file.name.endsWith(".xlsx") || file.name.endsWith(".xls")) {
+    if (file.name.endsWith(".xlsx")) {
       const buffer = await file.arrayBuffer();
       const rows = await parseExcel(buffer);
       processRows(rows);
@@ -120,7 +120,7 @@ export function UploadZone({
                 Choose File
                 <input
                   type="file"
-                  accept=".csv,.xlsx,.xls"
+                  accept=".csv,.xlsx"
                   className="hidden"
                   onChange={handleFileInput}
                 />

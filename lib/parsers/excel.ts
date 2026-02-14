@@ -20,6 +20,7 @@ export async function parseExcel(data: ArrayBuffer): Promise<RawRow[]> {
   const rows: RawRow[] = [];
   for (let i = 2; i <= sheet.rowCount; i++) {
     const row = sheet.getRow(i);
+    if (!row.hasValues) continue;
     const obj: RawRow = {};
     for (let col = 1; col < headers.length + 1; col++) {
       if (headers[col]) {
