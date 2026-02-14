@@ -32,12 +32,14 @@ export async function updatePollResponse(
 
   if (response === null) {
     // Delete the response
-    await supabase
+    const { error: deleteError } = await supabase
       .from("availability_responses")
       .delete()
       .eq("poll_id", pollId)
       .eq("slot_id", slotId)
       .eq("umpire_id", umpireId);
+
+    if (deleteError) return { error: deleteError.message };
   } else {
     // Look up umpire name for participant_name field
     const { data: umpire, error: umpireError } = await supabase
