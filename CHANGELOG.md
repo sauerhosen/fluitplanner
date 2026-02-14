@@ -2,15 +2,13 @@
 
 ## [1.3.0](https://github.com/sauerhosen/fluitplanner/compare/v1.2.0...v1.3.0) (2026-02-14)
 
-
 ### Features
 
-* stage 7 — planner dashboard & polish ([#14](https://github.com/sauerhosen/fluitplanner/issues/14)) ([f96f21a](https://github.com/sauerhosen/fluitplanner/commit/f96f21a97af5c0e50f851e277da90b24fda10ed6))
-
+- stage 7 — planner dashboard & polish ([#14](https://github.com/sauerhosen/fluitplanner/issues/14)) ([f96f21a](https://github.com/sauerhosen/fluitplanner/commit/f96f21a97af5c0e50f851e277da90b24fda10ed6))
 
 ### Bug Fixes
 
-* replace leftover Supabase/Next.js branding ([#16](https://github.com/sauerhosen/fluitplanner/issues/16)) ([8b13cbb](https://github.com/sauerhosen/fluitplanner/commit/8b13cbb3508495c5a6ad5093a292b683689cf416))
+- replace leftover Supabase/Next.js branding ([#16](https://github.com/sauerhosen/fluitplanner/issues/16)) ([8b13cbb](https://github.com/sauerhosen/fluitplanner/commit/8b13cbb3508495c5a6ad5093a292b683689cf416))
 
 ## [1.2.0](https://github.com/sauerhosen/fluitplanner/compare/v1.1.0...v1.2.0) (2026-02-13)
 
