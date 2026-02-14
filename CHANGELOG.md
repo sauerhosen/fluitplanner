@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.4.1](https://github.com/sauerhosen/fluitplanner/compare/v1.4.0...v1.4.1) (2026-02-14)
+
+
+### Bug Fixes
+
+* add dashboard link on landing page for authenticated users ([#24](https://github.com/sauerhosen/fluitplanner/issues/24)) ([034a0cb](https://github.com/sauerhosen/fluitplanner/commit/034a0cb471474dd4babeba8b18d343011835c885))
+* replace xlsx with exceljs (CVE-2024-22363) ([#22](https://github.com/sauerhosen/fluitplanner/issues/22)) ([9035a6d](https://github.com/sauerhosen/fluitplanner/commit/9035a6db7b5ce8a80782c9ba097f003ecdf45432))
+
 ## [1.4.0](https://github.com/sauerhosen/fluitplanner/compare/v1.3.0...v1.4.0) (2026-02-14)
 
 
