@@ -4,10 +4,12 @@ import { PollResponsePage } from "@/components/poll-response/poll-response-page"
 
 type Props = {
   params: Promise<{ token: string }>;
+  searchParams: Promise<{ verify?: string }>;
 };
 
-async function PollLoader({ params }: Props) {
+async function PollLoader({ params, searchParams }: Props) {
   const { token } = await params;
+  const { verify } = await searchParams;
   const data = await getPollByToken(token);
 
   if (!data) {
@@ -25,12 +27,17 @@ async function PollLoader({ params }: Props) {
 
   return (
     <div className="mx-auto min-h-screen max-w-lg p-4">
-      <PollResponsePage poll={data.poll} slots={data.slots} />
+      <PollResponsePage
+        poll={data.poll}
+        slots={data.slots}
+        pollToken={token}
+        verifyToken={verify}
+      />
     </div>
   );
 }
 
-export default function PublicPollPage({ params }: Props) {
+export default function PublicPollPage({ params, searchParams }: Props) {
   return (
     <Suspense
       fallback={
@@ -39,7 +46,7 @@ export default function PublicPollPage({ params }: Props) {
         </div>
       }
     >
-      <PollLoader params={params} />
+      <PollLoader params={params} searchParams={searchParams} />
     </Suspense>
   );
 }
