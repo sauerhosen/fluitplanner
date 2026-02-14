@@ -10,6 +10,11 @@ vi.mock("@/lib/actions/public-polls", () => ({
   submitResponses: vi.fn(),
 }));
 
+vi.mock("@/lib/actions/verification", () => ({
+  verifyMagicLink: vi.fn(),
+  requestVerification: vi.fn(),
+}));
+
 import { findUmpireById, getMyResponses } from "@/lib/actions/public-polls";
 
 const mockFindUmpireById = vi.mocked(findUmpireById);
@@ -47,7 +52,9 @@ describe("PollResponsePage", () => {
   });
 
   it("shows closed message for closed poll", async () => {
-    render(<PollResponsePage poll={closedPoll} slots={slots} />);
+    render(
+      <PollResponsePage poll={closedPoll} slots={slots} pollToken="abc123" />,
+    );
 
     await waitFor(() => {
       expect(screen.getByText("Poll closed")).toBeTruthy();
@@ -58,7 +65,7 @@ describe("PollResponsePage", () => {
   });
 
   it("shows no slots message when poll has no slots", async () => {
-    render(<PollResponsePage poll={openPoll} slots={[]} />);
+    render(<PollResponsePage poll={openPoll} slots={[]} pollToken="abc123" />);
 
     await waitFor(() => {
       expect(screen.getByText("This poll has no time slots yet.")).toBeTruthy();
@@ -66,7 +73,9 @@ describe("PollResponsePage", () => {
   });
 
   it("shows email input for unauthenticated user", async () => {
-    render(<PollResponsePage poll={openPoll} slots={slots} />);
+    render(
+      <PollResponsePage poll={openPoll} slots={slots} pollToken="abc123" />,
+    );
 
     await waitFor(() => {
       expect(screen.getByText("Weekend Poll")).toBeTruthy();
@@ -93,7 +102,9 @@ describe("PollResponsePage", () => {
     mockFindUmpireById.mockResolvedValue(umpire);
     mockGetMyResponses.mockResolvedValue([]);
 
-    render(<PollResponsePage poll={openPoll} slots={slots} />);
+    render(
+      <PollResponsePage poll={openPoll} slots={slots} pollToken="abc123" />,
+    );
 
     await waitFor(() => {
       expect(screen.getByText("Jan", { exact: false })).toBeTruthy();
@@ -107,7 +118,9 @@ describe("PollResponsePage", () => {
     document.cookie = "fluitplanner_umpire_id=deleted-id; path=/";
     mockFindUmpireById.mockResolvedValue(null);
 
-    render(<PollResponsePage poll={openPoll} slots={slots} />);
+    render(
+      <PollResponsePage poll={openPoll} slots={slots} pollToken="abc123" />,
+    );
 
     await waitFor(() => {
       expect(
@@ -120,7 +133,9 @@ describe("PollResponsePage", () => {
 
   it("shows poll title as fallback when title is null", async () => {
     const untitledPoll: Poll = { ...openPoll, title: null };
-    render(<PollResponsePage poll={untitledPoll} slots={slots} />);
+    render(
+      <PollResponsePage poll={untitledPoll} slots={slots} pollToken="abc123" />,
+    );
 
     await waitFor(() => {
       expect(screen.getByText("Availability Poll")).toBeTruthy();

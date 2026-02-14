@@ -7,9 +7,15 @@ vi.mock("@/lib/actions/public-polls", () => ({
   findOrCreateUmpire: vi.fn(),
 }));
 
+vi.mock("@/lib/actions/verification", () => ({
+  requestVerification: vi.fn(),
+}));
+
 import { findOrCreateUmpire } from "@/lib/actions/public-polls";
+import { requestVerification } from "@/lib/actions/verification";
 
 const mockFindOrCreate = vi.mocked(findOrCreateUmpire);
+const mockRequestVerification = vi.mocked(requestVerification);
 
 const testUmpire: Umpire = {
   id: "ump-1",
@@ -23,26 +29,39 @@ const testUmpire: Umpire = {
 
 describe("UmpireIdentifier", () => {
   let onIdentified: ReturnType<typeof vi.fn<(umpire: Umpire) => void>>;
+  let onNeedsVerification: ReturnType<
+    typeof vi.fn<(email: string, maskedEmail: string) => void>
+  >;
 
   beforeEach(() => {
     vi.clearAllMocks();
     onIdentified = vi.fn<(umpire: Umpire) => void>();
+    onNeedsVerification = vi.fn<(email: string, maskedEmail: string) => void>();
+  });
+
+  const defaultProps = () => ({
+    pollToken: "test-token",
+    onIdentified,
+    onNeedsVerification,
   });
 
   it("renders email input form initially", () => {
-    render(<UmpireIdentifier onIdentified={onIdentified} />);
+    render(<UmpireIdentifier {...defaultProps()} />);
     expect(screen.getByLabelText("Your email")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Continue" })).toBeTruthy();
   });
 
   it("continue button is disabled with empty email", () => {
-    render(<UmpireIdentifier onIdentified={onIdentified} />);
+    render(<UmpireIdentifier {...defaultProps()} />);
     expect(screen.getByRole("button", { name: "Continue" })).toBeDisabled();
   });
 
-  it("calls onIdentified when existing umpire found", async () => {
-    mockFindOrCreate.mockResolvedValue(testUmpire);
-    render(<UmpireIdentifier onIdentified={onIdentified} />);
+  it("calls onNeedsVerification when existing umpire found", async () => {
+    mockRequestVerification.mockResolvedValue({
+      success: true,
+      maskedEmail: "j•••n@example.com",
+    });
+    render(<UmpireIdentifier {...defaultProps()} />);
 
     fireEvent.change(screen.getByLabelText("Your email"), {
       target: { value: "jan@example.com" },
@@ -50,13 +69,16 @@ describe("UmpireIdentifier", () => {
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
 
     await waitFor(() => {
-      expect(onIdentified).toHaveBeenCalledWith(testUmpire);
+      expect(onNeedsVerification).toHaveBeenCalledWith(
+        "jan@example.com",
+        "j•••n@example.com",
+      );
     });
   });
 
-  it("shows name input when email not found", async () => {
-    mockFindOrCreate.mockResolvedValue(null);
-    render(<UmpireIdentifier onIdentified={onIdentified} />);
+  it("shows name input when email not found (needsRegistration)", async () => {
+    mockRequestVerification.mockResolvedValue({ needsRegistration: true });
+    render(<UmpireIdentifier {...defaultProps()} />);
 
     fireEvent.change(screen.getByLabelText("Your email"), {
       target: { value: "new@example.com" },
@@ -70,15 +92,15 @@ describe("UmpireIdentifier", () => {
   });
 
   it("creates umpire with name and calls onIdentified", async () => {
-    // First call (email only) returns null, second call (with name) returns umpire
-    mockFindOrCreate.mockResolvedValueOnce(null);
+    // First call triggers registration flow, second call creates umpire
+    mockRequestVerification.mockResolvedValue({ needsRegistration: true });
     mockFindOrCreate.mockResolvedValueOnce({
       ...testUmpire,
       name: "Piet",
       email: "new@example.com",
     });
 
-    render(<UmpireIdentifier onIdentified={onIdentified} />);
+    render(<UmpireIdentifier {...defaultProps()} />);
 
     // Enter email
     fireEvent.change(screen.getByLabelText("Your email"), {
@@ -104,8 +126,8 @@ describe("UmpireIdentifier", () => {
   });
 
   it("shows error when lookup fails", async () => {
-    mockFindOrCreate.mockRejectedValue(new Error("Network error"));
-    render(<UmpireIdentifier onIdentified={onIdentified} />);
+    mockRequestVerification.mockRejectedValue(new Error("Network error"));
+    render(<UmpireIdentifier {...defaultProps()} />);
 
     fireEvent.change(screen.getByLabelText("Your email"), {
       target: { value: "jan@example.com" },
@@ -119,11 +141,27 @@ describe("UmpireIdentifier", () => {
     });
   });
 
+  it("shows error when verification send fails", async () => {
+    mockRequestVerification.mockResolvedValue({ error: "send_failed" });
+    render(<UmpireIdentifier {...defaultProps()} />);
+
+    fireEvent.change(screen.getByLabelText("Your email"), {
+      target: { value: "jan@example.com" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Could not send verification code. Please try again."),
+      ).toBeTruthy();
+    });
+  });
+
   it("shows error when registration returns null", async () => {
-    mockFindOrCreate.mockResolvedValueOnce(null); // email lookup
+    mockRequestVerification.mockResolvedValue({ needsRegistration: true });
     mockFindOrCreate.mockResolvedValueOnce(null); // create fails
 
-    render(<UmpireIdentifier onIdentified={onIdentified} />);
+    render(<UmpireIdentifier {...defaultProps()} />);
 
     // Email step
     fireEvent.change(screen.getByLabelText("Your email"), {

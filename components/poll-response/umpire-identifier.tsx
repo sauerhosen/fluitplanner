@@ -5,13 +5,20 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { findOrCreateUmpire } from "@/lib/actions/public-polls";
+import { requestVerification } from "@/lib/actions/verification";
 import type { Umpire } from "@/lib/types/domain";
 
 type Props = {
+  pollToken: string;
   onIdentified: (umpire: Umpire) => void;
+  onNeedsVerification: (email: string, maskedEmail: string) => void;
 };
 
-export function UmpireIdentifier({ onIdentified }: Props) {
+export function UmpireIdentifier({
+  pollToken,
+  onIdentified,
+  onNeedsVerification,
+}: Props) {
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [needsName, setNeedsName] = useState(false);
@@ -24,11 +31,17 @@ export function UmpireIdentifier({ onIdentified }: Props) {
     setError(null);
     setLoading(true);
     try {
-      const umpire = await findOrCreateUmpire(email);
-      if (umpire) {
-        onIdentified(umpire);
-      } else {
+      const result = await requestVerification(email, pollToken);
+      if ("needsRegistration" in result) {
         setNeedsName(true);
+      } else if ("success" in result) {
+        onNeedsVerification(email, result.maskedEmail);
+      } else if ("error" in result) {
+        if (result.error === "locked") {
+          setError("Too many attempts. Please try again later.");
+        } else {
+          setError("Could not send verification code. Please try again.");
+        }
       }
     } catch {
       setError("Something went wrong. Please try again.");

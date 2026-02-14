@@ -4,7 +4,9 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { AvailabilityForm } from "@/components/poll-response/availability-form";
 import { UmpireIdentifier } from "@/components/poll-response/umpire-identifier";
+import { VerificationForm } from "@/components/poll-response/verification-form";
 import { findUmpireById, getMyResponses } from "@/lib/actions/public-polls";
+import { verifyMagicLink } from "@/lib/actions/verification";
 import type {
   AvailabilityResponse,
   Poll,
@@ -43,17 +45,42 @@ function deleteCookie(name: string) {
 type Props = {
   poll: Poll;
   slots: PollSlot[];
+  pollToken: string;
+  verifyToken?: string;
 };
 
-export function PollResponsePage({ poll, slots }: Props) {
+export function PollResponsePage({
+  poll,
+  slots,
+  pollToken,
+  verifyToken,
+}: Props) {
   const [loading, setLoading] = useState(true);
   const [umpire, setUmpire] = useState<Umpire | null>(null);
   const [existingResponses, setExistingResponses] = useState<
     AvailabilityResponse[]
   >([]);
+  const [verifyState, setVerifyState] = useState<{
+    email: string;
+    maskedEmail: string;
+  } | null>(null);
 
   useEffect(() => {
-    async function checkCookie() {
+    async function init() {
+      // Try magic link verification first
+      if (verifyToken) {
+        const result = await verifyMagicLink(verifyToken);
+        if ("umpire" in result) {
+          setCookie(COOKIE_NAME, result.umpire.id, 365);
+          const responses = await getMyResponses(poll.id, result.umpire.id);
+          setExistingResponses(responses);
+          setUmpire(result.umpire);
+          setLoading(false);
+          return;
+        }
+      }
+
+      // Fall back to cookie check
       const savedId = getCookie(COOKIE_NAME);
       if (savedId) {
         const found = await findUmpireById(savedId);
@@ -67,8 +94,8 @@ export function PollResponsePage({ poll, slots }: Props) {
       }
       setLoading(false);
     }
-    checkCookie();
-  }, [poll.id]);
+    init();
+  }, [poll.id, verifyToken]);
 
   async function handleIdentified(identified: Umpire) {
     setCookie(COOKIE_NAME, identified.id, 365);
@@ -77,9 +104,14 @@ export function PollResponsePage({ poll, slots }: Props) {
     setUmpire(identified);
   }
 
+  function handleNeedsVerification(email: string, maskedEmail: string) {
+    setVerifyState({ email, maskedEmail });
+  }
+
   function handleSwitchUser() {
     deleteCookie(COOKIE_NAME);
     setUmpire(null);
+    setVerifyState(null);
     setExistingResponses([]);
   }
 
@@ -118,6 +150,26 @@ export function PollResponsePage({ poll, slots }: Props) {
     );
   }
 
+  /* Verification step */
+  if (!umpire && verifyState) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold">
+            {poll.title ?? "Availability Poll"}
+          </h1>
+        </div>
+        <VerificationForm
+          email={verifyState.email}
+          maskedEmail={verifyState.maskedEmail}
+          pollToken={pollToken}
+          onVerified={handleIdentified}
+          onBack={() => setVerifyState(null)}
+        />
+      </div>
+    );
+  }
+
   /* Not identified */
   if (!umpire) {
     return (
@@ -130,7 +182,11 @@ export function PollResponsePage({ poll, slots }: Props) {
             Enter your email to fill in your availability.
           </p>
         </div>
-        <UmpireIdentifier onIdentified={handleIdentified} />
+        <UmpireIdentifier
+          pollToken={pollToken}
+          onIdentified={handleIdentified}
+          onNeedsVerification={handleNeedsVerification}
+        />
       </div>
     );
   }
