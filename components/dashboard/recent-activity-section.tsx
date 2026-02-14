@@ -1,19 +1,21 @@
 import { getRecentActivity } from "@/lib/actions/dashboard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatDistanceToNow } from "date-fns";
+import { getTranslations } from "next-intl/server";
 
 export async function RecentActivitySection() {
+  const t = await getTranslations("dashboard");
   const events = await getRecentActivity();
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-lg">Recent activity</CardTitle>
+        <CardTitle className="text-lg">{t("recentActivity")}</CardTitle>
       </CardHeader>
       <CardContent>
         {events.length === 0 ? (
           <p className="text-muted-foreground text-sm py-2">
-            No recent activity.
+            {t("noRecentActivity")}
           </p>
         ) : (
           <ul className="flex flex-col gap-3">

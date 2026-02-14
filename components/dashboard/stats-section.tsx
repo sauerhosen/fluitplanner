@@ -1,24 +1,26 @@
 import Link from "next/link";
 import { getDashboardStats } from "@/lib/actions/dashboard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { getTranslations } from "next-intl/server";
 
 export async function StatsSection() {
+  const t = await getTranslations("dashboard");
   const stats = await getDashboardStats();
 
   const items = [
     {
-      label: "Upcoming matches",
+      label: t("upcomingMatches"),
       value: stats.upcomingMatches,
       href: "/protected/matches",
     },
-    { label: "Open polls", value: stats.openPolls, href: "/protected/polls" },
+    { label: t("openPolls"), value: stats.openPolls, href: "/protected/polls" },
     {
-      label: "Unassigned",
+      label: t("unassigned"),
       value: stats.unassignedMatches,
       href: "/protected/matches",
     },
     {
-      label: "Active umpires",
+      label: t("activeUmpires"),
       value: stats.activeUmpires,
       href: "/protected/umpires",
     },

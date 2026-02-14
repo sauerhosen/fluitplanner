@@ -12,5 +12,17 @@
     "polls": "Peilingen",
     "umpires": "Scheidsrechters",
     "settings": "Instellingen"
+  },
+  "dashboard": {
+    "pageTitle": "Dashboard",
+    "pageSubtitle": "Overzicht van je scheidsrechtersplanning.",
+    "upcomingMatches": "Komende wedstrijden",
+    "openPolls": "Open peilingen",
+    "unassigned": "Niet ingedeeld",
+    "activeUmpires": "Actieve scheidsrechters",
+    "needsAttention": "Actie vereist",
+    "allCaughtUp": "Je bent helemaal bij",
+    "recentActivity": "Recente activiteit",
+    "noRecentActivity": "Geen recente activiteit."
   }
 }

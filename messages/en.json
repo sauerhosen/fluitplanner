@@ -12,5 +12,17 @@
     "polls": "Polls",
     "umpires": "Umpires",
     "settings": "Settings"
+  },
+  "dashboard": {
+    "pageTitle": "Dashboard",
+    "pageSubtitle": "Overview of your umpire planning.",
+    "upcomingMatches": "Upcoming matches",
+    "openPolls": "Open polls",
+    "unassigned": "Unassigned",
+    "activeUmpires": "Active umpires",
+    "needsAttention": "Needs attention",
+    "allCaughtUp": "You're all caught up",
+    "recentActivity": "Recent activity",
+    "noRecentActivity": "No recent activity."
   }
 }
