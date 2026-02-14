@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.1](https://github.com/sauerhosen/fluitplanner/compare/v1.5.0...v1.5.1) (2026-02-14)
+
+
+### Bug Fixes
+
+* add --repo flag to gh pr merge in release workflow ([#35](https://github.com/sauerhosen/fluitplanner/issues/35)) ([60cf339](https://github.com/sauerhosen/fluitplanner/commit/60cf33943c76965609788d667b379f436cd3b2e7))
+
 ## [1.5.0](https://github.com/sauerhosen/fluitplanner/compare/v1.4.3...v1.5.0) (2026-02-14)
 
 
