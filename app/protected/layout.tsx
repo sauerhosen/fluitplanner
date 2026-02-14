@@ -1,4 +1,5 @@
 import { AuthButton } from "@/components/auth-button";
+import { LanguageSwitcher } from "@/components/language-switcher";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 import Image from "next/image";
 import Link from "next/link";
@@ -41,9 +42,12 @@ export default function ProtectedLayout({
                 </Link>
               </div>
             </div>
-            <Suspense>
-              <AuthButton />
-            </Suspense>
+            <div className="flex items-center gap-1">
+              <LanguageSwitcher />
+              <Suspense>
+                <AuthButton />
+              </Suspense>
+            </div>
           </div>
         </nav>
         <div className="flex-1 flex flex-col gap-20 w-full max-w-5xl p-5 overflow-hidden">
@@ -53,6 +57,7 @@ export default function ProtectedLayout({
         <footer className="w-full flex items-center justify-center border-t mx-auto text-center text-xs gap-8 py-8">
           <p className="text-muted-foreground">Fluitplanner</p>
           <ThemeSwitcher />
+          <LanguageSwitcher />
         </footer>
       </div>
     </main>
