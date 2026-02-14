@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { TableSkeleton } from "@/components/skeletons";
 import { getPolls } from "@/lib/actions/polls";
 import { PollsPageClient } from "@/components/polls/polls-page-client";
 
@@ -16,9 +17,7 @@ export default function PollsPage() {
           Create and manage availability polls for umpires.
         </p>
       </div>
-      <Suspense
-        fallback={<div className="text-muted-foreground">Loading polls...</div>}
-      >
+      <Suspense fallback={<TableSkeleton />}>
         <PollsLoader />
       </Suspense>
     </div>
