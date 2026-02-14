@@ -1,0 +1,9 @@
+{
+  "common": {
+    "save": "Opslaan",
+    "cancel": "Annuleren",
+    "delete": "Verwijderen",
+    "loading": "Laden\u2026",
+    "error": "Er is een fout opgetreden. Probeer het opnieuw."
+  }
+}
