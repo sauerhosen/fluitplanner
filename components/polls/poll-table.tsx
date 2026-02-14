@@ -22,18 +22,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { MoreHorizontal, Eye, Trash2, Inbox } from "lucide-react";
 import { SharePollButton } from "./share-poll-button";
-import { useTranslations } from "next-intl";
-
-function formatDateRange(min: string | null, max: string | null): string {
-  if (!min) return "\u2014";
-  const fmt = (d: string) =>
-    new Date(d + "T00:00:00").toLocaleDateString("nl-NL", {
-      day: "numeric",
-      month: "short",
-    });
-  if (min === max) return fmt(min);
-  return `${fmt(min)} \u2013 ${fmt(max!)}`;
-}
+import { useTranslations, useFormatter } from "next-intl";
 
 export function PollTable({
   polls,
@@ -46,6 +35,18 @@ export function PollTable({
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const t = useTranslations("polls");
   const tCommon = useTranslations("common");
+  const format = useFormatter();
+
+  function formatDateRange(min: string | null, max: string | null): string {
+    if (!min) return "\u2014";
+    const fmt = (d: string) =>
+      format.dateTime(new Date(d + "T00:00:00"), {
+        day: "numeric",
+        month: "short",
+      });
+    if (min === max) return fmt(min);
+    return `${fmt(min)} \u2013 ${fmt(max!)}`;
+  }
 
   async function handleDelete(id: string) {
     if (!confirm(t("deleteConfirm"))) return;

@@ -23,7 +23,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Pencil, Check, Trash2, ArrowRightLeft } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useTranslations, useFormatter } from "next-intl";
 
 type Props = {
   initialPoll: PollDetail;
@@ -61,6 +61,7 @@ export function PollDetailClient({
   const [transposed, setTransposed] = useState(false);
   const t = useTranslations("polls");
   const tCommon = useTranslations("common");
+  const format = useFormatter();
 
   const allSelectableMatches = useMemo(() => {
     const pollMatchIds = new Set(poll.matches.map((m) => m.id));
@@ -299,14 +300,11 @@ export function PollDetailClient({
                     } else {
                       dateGroups.push({
                         dateKey,
-                        label: new Date(slot.start_time).toLocaleDateString(
-                          "nl-NL",
-                          {
-                            weekday: "long",
-                            day: "numeric",
-                            month: "long",
-                          },
-                        ),
+                        label: format.dateTime(new Date(slot.start_time), {
+                          weekday: "long",
+                          day: "numeric",
+                          month: "long",
+                        }),
                         slots: [slot],
                       });
                     }
@@ -328,21 +326,15 @@ export function PollDetailClient({
                           return (
                             <div key={slot.id} className="rounded-lg border">
                               <div className="bg-muted px-3 py-2 text-sm font-medium">
-                                {new Date(slot.start_time).toLocaleTimeString(
-                                  "nl-NL",
-                                  {
-                                    hour: "2-digit",
-                                    minute: "2-digit",
-                                  },
-                                )}
+                                {format.dateTime(new Date(slot.start_time), {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
                                 {" – "}
-                                {new Date(slot.end_time).toLocaleTimeString(
-                                  "nl-NL",
-                                  {
-                                    hour: "2-digit",
-                                    minute: "2-digit",
-                                  },
-                                )}
+                                {format.dateTime(new Date(slot.end_time), {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
                               </div>
                               {slotMatches.length > 0 ? (
                                 <div className="divide-y px-3">
@@ -356,12 +348,13 @@ export function PollDetailClient({
                                       </span>
                                       {match.start_time && (
                                         <span className="text-muted-foreground text-xs">
-                                          {new Date(
-                                            match.start_time,
-                                          ).toLocaleTimeString("nl-NL", {
-                                            hour: "2-digit",
-                                            minute: "2-digit",
-                                          })}
+                                          {format.dateTime(
+                                            new Date(match.start_time),
+                                            {
+                                              hour: "2-digit",
+                                              minute: "2-digit",
+                                            },
+                                          )}
                                         </span>
                                       )}
                                     </div>

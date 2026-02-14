@@ -1,24 +1,25 @@
 import type { TimeSlot } from "@/lib/types/domain";
 import { Card } from "@/components/ui/card";
-import { useTranslations } from "next-intl";
-
-function formatSlotTime(date: Date): string {
-  return date.toLocaleTimeString("nl-NL", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-function formatSlotDate(date: Date): string {
-  return date.toLocaleDateString("nl-NL", {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-  });
-}
+import { useTranslations, useFormatter } from "next-intl";
 
 export function SlotPreview({ slots }: { slots: TimeSlot[] }) {
   const t = useTranslations("polls");
+  const format = useFormatter();
+
+  function formatSlotTime(date: Date): string {
+    return format.dateTime(date, {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }
+
+  function formatSlotDate(date: Date): string {
+    return format.dateTime(date, {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+    });
+  }
 
   if (slots.length === 0) {
     return (

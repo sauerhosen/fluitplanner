@@ -1,7 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { useTranslations } from "next-intl";
+import { useTranslations, useFormatter } from "next-intl";
 
 type ResponseValue = "yes" | "if_need_be" | "no";
 
@@ -11,11 +11,6 @@ type Props = {
   value: ResponseValue | null;
   onChange: (value: ResponseValue | null) => void;
 };
-
-function formatTime(isoString: string): string {
-  const date = new Date(isoString);
-  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-}
 
 type ButtonConfig = {
   value: ResponseValue;
@@ -44,6 +39,15 @@ const BUTTONS: ButtonConfig[] = [
 
 export function SlotRow({ startTime, endTime, value, onChange }: Props) {
   const t = useTranslations("pollResponse");
+  const format = useFormatter();
+
+  function formatTime(isoString: string): string {
+    return format.dateTime(new Date(isoString), {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }
+
   return (
     <div className="flex items-center justify-between border-b py-3 last:border-b-0">
       <div className="text-sm">

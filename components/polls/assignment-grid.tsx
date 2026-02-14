@@ -17,7 +17,7 @@ import type {
   Assignment,
   Umpire,
 } from "@/lib/types/domain";
-import { useTranslations } from "next-intl";
+import { useTranslations, useFormatter } from "next-intl";
 
 type Props = {
   pollId: string;
@@ -49,6 +49,7 @@ export function AssignmentGrid({
   const [assignments, setAssignments] = useState(initialAssignments);
   const [saving, setSaving] = useState<string | null>(null);
   const t = useTranslations("polls");
+  const format = useFormatter();
 
   const matchSlotMap = useMemo(
     () => mapMatchesToSlots(matches, slots),
@@ -201,14 +202,11 @@ export function AssignmentGrid({
       } else {
         groups.push({
           date: match.date,
-          label: new Date(match.date + "T12:00:00").toLocaleDateString(
-            "nl-NL",
-            {
-              weekday: "short",
-              day: "numeric",
-              month: "short",
-            },
-          ),
+          label: format.dateTime(new Date(match.date + "T12:00:00"), {
+            weekday: "short",
+            day: "numeric",
+            month: "short",
+          }),
           matches: [match],
         });
       }
@@ -333,10 +331,10 @@ export function AssignmentGrid({
                         <div className="flex items-baseline gap-2">
                           {match.start_time && (
                             <span className="text-xs tabular-nums text-muted-foreground shrink-0">
-                              {new Date(match.start_time).toLocaleTimeString(
-                                "nl-NL",
-                                { hour: "2-digit", minute: "2-digit" },
-                              )}
+                              {format.dateTime(new Date(match.start_time), {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
                             </span>
                           )}
                           <span className="font-medium truncate">
@@ -398,10 +396,10 @@ export function AssignmentGrid({
                     <div className="flex flex-col items-center gap-0.5">
                       {match.start_time && (
                         <span className="text-[11px] tabular-nums text-muted-foreground">
-                          {new Date(match.start_time).toLocaleTimeString(
-                            "nl-NL",
-                            { hour: "2-digit", minute: "2-digit" },
-                          )}
+                          {format.dateTime(new Date(match.start_time), {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
                         </span>
                       )}
                       <span className="text-[11px] leading-tight">

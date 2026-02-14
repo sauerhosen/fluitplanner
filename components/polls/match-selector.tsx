@@ -2,25 +2,7 @@
 
 import type { Match } from "@/lib/types/domain";
 import { Checkbox } from "@/components/ui/checkbox";
-import { useTranslations } from "next-intl";
-
-function formatMatchDate(dateStr: string): string {
-  const d = new Date(dateStr + "T00:00:00");
-  return d.toLocaleDateString("nl-NL", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
-}
-
-function formatMatchTime(startTime: string): string {
-  const d = new Date(startTime);
-  return d.toLocaleTimeString("nl-NL", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
+import { useTranslations, useFormatter } from "next-intl";
 
 type Props = {
   matches: Match[];
@@ -34,6 +16,23 @@ export function MatchSelector({
   onSelectionChange,
 }: Props) {
   const t = useTranslations("polls");
+  const format = useFormatter();
+
+  function formatMatchDate(dateStr: string): string {
+    return format.dateTime(new Date(dateStr + "T00:00:00"), {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    });
+  }
+
+  function formatMatchTime(startTime: string): string {
+    return format.dateTime(new Date(startTime), {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }
 
   if (matches.length === 0) {
     return (

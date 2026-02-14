@@ -5,7 +5,7 @@ import { Check, X, HelpCircle } from "lucide-react";
 import { toast } from "sonner";
 import { updatePollResponse } from "@/lib/actions/poll-responses";
 import type { PollSlot, AvailabilityResponse } from "@/lib/types/domain";
-import { useTranslations } from "next-intl";
+import { useTranslations, useFormatter } from "next-intl";
 
 type ResponseValue = "yes" | "if_need_be" | "no";
 
@@ -27,41 +27,6 @@ type DateGroup = {
   day: string;
   slots: PollSlot[];
 };
-
-function groupSlotsByDate(slots: PollSlot[]): DateGroup[] {
-  const groups: DateGroup[] = [];
-  for (const slot of slots) {
-    const date = new Date(slot.start_time);
-    const dateKey = date.toDateString();
-    const last = groups[groups.length - 1];
-    if (last && new Date(last.slots[0].start_time).toDateString() === dateKey) {
-      last.slots.push(slot);
-    } else {
-      groups.push({
-        weekday: date.toLocaleDateString("nl-NL", { weekday: "short" }),
-        day: date.toLocaleDateString("nl-NL", {
-          day: "numeric",
-          month: "short",
-        }),
-        slots: [slot],
-      });
-    }
-  }
-  return groups;
-}
-
-/**
- * Format an ISO 8601 date-time string as a Dutch 24-hour time (HH:MM).
- *
- * @param isoString - An ISO-formatted date-time string
- * @returns The localized time string for the "nl-NL" locale using two-digit hour and minute (e.g., "14:05")
- */
-function formatTime(isoString: string): string {
-  return new Date(isoString).toLocaleTimeString("nl-NL", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
 
 /**
  * Create a stable composite key for a slot-umpire pair.
@@ -98,6 +63,39 @@ type Props = {
  */
 export function ResponseSummary({ pollId, slots, responses }: Props) {
   const t = useTranslations("polls");
+  const format = useFormatter();
+
+  function groupSlotsByDate(slotsToGroup: PollSlot[]): DateGroup[] {
+    const groups: DateGroup[] = [];
+    for (const slot of slotsToGroup) {
+      const date = new Date(slot.start_time);
+      const dateKey = date.toDateString();
+      const last = groups[groups.length - 1];
+      if (
+        last &&
+        new Date(last.slots[0].start_time).toDateString() === dateKey
+      ) {
+        last.slots.push(slot);
+      } else {
+        groups.push({
+          weekday: format.dateTime(date, { weekday: "short" }),
+          day: format.dateTime(date, {
+            day: "numeric",
+            month: "short",
+          }),
+          slots: [slot],
+        });
+      }
+    }
+    return groups;
+  }
+
+  function formatTime(isoString: string): string {
+    return format.dateTime(new Date(isoString), {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }
 
   const RESPONSE_ICONS: Record<
     ResponseValue,

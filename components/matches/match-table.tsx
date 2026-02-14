@@ -27,7 +27,7 @@ import {
   ChevronRight,
   Inbox,
 } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useTranslations, useFormatter } from "next-intl";
 
 const LEVEL_VARIANTS: Record<number, "default" | "secondary" | "destructive"> =
   {
@@ -35,25 +35,6 @@ const LEVEL_VARIANTS: Record<number, "default" | "secondary" | "destructive"> =
     2: "default",
     3: "destructive",
   };
-
-function formatTime(startTime: string | null): string {
-  if (!startTime) return "—";
-  const date = new Date(startTime);
-  return date.toLocaleTimeString("nl-NL", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-function formatDate(dateStr: string): string {
-  const date = new Date(dateStr + "T00:00:00");
-  return date.toLocaleDateString("nl-NL", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
-}
 
 function groupByDate(matches: Match[]): Map<string, Match[]> {
   const groups = new Map<string, Match[]>();
@@ -79,6 +60,24 @@ export function MatchTable({
   const groups = groupByDate(matches);
   const t = useTranslations("matches");
   const tCommon = useTranslations("common");
+  const format = useFormatter();
+
+  function formatTime(startTime: string | null): string {
+    if (!startTime) return "—";
+    return format.dateTime(new Date(startTime), {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }
+
+  function formatDate(dateStr: string): string {
+    return format.dateTime(new Date(dateStr + "T00:00:00"), {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    });
+  }
 
   const LEVEL_LABELS: Record<number, string> = {
     1: t("levelLabelAny"),
