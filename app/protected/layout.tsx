@@ -1,6 +1,8 @@
 import { AuthButton } from "@/components/auth-button";
 import { ThemeSwitcher } from "@/components/theme-switcher";
+import Image from "next/image";
 import Link from "next/link";
+import appIcon from "@/app/icon.png";
 import { Suspense } from "react";
 
 export default function ProtectedLayout({
@@ -14,7 +16,13 @@ export default function ProtectedLayout({
         <nav className="w-full flex justify-center border-b border-b-foreground/10 h-12 sm:h-16">
           <div className="w-full max-w-5xl flex justify-between items-center p-3 px-4 sm:px-5 text-sm">
             <div className="flex gap-3 sm:gap-5 items-center font-semibold">
-              <Link href="/protected">Fluitplanner</Link>
+              <Link href="/protected">
+                <Image
+                  src={appIcon}
+                  alt="Fluitplanner"
+                  className="h-6 w-6 sm:h-7 sm:w-7 rounded"
+                />
+              </Link>
               <div className="flex items-center gap-2 sm:gap-4 text-xs sm:text-sm font-normal">
                 <Link href="/protected/matches" className="hover:underline">
                   Matches
