@@ -39,7 +39,7 @@ describe("sendVerificationEmail", () => {
     expect(call.text).toContain(
       "https://fluitplanner.nl/poll/abc123?verify=token123",
     );
-    expect(call.html).toContain("384 721"); // formatted with space
+    expect(call.html).toContain("384721");
     expect(call.html).toContain(
       "https://fluitplanner.nl/poll/abc123?verify=token123",
     );
