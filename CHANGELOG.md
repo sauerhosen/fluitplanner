@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.0](https://github.com/sauerhosen/fluitplanner/compare/v1.6.1...v1.7.0) (2026-02-14)
+
+
+### Features
+
+* make dashboard stat cards clickable ([#41](https://github.com/sauerhosen/fluitplanner/issues/41)) ([a6b3b61](https://github.com/sauerhosen/fluitplanner/commit/a6b3b61955136cf80feeb8bc3964e58241b5e122))
+
 ## [1.6.1](https://github.com/sauerhosen/fluitplanner/compare/v1.6.0...v1.6.1) (2026-02-14)
 
 
