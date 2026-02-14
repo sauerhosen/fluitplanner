@@ -43,7 +43,7 @@ export function UploadZone({
       const buffer = await file.arrayBuffer();
       const rows = await parseExcel(buffer);
       processRows(rows);
-    } else {
+    } else if (file.name.endsWith(".csv")) {
       const text = await file.text();
       const rows = parseCSV(text);
       processRows(rows);
