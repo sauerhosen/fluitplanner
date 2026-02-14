@@ -1,11 +1,34 @@
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 import type { RawRow } from "./types";
 
-export function parseExcel(data: ArrayBuffer): RawRow[] {
-  const workbook = XLSX.read(data);
-  const firstSheetName = workbook.SheetNames[0];
-  if (!firstSheetName) return [];
+export async function parseExcel(data: ArrayBuffer): Promise<RawRow[]> {
+  const workbook = new ExcelJS.Workbook();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await workbook.xlsx.load(Buffer.from(data) as any);
 
-  const sheet = workbook.Sheets[firstSheetName];
-  return XLSX.utils.sheet_to_json<RawRow>(sheet);
+  const sheet = workbook.worksheets[0];
+  if (!sheet || sheet.rowCount === 0) return [];
+
+  const headerRow = sheet.getRow(1);
+  const headers: string[] = [];
+  headerRow.eachCell((cell, colNumber) => {
+    headers[colNumber] = String(cell.value ?? "");
+  });
+
+  if (headers.length === 0) return [];
+
+  const rows: RawRow[] = [];
+  for (let i = 2; i <= sheet.rowCount; i++) {
+    const row = sheet.getRow(i);
+    if (!row.hasValues) continue;
+    const obj: RawRow = {};
+    for (let col = 1; col < headers.length + 1; col++) {
+      if (headers[col]) {
+        obj[headers[col]] = String(row.getCell(col).value ?? "");
+      }
+    }
+    rows.push(obj);
+  }
+
+  return rows;
 }

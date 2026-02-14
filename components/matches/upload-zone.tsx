@@ -2,7 +2,6 @@
 
 import { useCallback, useState } from "react";
 import { parseCSV } from "@/lib/parsers/csv";
-import { parseExcel } from "@/lib/parsers/excel";
 import { parsePaste } from "@/lib/parsers/paste";
 import { mapKNHBRows } from "@/lib/parsers/knhb-mapper";
 import { upsertMatches } from "@/lib/actions/matches";
@@ -39,11 +38,12 @@ export function UploadZone({
   );
 
   async function handleFile(file: File) {
-    if (file.name.endsWith(".xlsx") || file.name.endsWith(".xls")) {
+    if (file.name.endsWith(".xlsx")) {
+      const { parseExcel } = await import("@/lib/parsers/excel");
       const buffer = await file.arrayBuffer();
-      const rows = parseExcel(buffer);
+      const rows = await parseExcel(buffer);
       processRows(rows);
-    } else {
+    } else if (file.name.endsWith(".csv")) {
       const text = await file.text();
       const rows = parseCSV(text);
       processRows(rows);
@@ -120,7 +120,7 @@ export function UploadZone({
                 Choose File
                 <input
                   type="file"
-                  accept=".csv,.xlsx,.xls"
+                  accept=".csv,.xlsx"
                   className="hidden"
                   onChange={handleFileInput}
                 />
