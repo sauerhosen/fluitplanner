@@ -5,5 +5,12 @@
     "delete": "Verwijderen",
     "loading": "Laden\u2026",
     "error": "Er is een fout opgetreden. Probeer het opnieuw."
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "matches": "Wedstrijden",
+    "polls": "Peilingen",
+    "umpires": "Scheidsrechters",
+    "settings": "Instellingen"
   }
 }

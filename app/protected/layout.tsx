@@ -5,12 +5,15 @@ import Image from "next/image";
 import Link from "next/link";
 import appIcon from "@/app/icon.png";
 import { Suspense } from "react";
+import { getTranslations } from "next-intl/server";
 
-export default function ProtectedLayout({
+export default async function ProtectedLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const t = await getTranslations("nav");
+
   return (
     <main className="min-h-screen flex flex-col items-center">
       <div className="flex-1 w-full flex flex-col gap-20 items-center">
@@ -26,19 +29,19 @@ export default function ProtectedLayout({
               </Link>
               <div className="flex items-center gap-2 sm:gap-4 text-xs sm:text-sm font-normal">
                 <Link href="/protected/matches" className="hover:underline">
-                  Matches
+                  {t("matches")}
                 </Link>
                 <Link href="/protected/polls" className="hover:underline">
-                  Polls
+                  {t("polls")}
                 </Link>
                 <Link href="/protected/umpires" className="hover:underline">
-                  Umpires
+                  {t("umpires")}
                 </Link>
                 <Link
                   href="/protected/settings"
                   className="hover:underline hidden sm:inline"
                 >
-                  Settings
+                  {t("settings")}
                 </Link>
               </div>
             </div>
