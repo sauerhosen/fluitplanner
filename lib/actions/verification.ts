@@ -109,7 +109,8 @@ export async function requestVerification(
     .single();
 
   if (insertError) {
-    return { error: "send_failed" };
+    console.error("[verification] DB insert error:", insertError.message);
+    return { error: "send_failed" } as RequestResult;
   }
 
   // 6. Build magic link and send email
@@ -122,7 +123,11 @@ export async function requestVerification(
 
   try {
     await sendVerificationEmail({ to: normalizedEmail, code, magicLink });
-  } catch {
+  } catch (err) {
+    console.error(
+      "[verification] SMTP error:",
+      err instanceof Error ? err.message : err,
+    );
     return { error: "send_failed" };
   }
 
