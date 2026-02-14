@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.0](https://github.com/sauerhosen/fluitplanner/compare/v1.7.0...v1.8.0) (2026-02-14)
+
+
+### Features
+
+* add Dutch/English i18n with next-intl ([#44](https://github.com/sauerhosen/fluitplanner/issues/44)) ([b78ed09](https://github.com/sauerhosen/fluitplanner/commit/b78ed0970ab576537f092b70d57169f221bad266))
+
 ## [1.7.0](https://github.com/sauerhosen/fluitplanner/compare/v1.6.1...v1.7.0) (2026-02-14)
 
 
