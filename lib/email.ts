@@ -29,18 +29,46 @@ export async function sendVerificationEmail({
   code,
   magicLink,
 }: VerificationEmailParams): Promise<void> {
-  const transport = getTransport();
   const from =
     process.env.SMTP_FROM || "Fluitplanner <noreply@fluitplanner.nl>";
   const formattedCode = `${code.slice(0, 3)} ${code.slice(3)}`;
 
-  await transport.sendMail({
-    from,
-    to,
-    subject: "Your Fluitplanner verification code",
-    text: `Your verification code is: ${code}\n\nOr click this link to verify: ${magicLink}\n\nThis code expires in 30 minutes.`,
-    html: verificationEmailHtml({ formattedCode, magicLink }),
-  });
+  const maxRetries = 2;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const transport = getTransport();
+      await transport.sendMail({
+        from,
+        to,
+        subject: "Your Fluitplanner verification code",
+        text: `Your verification code is: ${code}\n\nOr click this link to verify: ${magicLink}\n\nThis code expires in 30 minutes.`,
+        html: verificationEmailHtml({ formattedCode, magicLink }),
+      });
+      return;
+    } catch (err) {
+      if (attempt < maxRetries && isTransientError(err)) {
+        console.warn(
+          `[email] Transient error (attempt ${attempt + 1}/${maxRetries + 1}), retrying:`,
+          err instanceof Error ? err.message : err,
+        );
+        await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
+        continue;
+      }
+      throw err;
+    }
+  }
+}
+
+function isTransientError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  const msg = err.message.toLowerCase();
+  return (
+    msg.includes("ebusy") ||
+    msg.includes("etimedout") ||
+    msg.includes("econnreset") ||
+    msg.includes("enotfound") ||
+    msg.includes("econnrefused")
+  );
 }
 
 function escapeHtml(str: string): string {

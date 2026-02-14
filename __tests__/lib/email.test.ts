@@ -45,6 +45,38 @@ describe("sendVerificationEmail", () => {
     );
   });
 
+  it("retries on transient DNS errors", async () => {
+    mockSendMail
+      .mockRejectedValueOnce(new Error("getaddrinfo EBUSY smtp.test.com"))
+      .mockResolvedValueOnce({ messageId: "retry-id" });
+
+    const { sendVerificationEmail } = await import("@/lib/email");
+    await sendVerificationEmail({
+      to: "jan@example.com",
+      code: "384721",
+      magicLink: "https://example.com/poll/abc?verify=tok",
+    });
+
+    expect(mockSendMail).toHaveBeenCalledTimes(2);
+  });
+
+  it("throws after exhausting retries on transient errors", async () => {
+    mockSendMail.mockRejectedValue(
+      new Error("getaddrinfo EBUSY smtp.test.com"),
+    );
+
+    const { sendVerificationEmail } = await import("@/lib/email");
+    await expect(
+      sendVerificationEmail({
+        to: "jan@example.com",
+        code: "384721",
+        magicLink: "https://example.com/poll/abc?verify=tok",
+      }),
+    ).rejects.toThrow("EBUSY");
+
+    expect(mockSendMail).toHaveBeenCalledTimes(3); // 1 initial + 2 retries
+  });
+
   it("throws when SMTP env vars are missing", async () => {
     vi.stubEnv("SMTP_HOST", "");
 
