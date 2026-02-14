@@ -19,7 +19,7 @@ export default function Home() {
 
         <div className="w-full pt-4 [&>div]:flex-col [&>div]:w-full [&_a]:w-full [&_a]:justify-center">
           <Suspense>
-            <AuthButton />
+            <AuthButton showDashboardLink />
           </Suspense>
         </div>
       </div>

@@ -3,7 +3,11 @@ import { Button } from "./ui/button";
 import { createClient } from "@/lib/supabase/server";
 import { LogoutButton } from "./logout-button";
 
-export async function AuthButton() {
+export async function AuthButton({
+  showDashboardLink = false,
+}: {
+  showDashboardLink?: boolean;
+} = {}) {
   const supabase = await createClient();
 
   // You can also use getUser() which will be slower.
@@ -14,9 +18,11 @@ export async function AuthButton() {
   return user ? (
     <div className="flex items-center gap-2 sm:gap-4">
       <span className="hidden sm:inline text-sm">Hey, {user.email}!</span>
-      <Button asChild size="sm" variant={"default"}>
-        <Link href="/protected">Dashboard</Link>
-      </Button>
+      {showDashboardLink && (
+        <Button asChild size="sm" variant={"default"}>
+          <Link href="/protected">Dashboard</Link>
+        </Button>
+      )}
       <LogoutButton />
     </div>
   ) : (
