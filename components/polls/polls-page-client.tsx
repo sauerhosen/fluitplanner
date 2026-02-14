@@ -7,6 +7,7 @@ import { getPolls } from "@/lib/actions/polls";
 import { PollTable } from "./poll-table";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 export function PollsPageClient({
   initialPolls,
@@ -14,6 +15,7 @@ export function PollsPageClient({
   initialPolls: PollWithMeta[];
 }) {
   const [polls, setPolls] = useState(initialPolls);
+  const t = useTranslations("polls");
 
   const refreshPolls = useCallback(async () => {
     const data = await getPolls();
@@ -27,7 +29,7 @@ export function PollsPageClient({
           <Button asChild>
             <Link href="/protected/polls/new">
               <Plus className="mr-2 h-4 w-4" />
-              New Poll
+              {t("newPoll")}
             </Link>
           </Button>
         </div>

@@ -1,5 +1,6 @@
 import type { TimeSlot } from "@/lib/types/domain";
 import { Card } from "@/components/ui/card";
+import { useTranslations } from "next-intl";
 
 function formatSlotTime(date: Date): string {
   return date.toLocaleTimeString("nl-NL", {
@@ -17,10 +18,12 @@ function formatSlotDate(date: Date): string {
 }
 
 export function SlotPreview({ slots }: { slots: TimeSlot[] }) {
+  const t = useTranslations("polls");
+
   if (slots.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">
-        Select matches to see time slots
+        {t("selectMatchesToSeeSlots")}
       </p>
     );
   }
@@ -28,7 +31,7 @@ export function SlotPreview({ slots }: { slots: TimeSlot[] }) {
   return (
     <div className="flex flex-col gap-2">
       <p className="text-sm font-medium">
-        {slots.length} time slot{slots.length !== 1 ? "s" : ""}
+        {t("slotCount", { count: slots.length })}
       </p>
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {slots.map((slot, i) => (

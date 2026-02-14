@@ -5,13 +5,14 @@ import { Check, X, HelpCircle } from "lucide-react";
 import { toast } from "sonner";
 import { updatePollResponse } from "@/lib/actions/poll-responses";
 import type { PollSlot, AvailabilityResponse } from "@/lib/types/domain";
+import { useTranslations } from "next-intl";
 
 type ResponseValue = "yes" | "if_need_be" | "no";
 
 const CYCLE_ORDER: (ResponseValue | null)[] = ["yes", "if_need_be", "no", null];
 
 /**
- * Advance a response value to the next state in the cycle: "yes" → "if_need_be" → "no" → no response.
+ * Advance a response value to the next state in the cycle: "yes" -> "if_need_be" -> "no" -> no response.
  *
  * @param current - The current response value, or `null` to indicate no response.
  * @returns The next `ResponseValue` in the sequence, or `null` when the cycle advances to no response.
@@ -20,27 +21,6 @@ function nextResponse(current: ResponseValue | null): ResponseValue | null {
   const idx = CYCLE_ORDER.indexOf(current);
   return CYCLE_ORDER[(idx + 1) % CYCLE_ORDER.length];
 }
-
-const RESPONSE_ICONS: Record<
-  ResponseValue,
-  { icon: typeof Check; className: string; label: string }
-> = {
-  yes: {
-    icon: Check,
-    className: "text-green-600 dark:text-green-400",
-    label: "available",
-  },
-  if_need_be: {
-    icon: HelpCircle,
-    className: "text-yellow-500 dark:text-yellow-400",
-    label: "if need be",
-  },
-  no: {
-    icon: X,
-    className: "text-red-500 dark:text-red-400",
-    label: "not available",
-  },
-};
 
 type DateGroup = {
   weekday: string;
@@ -84,7 +64,7 @@ function formatTime(isoString: string): string {
 }
 
 /**
- * Create a stable composite key for a slot–umpire pair.
+ * Create a stable composite key for a slot-umpire pair.
  *
  * @param slotId - The slot's identifier
  * @param umpireId - The umpire's identifier
@@ -117,6 +97,29 @@ type Props = {
  * @returns A React element containing the availability table with clickable cells for cycling responses
  */
 export function ResponseSummary({ pollId, slots, responses }: Props) {
+  const t = useTranslations("polls");
+
+  const RESPONSE_ICONS: Record<
+    ResponseValue,
+    { icon: typeof Check; className: string; label: string }
+  > = {
+    yes: {
+      icon: Check,
+      className: "text-green-600 dark:text-green-400",
+      label: t("availableLabel"),
+    },
+    if_need_be: {
+      icon: HelpCircle,
+      className: "text-yellow-500 dark:text-yellow-400",
+      label: t("ifNeedBeLabel"),
+    },
+    no: {
+      icon: X,
+      className: "text-red-500 dark:text-red-400",
+      label: t("notAvailableLabel"),
+    },
+  };
+
   const [responseMap, setResponseMap] = useState(() => {
     const map = new Map<string, ResponseValue>();
     for (const r of responses) {
@@ -141,8 +144,7 @@ export function ResponseSummary({ pollId, slots, responses }: Props) {
   if (participants.length === 0) {
     return (
       <p className="text-sm text-muted-foreground py-4">
-        No responses yet. Share the poll link with umpires to collect
-        availability.
+        {t("noResponsesYet")}
       </p>
     );
   }
@@ -181,12 +183,12 @@ export function ResponseSummary({ pollId, slots, responses }: Props) {
       .then((result) => {
         if (result.error) {
           revert();
-          toast.error(`Failed to update response: ${result.error}`);
+          toast.error(t("failedToUpdateResponse", { error: result.error }));
         }
       })
       .catch(() => {
         revert();
-        toast.error("Failed to update response");
+        toast.error(t("failedToUpdateResponseGeneric"));
       });
   }
 
@@ -242,7 +244,7 @@ export function ResponseSummary({ pollId, slots, responses }: Props) {
                   const key = cellKey(slot.id, umpireId);
                   const response = responseMap.get(key) ?? null;
                   const config = response ? RESPONSE_ICONS[response] : null;
-                  const label = `${name} – ${formatTime(slot.start_time)}: ${config?.label ?? "no response"}`;
+                  const label = `${name} – ${formatTime(slot.start_time)}: ${config?.label ?? t("noResponseLabel")}`;
                   return (
                     <td
                       key={slot.id}

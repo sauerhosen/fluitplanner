@@ -17,6 +17,7 @@ import type {
   Assignment,
   Umpire,
 } from "@/lib/types/domain";
+import { useTranslations } from "next-intl";
 
 type Props = {
   pollId: string;
@@ -47,6 +48,7 @@ export function AssignmentGrid({
 }: Props) {
   const [assignments, setAssignments] = useState(initialAssignments);
   const [saving, setSaving] = useState<string | null>(null);
+  const t = useTranslations("polls");
 
   const matchSlotMap = useMemo(
     () => mapMatchesToSlots(matches, slots),
@@ -119,7 +121,7 @@ export function AssignmentGrid({
       const count = assignmentCounts.get(matchId) ?? 0;
 
       if (!isAssigned && count >= 2) {
-        toast.warning("This match already has 2 umpires assigned");
+        toast.warning(t("matchAlreadyHasTwo"));
       }
 
       setSaving(key);
@@ -169,12 +171,12 @@ export function AssignmentGrid({
                   (a) => !(a.match_id === matchId && a.umpire_id === umpireId),
                 ),
         );
-        toast.error("Failed to save assignment");
+        toast.error(t("failedToSaveAssignment"));
       } finally {
         setSaving(null);
       }
     },
-    [saving, assignmentSet, assignmentCounts, pollId, setAssignments],
+    [saving, assignmentSet, assignmentCounts, pollId, setAssignments, t],
   );
 
   const sortedMatches = useMemo(
@@ -217,8 +219,7 @@ export function AssignmentGrid({
   if (umpires.length === 0) {
     return (
       <p className="text-sm text-muted-foreground py-4">
-        No umpire responses yet. Share the poll to collect availability before
-        making assignments.
+        {t("noUmpireResponsesYet")}
       </p>
     );
   }
@@ -245,10 +246,10 @@ export function AssignmentGrid({
 
     const title = conflict
       ? conflict.severity === "hard"
-        ? "Conflict: umpire has overlapping match"
-        : "Warning: umpire has another match same day"
+        ? t("conflictOverlapping")
+        : t("warningSameDay")
       : isAssigned
-        ? "Assigned"
+        ? t("assigned")
         : undefined;
 
     return (
@@ -286,7 +287,7 @@ export function AssignmentGrid({
             <thead className="sticky top-0 z-20">
               <tr className="bg-background">
                 <th className="text-left p-2 font-medium sticky left-0 z-30 bg-background max-w-[40vw]">
-                  Match
+                  {t("matchColumnHeader")}
                 </th>
                 <th className="p-2 text-center font-medium min-w-12 bg-background" />
                 {umpires.map((u) => (
@@ -372,7 +373,7 @@ export function AssignmentGrid({
                 rowSpan={2}
                 className="text-left p-2 font-medium sticky left-0 z-10 bg-background min-w-32 align-bottom"
               >
-                Umpire
+                {t("umpireColumnHeader")}
               </th>
               {dateGroups.map((group, gi) => (
                 <th

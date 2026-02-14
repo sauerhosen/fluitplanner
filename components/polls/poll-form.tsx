@@ -10,6 +10,7 @@ import { SlotPreview } from "./slot-preview";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useTranslations } from "next-intl";
 
 type Props = {
   availableMatches: Match[];
@@ -23,6 +24,7 @@ export function PollForm({ availableMatches }: Props) {
   const [dateTo, setDateTo] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const t = useTranslations("polls");
 
   const filteredMatches = useMemo(() => {
     return availableMatches.filter((m) => {
@@ -45,11 +47,11 @@ export function PollForm({ availableMatches }: Props) {
     setError(null);
 
     if (!title.trim()) {
-      setError("Title is required");
+      setError(t("titleRequired"));
       return;
     }
     if (selectedMatchIds.length === 0) {
-      setError("Select at least one match");
+      setError(t("selectAtLeastOneMatch"));
       return;
     }
 
@@ -58,7 +60,7 @@ export function PollForm({ availableMatches }: Props) {
       const { id } = await createPoll(title, selectedMatchIds);
       router.push(`/protected/polls/${id}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create poll");
+      setError(err instanceof Error ? err.message : t("failedToCreatePoll"));
       setSaving(false);
     }
   }
@@ -72,37 +74,37 @@ export function PollForm({ availableMatches }: Props) {
       )}
 
       <div className="flex flex-col gap-2">
-        <Label htmlFor="title">Poll Title</Label>
+        <Label htmlFor="title">{t("titleLabel")}</Label>
         <Input
           id="title"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          placeholder="e.g. Weekend 15-16 February"
+          placeholder={t("titlePlaceholder")}
         />
       </div>
 
       <div className="flex flex-col gap-2">
-        <Label>Filter by Date</Label>
+        <Label>{t("filterByDate")}</Label>
         <div className="flex gap-2">
           <Input
             type="date"
             value={dateFrom}
             onChange={(e) => setDateFrom(e.target.value)}
-            placeholder="From"
             className="w-40"
           />
           <Input
             type="date"
             value={dateTo}
             onChange={(e) => setDateTo(e.target.value)}
-            placeholder="To"
             className="w-40"
           />
         </div>
       </div>
 
       <div className="flex flex-col gap-2">
-        <Label>Select Matches ({selectedMatchIds.length} selected)</Label>
+        <Label>
+          {t("selectMatchesLabel", { count: selectedMatchIds.length })}
+        </Label>
         <MatchSelector
           matches={filteredMatches}
           selectedIds={selectedMatchIds}
@@ -111,12 +113,12 @@ export function PollForm({ availableMatches }: Props) {
       </div>
 
       <div className="flex flex-col gap-2">
-        <Label>Time Slots Preview</Label>
+        <Label>{t("timeSlotsPreview")}</Label>
         <SlotPreview slots={slots} />
       </div>
 
       <Button type="submit" disabled={saving}>
-        {saving ? "Creating..." : "Create Poll"}
+        {saving ? t("creating") : t("createPoll")}
       </Button>
     </form>
   );

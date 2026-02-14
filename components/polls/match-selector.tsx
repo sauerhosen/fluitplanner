@@ -2,6 +2,7 @@
 
 import type { Match } from "@/lib/types/domain";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useTranslations } from "next-intl";
 
 function formatMatchDate(dateStr: string): string {
   const d = new Date(dateStr + "T00:00:00");
@@ -32,10 +33,12 @@ export function MatchSelector({
   selectedIds,
   onSelectionChange,
 }: Props) {
+  const t = useTranslations("polls");
+
   if (matches.length === 0) {
     return (
       <p className="text-sm text-muted-foreground py-4">
-        No matches available for poll creation.
+        {t("noMatchesAvailable")}
       </p>
     );
   }
