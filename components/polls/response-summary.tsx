@@ -10,6 +10,12 @@ type ResponseValue = "yes" | "if_need_be" | "no";
 
 const CYCLE_ORDER: (ResponseValue | null)[] = ["yes", "if_need_be", "no", null];
 
+/**
+ * Advance a response value to the next state in the cycle: "yes" → "if_need_be" → "no" → no response.
+ *
+ * @param current - The current response value, or `null` to indicate no response.
+ * @returns The next `ResponseValue` in the sequence, or `null` when the cycle advances to no response.
+ */
 function nextResponse(current: ResponseValue | null): ResponseValue | null {
   const idx = CYCLE_ORDER.indexOf(current);
   return CYCLE_ORDER[(idx + 1) % CYCLE_ORDER.length];
@@ -64,6 +70,12 @@ function groupSlotsByDate(slots: PollSlot[]): DateGroup[] {
   return groups;
 }
 
+/**
+ * Format an ISO 8601 date-time string as a Dutch 24-hour time (HH:MM).
+ *
+ * @param isoString - An ISO-formatted date-time string
+ * @returns The localized time string for the "nl-NL" locale using two-digit hour and minute (e.g., "14:05")
+ */
 function formatTime(isoString: string): string {
   return new Date(isoString).toLocaleTimeString("nl-NL", {
     hour: "2-digit",
@@ -71,6 +83,13 @@ function formatTime(isoString: string): string {
   });
 }
 
+/**
+ * Create a stable composite key for a slot–umpire pair.
+ *
+ * @param slotId - The slot's identifier
+ * @param umpireId - The umpire's identifier
+ * @returns A string in the format `slotId:umpireId` representing the composite key
+ */
 function cellKey(slotId: string, umpireId: string) {
   return `${slotId}:${umpireId}`;
 }
@@ -86,6 +105,17 @@ type Props = {
   responses: AvailabilityResponse[];
 };
 
+/**
+ * Render an interactive table of umpire availability where each cell shows and cycles a participant's response for a slot.
+ *
+ * Renders participants as rows and grouped slots as columns. Cells display the current response (yes, if_need_be, no, or no response)
+ * and act as buttons that optimistically update the UI and persist changes via `updatePollResponse`, reverting and showing a toast on failure.
+ *
+ * @param pollId - Identifier of the poll used when persisting response updates
+ * @param slots - Array of poll slots to display (grouped by calendar date in the header)
+ * @param responses - Initial availability responses used to seed the per-slot-per-participant state
+ * @returns A React element containing the availability table with clickable cells for cycling responses
+ */
 export function ResponseSummary({ pollId, slots, responses }: Props) {
   const [responseMap, setResponseMap] = useState(() => {
     const map = new Map<string, ResponseValue>();

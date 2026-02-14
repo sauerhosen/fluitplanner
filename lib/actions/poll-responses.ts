@@ -3,6 +3,12 @@
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 
+/**
+ * Ensures the request is authenticated and returns a Supabase client and the current user.
+ *
+ * @returns An object containing `supabase` (the Supabase client) and `user` (the authenticated user record).
+ * @throws Error when no authenticated user is present ("Not authenticated").
+ */
 async function requireAuth() {
   const supabase = await createClient();
   const {
@@ -12,6 +18,15 @@ async function requireAuth() {
   return { supabase, user };
 }
 
+/**
+ * Create, update, or remove an umpire's availability response for a poll slot, verify that the caller owns the poll, and revalidate the poll page.
+ *
+ * @param pollId - The ID of the poll to modify
+ * @param slotId - The ID of the poll slot being updated
+ * @param umpireId - The ID of the umpire submitting the response
+ * @param response - The availability response: `"yes"`, `"if_need_be"`, `"no"`, or `null` to delete an existing response
+ * @returns An empty object on success, or `{ error: string }` containing an error message on failure
+ */
 export async function updatePollResponse(
   pollId: string,
   slotId: string,

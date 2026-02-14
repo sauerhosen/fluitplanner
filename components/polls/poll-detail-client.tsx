@@ -30,6 +30,17 @@ type Props = {
   umpires: Umpire[];
 };
 
+/**
+ * Render a client-side poll detail editor and viewer with tabs for matches, responses, and assignments.
+ *
+ * Provides UI and controls to view and edit the poll title and selected matches, toggle poll status,
+ * delete the poll, preview and group time slots, share the poll link, and inspect responses and assignments.
+ *
+ * @param initialPoll - Initial poll data used to populate local state and render the poll details
+ * @param availableMatches - Matches available to add to the poll (combined with poll's existing matches for selection)
+ * @param umpires - List of umpires passed through to the assignments view
+ * @returns A React element rendering the poll detail interface and its interactive controls
+ */
 export function PollDetailClient({
   initialPoll,
   availableMatches,
