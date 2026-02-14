@@ -274,5 +274,14 @@
     "levelLabelAny": "Iedereen",
     "levelLabelExperienced": "Ervaren",
     "levelLabelTop": "Top"
+  },
+  "landing": {
+    "title": "Fluitplanner",
+    "subtitle": "Hockeyscheidsrechtersplanning"
+  },
+  "errors": {
+    "title": "Er is iets misgegaan",
+    "defaultMessage": "Er is een onverwachte fout opgetreden.",
+    "tryAgain": "Opnieuw proberen"
   }
 }

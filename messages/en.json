@@ -274,5 +274,14 @@
     "levelLabelAny": "Any",
     "levelLabelExperienced": "Experienced",
     "levelLabelTop": "Top"
+  },
+  "landing": {
+    "title": "Fluitplanner",
+    "subtitle": "Field hockey umpire planning"
+  },
+  "errors": {
+    "title": "Something went wrong",
+    "defaultMessage": "An unexpected error occurred.",
+    "tryAgain": "Try again"
   }
 }
