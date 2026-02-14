@@ -60,20 +60,19 @@ create table public.verification_codes (
   created_at timestamptz default now() not null
 );
 
--- Only one active code per email
-create unique index verification_codes_email_active
-  on public.verification_codes (email)
-  where expires_at > now();
+-- Plain indexes for lookups (uniqueness enforced at application level)
+create index verification_codes_email_idx on public.verification_codes (email);
+create index verification_codes_magic_token_idx on public.verification_codes (magic_token);
 ```
 
 - Codes stored as SHA-256 hash (short-lived + rate-limited = sufficient)
 - Magic tokens stored as plain nanoid(32) — need lookup by value
-- New request invalidates previous (unique index on email for non-expired rows)
-- Cleanup: delete expired rows periodically or at verification time
+- New request invalidates previous (application deletes old codes before inserting)
+- Cleanup: old codes deleted on each new request for that email
 
 ### RLS
 
-Anonymous users need no direct table access. All verification logic runs through server actions which use the Supabase service client internally. RLS can deny all anonymous access to this table.
+RLS is enabled with only an authenticated SELECT policy (for planner debugging). All verification CRUD operations use the Supabase **service role client** (`lib/supabase/service.ts`) which bypasses RLS entirely. This keeps the table locked down — no anonymous or authenticated user can directly read code hashes or magic tokens.
 
 ## Server Actions
 

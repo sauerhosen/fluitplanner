@@ -76,6 +76,7 @@ Required in `.env.local`:
 
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY` — service role key for server-side operations that bypass RLS
 - `SMTP_HOST` — AWS SES SMTP host (e.g. `email-smtp.eu-west-1.amazonaws.com`)
 - `SMTP_PORT` — SMTP port (587)
 - `SMTP_USER` — SES SMTP username

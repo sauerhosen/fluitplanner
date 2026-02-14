@@ -43,6 +43,15 @@ export async function sendVerificationEmail({
   });
 }
 
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
 function verificationEmailHtml({
   formattedCode,
   magicLink,
@@ -50,6 +59,7 @@ function verificationEmailHtml({
   formattedCode: string;
   magicLink: string;
 }): string {
+  const safeLink = escapeHtml(magicLink);
   // Branded HTML email with green accent matching the app (hsl(158 64% 30%) ≈ #1B9A6C)
   return `
 <!DOCTYPE html>
@@ -71,7 +81,7 @@ function verificationEmailHtml({
             <p style="margin:0 0 8px;font-size:15px;color:#4a5e53;">Your verification code is:</p>
             <p style="margin:0 0 24px;font-size:36px;font-weight:700;letter-spacing:6px;color:#1a2e24;font-family:'Courier New',monospace;">${formattedCode}</p>
             <p style="margin:0 0 16px;font-size:15px;color:#4a5e53;">Or click the button below:</p>
-            <a href="${magicLink}" style="display:inline-block;padding:12px 28px;background-color:#1B9A6C;color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;border-radius:8px;">Verify my email</a>
+            <a href="${safeLink}" style="display:inline-block;padding:12px 28px;background-color:#1B9A6C;color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;border-radius:8px;">Verify my email</a>
             <p style="margin:24px 0 0;font-size:13px;color:#6b7f73;">This code expires in 30 minutes.</p>
           </td>
         </tr>

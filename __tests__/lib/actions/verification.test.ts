@@ -37,6 +37,12 @@ vi.mock("@/lib/supabase/server", () => ({
   })),
 }));
 
+vi.mock("@/lib/supabase/service", () => ({
+  createServiceClient: vi.fn(() => ({
+    from: mockFrom,
+  })),
+}));
+
 vi.mock("@/lib/email", () => ({
   sendVerificationEmail: vi.fn(),
 }));
@@ -70,6 +76,8 @@ function resetChain() {
 
 beforeEach(() => {
   resetChain();
+  vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://test.supabase.co");
+  vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "test-service-role-key");
   vi.stubEnv("SMTP_HOST", "smtp.test.com");
   vi.stubEnv("SMTP_PORT", "587");
   vi.stubEnv("SMTP_USER", "testuser");
@@ -98,9 +106,6 @@ describe("requestVerification", () => {
       data: { id: "ump-1", email: "jan@example.com", name: "Jan" },
       error: null,
     });
-
-    // delete old codes
-    mockLt.mockResolvedValueOnce({ error: null });
 
     // insert new code
     mockSingle.mockResolvedValueOnce({ data: { id: "code-1" }, error: null });

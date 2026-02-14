@@ -3,6 +3,7 @@
 import { createHash, timingSafeEqual } from "crypto";
 import { nanoid } from "nanoid";
 import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/service";
 import { sendVerificationEmail } from "@/lib/email";
 import type { Umpire } from "@/lib/types/domain";
 
@@ -65,6 +66,7 @@ export async function requestVerification(
   pollToken: string,
 ): Promise<RequestResult> {
   const supabase = await createClient();
+  const serviceClient = createServiceClient();
   const normalizedEmail = email.trim().toLowerCase();
 
   // 1. Check if umpire exists
@@ -78,26 +80,19 @@ export async function requestVerification(
     return { needsRegistration: true };
   }
 
-  // 2. Delete expired codes for this email
-  await supabase
-    .from("verification_codes")
-    .delete()
-    .eq("email", normalizedEmail)
-    .lt("expires_at", new Date().toISOString());
-
-  // 3. Generate code + magic token
+  // 2. Generate code + magic token
   const code = generateCode();
   const magicToken = nanoid(32);
   const expiresAt = new Date(Date.now() + CODE_EXPIRY_MINUTES * 60_000);
 
-  // 4. Delete any active code for this email (only one allowed)
-  await supabase
+  // 3. Delete any existing codes for this email (only one allowed)
+  await serviceClient
     .from("verification_codes")
     .delete()
     .eq("email", normalizedEmail);
 
-  // 5. Insert new verification code
-  const { error: insertError } = await supabase
+  // 4. Insert new verification code
+  const { error: insertError } = await serviceClient
     .from("verification_codes")
     .insert({
       email: normalizedEmail,
@@ -110,7 +105,7 @@ export async function requestVerification(
 
   if (insertError) {
     console.error("[verification] DB insert error:", insertError.message);
-    return { error: "send_failed" } as RequestResult;
+    return { error: "send_failed" };
   }
 
   // 6. Build magic link and send email
@@ -142,11 +137,11 @@ export async function verifyCode(
   email: string,
   code: string,
 ): Promise<VerifyCodeResult> {
-  const supabase = await createClient();
+  const serviceClient = createServiceClient();
   const normalizedEmail = email.trim().toLowerCase();
 
   // 1. Find active code for this email
-  const { data: record, error } = await supabase
+  const { data: record, error } = await serviceClient
     .from("verification_codes")
     .select("*")
     .eq("email", normalizedEmail)
@@ -167,7 +162,7 @@ export async function verifyCode(
     const lockUntil = new Date(
       Date.now() + LOCKOUT_MINUTES * 60_000,
     ).toISOString();
-    await supabase
+    await serviceClient
       .from("verification_codes")
       .update({ locked_until: lockUntil })
       .eq("id", record.id);
@@ -186,7 +181,7 @@ export async function verifyCode(
         Date.now() + LOCKOUT_MINUTES * 60_000,
       ).toISOString();
     }
-    await supabase
+    await serviceClient
       .from("verification_codes")
       .update(updateData)
       .eq("id", record.id);
@@ -198,9 +193,9 @@ export async function verifyCode(
   }
 
   // 5. Success — delete code and return umpire
-  await supabase.from("verification_codes").delete().eq("id", record.id);
+  await serviceClient.from("verification_codes").delete().eq("id", record.id);
 
-  const { data: umpire } = await supabase
+  const { data: umpire } = await serviceClient
     .from("umpires")
     .select("*")
     .eq("email", normalizedEmail)
@@ -217,10 +212,10 @@ export async function verifyCode(
 export async function verifyMagicLink(
   magicToken: string,
 ): Promise<VerifyMagicLinkResult> {
-  const supabase = await createClient();
+  const serviceClient = createServiceClient();
 
   // 1. Find record by magic token
-  const { data: record, error } = await supabase
+  const { data: record, error } = await serviceClient
     .from("verification_codes")
     .select("*")
     .eq("magic_token", magicToken)
@@ -232,10 +227,10 @@ export async function verifyMagicLink(
   }
 
   // 2. Delete used code
-  await supabase.from("verification_codes").delete().eq("id", record.id);
+  await serviceClient.from("verification_codes").delete().eq("id", record.id);
 
   // 3. Look up umpire
-  const { data: umpire } = await supabase
+  const { data: umpire } = await serviceClient
     .from("umpires")
     .select("*")
     .eq("email", record.email)
