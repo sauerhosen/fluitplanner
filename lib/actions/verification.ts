@@ -80,18 +80,30 @@ export async function requestVerification(
     return { needsRegistration: true };
   }
 
-  // 2. Generate code + magic token
+  // 2. Check if there's an active lockout for this email
+  const { data: existing } = await serviceClient
+    .from("verification_codes")
+    .select("locked_until")
+    .eq("email", normalizedEmail)
+    .gt("expires_at", new Date().toISOString())
+    .single();
+
+  if (existing?.locked_until && new Date(existing.locked_until) > new Date()) {
+    return { error: "locked", retryAfter: existing.locked_until };
+  }
+
+  // 3. Generate code + magic token
   const code = generateCode();
   const magicToken = nanoid(32);
   const expiresAt = new Date(Date.now() + CODE_EXPIRY_MINUTES * 60_000);
 
-  // 3. Delete any existing codes for this email (only one allowed)
+  // 4. Delete any existing codes for this email (only one allowed)
   await serviceClient
     .from("verification_codes")
     .delete()
     .eq("email", normalizedEmail);
 
-  // 4. Insert new verification code
+  // 5. Insert new verification code
   const { error: insertError } = await serviceClient
     .from("verification_codes")
     .insert({

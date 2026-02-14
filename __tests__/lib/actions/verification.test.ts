@@ -101,13 +101,33 @@ describe("requestVerification", () => {
     expect(result).toEqual({ needsRegistration: true });
   });
 
-  it("returns success and masked email for existing umpire", async () => {
+  it("returns locked error when existing code has active lockout", async () => {
+    const future = new Date(Date.now() + 600_000).toISOString();
+    // 1. umpire lookup → found
     mockSingle.mockResolvedValueOnce({
       data: { id: "ump-1", email: "jan@example.com", name: "Jan" },
       error: null,
     });
+    // 2. lockout check → active lockout
+    mockSingle.mockResolvedValueOnce({
+      data: { locked_until: future },
+      error: null,
+    });
 
-    // insert new code
+    const { requestVerification } = await import("@/lib/actions/verification");
+    const result = await requestVerification("jan@example.com", "abc123");
+    expect(result).toEqual({ error: "locked", retryAfter: future });
+  });
+
+  it("returns success and masked email for existing umpire", async () => {
+    // 1. umpire lookup → found
+    mockSingle.mockResolvedValueOnce({
+      data: { id: "ump-1", email: "jan@example.com", name: "Jan" },
+      error: null,
+    });
+    // 2. lockout check → no active lockout
+    mockSingle.mockResolvedValueOnce({ data: null, error: null });
+    // 3. insert new code
     mockSingle.mockResolvedValueOnce({ data: { id: "code-1" }, error: null });
 
     const { requestVerification } = await import("@/lib/actions/verification");
