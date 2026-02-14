@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.3](https://github.com/sauerhosen/fluitplanner/compare/v1.4.2...v1.4.3) (2026-02-14)
+
+
+### Bug Fixes
+
+* remove space in verification code email to prevent partial paste ([#27](https://github.com/sauerhosen/fluitplanner/issues/27)) ([c0b8363](https://github.com/sauerhosen/fluitplanner/commit/c0b83634021b021af37784f64970b15a1610d48b))
+
 ## [1.4.2](https://github.com/sauerhosen/fluitplanner/compare/v1.4.1...v1.4.2) (2026-02-14)
 
 
