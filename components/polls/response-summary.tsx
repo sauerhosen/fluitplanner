@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { Check, X, HelpCircle } from "lucide-react";
 import { toast } from "sonner";
 import { updatePollResponse } from "@/lib/actions/poll-responses";
@@ -87,16 +87,15 @@ type Props = {
 };
 
 export function ResponseSummary({ pollId, slots, responses }: Props) {
-  const [isPending, startTransition] = useTransition();
-
-  // Build initial response map from props
-  const initialMap = new Map<string, ResponseValue>();
-  for (const r of responses) {
-    if (r.umpire_id) {
-      initialMap.set(cellKey(r.slot_id, r.umpire_id), r.response);
+  const [responseMap, setResponseMap] = useState(() => {
+    const map = new Map<string, ResponseValue>();
+    for (const r of responses) {
+      if (r.umpire_id) {
+        map.set(cellKey(r.slot_id, r.umpire_id), r.response);
+      }
     }
-  }
-  const [responseMap, setResponseMap] = useState(initialMap);
+    return map;
+  });
 
   // Extract unique participants (umpires with at least one response)
   const participants: Participant[] = [];
@@ -136,8 +135,7 @@ export function ResponseSummary({ pollId, slots, responses }: Props) {
       return updated;
     });
 
-    startTransition(async () => {
-      const result = await updatePollResponse(pollId, slotId, umpireId, next);
+    updatePollResponse(pollId, slotId, umpireId, next).then((result) => {
       if (result.error) {
         // Revert on error
         setResponseMap((prev) => {
@@ -217,7 +215,6 @@ export function ResponseSummary({ pollId, slots, responses }: Props) {
                         onClick={() => handleClick(slot.id, umpireId)}
                         className="w-full h-full p-1 cursor-pointer hover:bg-muted/50 transition-colors rounded-sm"
                         aria-label={label}
-                        disabled={isPending}
                       >
                         {config ? (
                           <config.icon
