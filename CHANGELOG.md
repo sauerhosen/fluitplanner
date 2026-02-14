@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.0](https://github.com/sauerhosen/fluitplanner/compare/v1.4.3...v1.5.0) (2026-02-14)
+
+
+### Features
+
+* manual poll response editing in Responses tab ([#32](https://github.com/sauerhosen/fluitplanner/issues/32)) ([c303fec](https://github.com/sauerhosen/fluitplanner/commit/c303feca9b0d9be9550cafd6a0926d19977e7973))
+
 ## [1.4.3](https://github.com/sauerhosen/fluitplanner/compare/v1.4.2...v1.4.3) (2026-02-14)
 
 
