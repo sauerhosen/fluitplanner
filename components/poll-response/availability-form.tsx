@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { SlotRow } from "@/components/poll-response/slot-row";
 import { submitResponses } from "@/lib/actions/public-polls";
+import { useTranslations } from "next-intl";
 import type { PollSlot, AvailabilityResponse } from "@/lib/types/domain";
 
 type ResponseValue = "yes" | "if_need_be" | "no";
@@ -51,6 +52,7 @@ export function AvailabilityForm({
   slots,
   existingResponses,
 }: Props) {
+  const t = useTranslations("pollResponse");
   const initialState: Record<string, ResponseValue | null> = {};
   for (const slot of slots) {
     const existing = existingResponses.find((r) => r.slot_id === slot.id);
@@ -81,11 +83,7 @@ export function AvailabilityForm({
       await submitResponses(pollId, umpireId, umpireName, toSubmit);
       setSaved(true);
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Failed to save. Please try again.",
-      );
+      setError(err instanceof Error ? err.message : t("failedToSave"));
     } finally {
       setSaving(false);
     }
@@ -118,7 +116,7 @@ export function AvailabilityForm({
       )}
       {saved && (
         <p className="text-sm text-green-600 dark:text-green-400">
-          Your availability has been saved!
+          {t("savedSuccess")}
         </p>
       )}
       <Button
@@ -126,7 +124,11 @@ export function AvailabilityForm({
         disabled={!hasSelections || saving}
         className="w-full"
       >
-        {saving ? "Saving\u2026" : saved ? "Save changes" : "Save availability"}
+        {saving
+          ? t("savingButton")
+          : saved
+            ? t("saveChangesButton")
+            : t("saveAvailabilityButton")}
       </Button>
     </form>
   );

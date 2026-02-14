@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { findOrCreateUmpire } from "@/lib/actions/public-polls";
 import { requestVerification } from "@/lib/actions/verification";
+import { useTranslations } from "next-intl";
 import type { Umpire } from "@/lib/types/domain";
 
 type Props = {
@@ -19,6 +20,7 @@ export function UmpireIdentifier({
   onIdentified,
   onNeedsVerification,
 }: Props) {
+  const t = useTranslations("pollResponse");
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [needsName, setNeedsName] = useState(false);
@@ -38,13 +40,13 @@ export function UmpireIdentifier({
         onNeedsVerification(email, result.maskedEmail);
       } else if ("error" in result) {
         if (result.error === "locked") {
-          setError("Too many attempts. Please try again later.");
+          setError(t("errorTooManyAttempts"));
         } else {
-          setError("Could not send verification code. Please try again.");
+          setError(t("errorCouldNotSendCode"));
         }
       }
     } catch {
-      setError("Something went wrong. Please try again.");
+      setError(t("errorSomethingWentWrong"));
     } finally {
       setLoading(false);
     }
@@ -60,10 +62,10 @@ export function UmpireIdentifier({
       if (umpire) {
         onIdentified(umpire);
       } else {
-        setError("Could not create account. Please try again.");
+        setError(t("errorCouldNotCreateAccount"));
       }
     } catch {
-      setError("Something went wrong. Please try again.");
+      setError(t("errorSomethingWentWrong"));
     } finally {
       setLoading(false);
     }
@@ -73,17 +75,19 @@ export function UmpireIdentifier({
     return (
       <form onSubmit={handleRegisterSubmit} className="space-y-4">
         <p className="text-muted-foreground text-sm">
-          We don&apos;t have <strong>{email}</strong> on file yet. Enter your
-          name to register.
+          {t.rich("notOnFileYet", {
+            email,
+            strong: (chunks) => <strong>{chunks}</strong>,
+          })}
         </p>
         <div className="space-y-2">
-          <Label htmlFor="name">Your name</Label>
+          <Label htmlFor="name">{t("yourName")}</Label>
           <Input
             id="name"
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. Jane Doe"
+            placeholder={t("namePlaceholder")}
             required
             autoFocus
           />
@@ -94,7 +98,7 @@ export function UmpireIdentifier({
           disabled={loading || !name.trim()}
           className="w-full"
         >
-          {loading ? "Registering\u2026" : "Continue"}
+          {loading ? t("registering") : t("continue")}
         </Button>
       </form>
     );
@@ -103,13 +107,13 @@ export function UmpireIdentifier({
   return (
     <form onSubmit={handleEmailSubmit} className="space-y-4">
       <div className="space-y-2">
-        <Label htmlFor="email">Your email</Label>
+        <Label htmlFor="email">{t("yourEmail")}</Label>
         <Input
           id="email"
           type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          placeholder="e.g. jane@example.com"
+          placeholder={t("emailPlaceholder")}
           required
           autoFocus
         />
@@ -120,7 +124,7 @@ export function UmpireIdentifier({
         disabled={loading || !email.trim()}
         className="w-full"
       >
-        {loading ? "Looking up\u2026" : "Continue"}
+        {loading ? t("lookingUp") : t("continue")}
       </Button>
     </form>
   );
