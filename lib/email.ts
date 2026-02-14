@@ -31,8 +31,6 @@ export async function sendVerificationEmail({
 }: VerificationEmailParams): Promise<void> {
   const from =
     process.env.SMTP_FROM || "Fluitplanner <noreply@fluitplanner.nl>";
-  const formattedCode = `${code.slice(0, 3)} ${code.slice(3)}`;
-
   const maxRetries = 2;
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
@@ -42,7 +40,7 @@ export async function sendVerificationEmail({
         to,
         subject: "Your Fluitplanner verification code",
         text: `Your verification code is: ${code}\n\nOr click this link to verify: ${magicLink}\n\nThis code expires in 30 minutes.`,
-        html: verificationEmailHtml({ formattedCode, magicLink }),
+        html: verificationEmailHtml({ code, magicLink }),
       });
       return;
     } catch (err) {
@@ -81,10 +79,10 @@ function escapeHtml(str: string): string {
 }
 
 function verificationEmailHtml({
-  formattedCode,
+  code,
   magicLink,
 }: {
-  formattedCode: string;
+  code: string;
   magicLink: string;
 }): string {
   const safeLink = escapeHtml(magicLink);
@@ -107,7 +105,7 @@ function verificationEmailHtml({
         <tr>
           <td style="padding:32px;">
             <p style="margin:0 0 8px;font-size:15px;color:#4a5e53;">Your verification code is:</p>
-            <p style="margin:0 0 24px;font-size:36px;font-weight:700;letter-spacing:6px;color:#1a2e24;font-family:'Courier New',monospace;">${formattedCode}</p>
+            <p style="margin:0 0 24px;font-size:36px;font-weight:700;letter-spacing:10px;color:#1a2e24;font-family:'Courier New',monospace;">${code}</p>
             <p style="margin:0 0 16px;font-size:15px;color:#4a5e53;">Or click the button below:</p>
             <a href="${safeLink}" style="display:inline-block;padding:12px 28px;background-color:#1B9A6C;color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;border-radius:8px;">Verify my email</a>
             <p style="margin:24px 0 0;font-size:13px;color:#6b7f73;">This code expires in 30 minutes.</p>
