@@ -6,12 +6,17 @@ export type Locale = (typeof locales)[number];
 export const defaultLocale: Locale = "en";
 
 export default getRequestConfig(async () => {
-  const store = await cookies();
-  const cookie = store.get("locale")?.value;
-  const locale: Locale =
-    cookie && locales.includes(cookie as Locale)
-      ? (cookie as Locale)
-      : defaultLocale;
+  let locale: Locale = defaultLocale;
+
+  try {
+    const store = await cookies();
+    const cookie = store.get("locale")?.value;
+    if (cookie && locales.includes(cookie as Locale)) {
+      locale = cookie as Locale;
+    }
+  } catch {
+    // cookies() throws during static generation (e.g. _not-found page)
+  }
 
   return {
     locale,

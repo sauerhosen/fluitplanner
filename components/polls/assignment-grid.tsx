@@ -212,7 +212,7 @@ export function AssignmentGrid({
       }
     }
     return groups;
-  }, [sortedMatches]);
+  }, [sortedMatches, format]);
 
   if (umpires.length === 0) {
     return (
