@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { AvailabilityForm } from "@/components/poll-response/availability-form";
 import { UmpireIdentifier } from "@/components/poll-response/umpire-identifier";
 import { VerificationForm } from "@/components/poll-response/verification-form";
+import { createClient } from "@/lib/supabase/client";
 import { findUmpireById, getMyResponses } from "@/lib/actions/public-polls";
 import { verifyMagicLink } from "@/lib/actions/verification";
 import { LayoutDashboard } from "lucide-react";
@@ -59,6 +60,7 @@ export function PollResponsePage({
 }: Props) {
   const [loading, setLoading] = useState(true);
   const [umpire, setUmpire] = useState<Umpire | null>(null);
+  const [isPlanner, setIsPlanner] = useState(false);
   const [existingResponses, setExistingResponses] = useState<
     AvailabilityResponse[]
   >([]);
@@ -69,6 +71,13 @@ export function PollResponsePage({
 
   useEffect(() => {
     async function init() {
+      // Check if user has an active planner session
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (user) setIsPlanner(true);
+
       // Try magic link verification first
       if (verifyToken) {
         const result = await verifyMagicLink(verifyToken);
@@ -206,7 +215,7 @@ export function PollResponsePage({
           </p>
         </div>
         <div className="flex items-center gap-1">
-          {umpire.auth_user_id && (
+          {isPlanner && (
             <Button variant="ghost" size="sm" asChild>
               <Link href="/protected">
                 <LayoutDashboard className="mr-1 h-4 w-4" />

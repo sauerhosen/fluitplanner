@@ -15,6 +15,14 @@ vi.mock("@/lib/actions/verification", () => ({
   requestVerification: vi.fn(),
 }));
 
+vi.mock("@/lib/supabase/client", () => ({
+  createClient: () => ({
+    auth: {
+      getUser: vi.fn().mockResolvedValue({ data: { user: null }, error: null }),
+    },
+  }),
+}));
+
 import { findUmpireById, getMyResponses } from "@/lib/actions/public-polls";
 
 const mockFindUmpireById = vi.mocked(findUmpireById);
