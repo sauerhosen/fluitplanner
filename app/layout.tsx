@@ -4,6 +4,7 @@ import { ThemeProvider } from "next-themes";
 import { Toaster } from "@/components/ui/sonner";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages } from "next-intl/server";
+import { LocaleDetector } from "@/components/locale-detector";
 import "./globals.css";
 
 const defaultUrl = process.env.VERCEL_URL
@@ -40,6 +41,7 @@ export default async function RootLayout({
           disableTransitionOnChange
         >
           <NextIntlClientProvider messages={messages}>
+            <LocaleDetector />
             {children}
             <Toaster />
           </NextIntlClientProvider>
