@@ -283,5 +283,13 @@
     "title": "Er is iets misgegaan",
     "defaultMessage": "Er is een onverwachte fout opgetreden.",
     "tryAgain": "Opnieuw proberen"
+  },
+  "email": {
+    "verificationSubject": "Je Fluitplanner verificatiecode",
+    "verificationCode": "Je verificatiecode is:",
+    "verificationClickButton": "Of klik op de knop hieronder:",
+    "verifyButton": "Verifieer mijn e-mail",
+    "expiresIn": "Deze code verloopt over 30 minuten.",
+    "footer": "Je ontvangt dit bericht omdat iemand toegang heeft aangevraagd tot een peiling met jouw e-mailadres."
   }
 }

@@ -283,5 +283,13 @@
     "title": "Something went wrong",
     "defaultMessage": "An unexpected error occurred.",
     "tryAgain": "Try again"
+  },
+  "email": {
+    "verificationSubject": "Your Fluitplanner verification code",
+    "verificationCode": "Your verification code is:",
+    "verificationClickButton": "Or click the button below:",
+    "verifyButton": "Verify my email",
+    "expiresIn": "This code expires in 30 minutes.",
+    "footer": "You received this because someone requested access to a poll with your email address."
   }
 }
