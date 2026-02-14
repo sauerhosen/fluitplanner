@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.4.0](https://github.com/sauerhosen/fluitplanner/compare/v1.3.0...v1.4.0) (2026-02-14)
+
+
+### Features
+
+* poll email verification for returning umpires ([#20](https://github.com/sauerhosen/fluitplanner/issues/20)) ([f8a538b](https://github.com/sauerhosen/fluitplanner/commit/f8a538bc228cd493fb9d5c01269cf8b37b0c021f))
+* replace navbar text with app icon ([#19](https://github.com/sauerhosen/fluitplanner/issues/19)) ([bc21790](https://github.com/sauerhosen/fluitplanner/commit/bc21790b182bebe1517fced4b0b12ef136b09c01))
+
 ## [1.3.0](https://github.com/sauerhosen/fluitplanner/compare/v1.2.0...v1.3.0) (2026-02-14)
 
 ### Features
