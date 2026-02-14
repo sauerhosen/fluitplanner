@@ -27,12 +27,7 @@ import {
   ChevronRight,
   Inbox,
 } from "lucide-react";
-
-const LEVEL_LABELS: Record<number, string> = {
-  1: "Any",
-  2: "Experienced",
-  3: "Top",
-};
+import { useTranslations } from "next-intl";
 
 const LEVEL_VARIANTS: Record<number, "default" | "secondary" | "destructive"> =
   {
@@ -82,6 +77,14 @@ export function MatchTable({
   const [collapsedDates, setCollapsedDates] = useState<Set<string>>(new Set());
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const groups = groupByDate(matches);
+  const t = useTranslations("matches");
+  const tCommon = useTranslations("common");
+
+  const LEVEL_LABELS: Record<number, string> = {
+    1: t("levelLabelAny"),
+    2: t("levelLabelExperienced"),
+    3: t("levelLabelTop"),
+  };
 
   function toggleDate(date: string) {
     setCollapsedDates((prev) => {
@@ -106,7 +109,7 @@ export function MatchTable({
     return (
       <div className="flex flex-col items-center gap-3 py-12 text-center text-muted-foreground">
         <Inbox className="h-10 w-10" />
-        <p>No matches yet. Upload a schedule or add a match manually.</p>
+        <p>{t("emptyState")}</p>
       </div>
     );
   }
@@ -116,12 +119,12 @@ export function MatchTable({
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="w-20">Time</TableHead>
-            <TableHead>Home</TableHead>
-            <TableHead>Away</TableHead>
-            <TableHead>Field</TableHead>
-            <TableHead>Venue</TableHead>
-            <TableHead className="w-32">Level</TableHead>
+            <TableHead className="w-20">{t("timeHeader")}</TableHead>
+            <TableHead>{t("homeHeader")}</TableHead>
+            <TableHead>{t("awayHeader")}</TableHead>
+            <TableHead>{t("fieldHeader")}</TableHead>
+            <TableHead>{t("venueHeader")}</TableHead>
+            <TableHead className="w-32">{t("levelHeader")}</TableHead>
             <TableHead className="w-12"></TableHead>
           </TableRow>
         </TableHeader>
@@ -144,8 +147,7 @@ export function MatchTable({
                       )}
                       {formatDate(date)}
                       <span className="text-muted-foreground font-normal text-sm">
-                        ({dateMatches.length} match
-                        {dateMatches.length !== 1 ? "es" : ""})
+                        ({t("matchCount", { count: dateMatches.length })})
                       </span>
                     </div>
                   </TableCell>
@@ -182,7 +184,7 @@ export function MatchTable({
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem onClick={() => onEdit(match)}>
                               <Pencil className="mr-2 h-4 w-4" />
-                              Edit
+                              {t("edit")}
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               onClick={() => handleDelete(match.id)}
@@ -190,7 +192,7 @@ export function MatchTable({
                               className="text-destructive"
                             >
                               <Trash2 className="mr-2 h-4 w-4" />
-                              Delete
+                              {tCommon("delete")}
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
