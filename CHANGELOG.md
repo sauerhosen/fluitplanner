@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.1](https://github.com/sauerhosen/fluitplanner/compare/v1.6.0...v1.6.1) (2026-02-14)
+
+
+### Bug Fixes
+
+* check auth session for poll dashboard button ([#39](https://github.com/sauerhosen/fluitplanner/issues/39)) ([710a399](https://github.com/sauerhosen/fluitplanner/commit/710a399d0fac0e28a283ca11496f860dd7c979c2))
+
 ## [1.6.0](https://github.com/sauerhosen/fluitplanner/compare/v1.5.1...v1.6.0) (2026-02-14)
 
 
