@@ -1,4 +1,5 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { screen, fireEvent } from "@testing-library/react";
+import { render } from "@/__tests__/helpers/render";
 import { describe, it, expect, vi } from "vitest";
 import { MatchSelector } from "@/components/polls/match-selector";
 import type { Match } from "@/lib/types/domain";

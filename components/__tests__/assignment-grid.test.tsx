@@ -1,4 +1,5 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { screen, fireEvent } from "@testing-library/react";
+import { render } from "@/__tests__/helpers/render";
 import { describe, it, expect, vi } from "vitest";
 import { AssignmentGrid } from "@/components/polls/assignment-grid";
 import type {

@@ -1,4 +1,5 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { screen, fireEvent, waitFor } from "@testing-library/react";
+import { render } from "@/__tests__/helpers/render";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { UmpireIdentifier } from "@/components/poll-response/umpire-identifier";
 import type { Umpire } from "@/lib/types/domain";

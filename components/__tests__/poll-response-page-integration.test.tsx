@@ -1,4 +1,5 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
+import { render } from "@/__tests__/helpers/render";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { PollResponsePage } from "@/components/poll-response/poll-response-page";
 import type { Poll, PollSlot } from "@/lib/types/domain";

@@ -1,5 +1,17 @@
 import { render, screen } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
+import messages from "@/messages/en.json";
+
+// Mock next-intl/server for server components
+vi.mock("next-intl/server", () => ({
+  getTranslations: vi.fn(async (namespace?: string) => {
+    const ns = namespace as keyof typeof messages | undefined;
+    const nsMessages = ns ? (messages[ns] as Record<string, string>) : {};
+    return (key: string) => nsMessages?.[key] ?? key;
+  }),
+  getLocale: vi.fn(async () => "en"),
+  getMessages: vi.fn(async () => messages),
+}));
 
 // Mock the dashboard actions
 vi.mock("@/lib/actions/dashboard", () => ({
