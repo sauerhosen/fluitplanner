@@ -8,18 +8,21 @@ export function LocaleDetector() {
   const currentLocale = useLocale();
 
   useEffect(() => {
-    if (document.cookie.includes("locale=")) return;
+    if (document.cookie.split("; ").some((c) => c.startsWith("locale=")))
+      return;
 
     const browserLang = navigator.language.toLowerCase();
     const detected = browserLang.startsWith("nl") ? "nl" : "en";
 
     if (detected !== currentLocale) {
-      setLocale(detected).then(() => {
-        window.location.reload();
-      });
+      setLocale(detected)
+        .then(() => window.location.reload())
+        .catch(() => {
+          // Locale will be re-detected on next visit
+        });
     } else {
       // Persist detected locale without reload
-      setLocale(detected);
+      setLocale(detected).catch(() => {});
     }
   }, [currentLocale]);
 

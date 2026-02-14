@@ -9,9 +9,11 @@ export async function AuthButton({
 }: {
   showDashboardLink?: boolean;
 } = {}) {
-  const supabase = await createClient();
-  const t = await getTranslations("auth");
-  const tNav = await getTranslations("nav");
+  const [supabase, t, tNav] = await Promise.all([
+    createClient(),
+    getTranslations("auth"),
+    getTranslations("nav"),
+  ]);
 
   // You can also use getUser() which will be slower.
   const { data } = await supabase.auth.getClaims();

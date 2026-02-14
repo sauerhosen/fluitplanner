@@ -87,7 +87,7 @@ export function ManagedTeamsList({
       );
       setTeams((prev) =>
         prev
-          .map((t) => (t.id === id ? updated : t))
+          .map((team) => (team.id === id ? updated : team))
           .sort((a, b) => a.name.localeCompare(b.name)),
       );
       setEditingId(null);
@@ -100,7 +100,7 @@ export function ManagedTeamsList({
     setLoading(true);
     try {
       await deleteManagedTeam(id);
-      setTeams((prev) => prev.filter((t) => t.id !== id));
+      setTeams((prev) => prev.filter((team) => team.id !== id));
     } finally {
       setLoading(false);
     }

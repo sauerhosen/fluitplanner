@@ -1,3 +1,5 @@
+"use client";
+
 import type { TimeSlot } from "@/lib/types/domain";
 import { Card } from "@/components/ui/card";
 import { useTranslations, useFormatter } from "next-intl";

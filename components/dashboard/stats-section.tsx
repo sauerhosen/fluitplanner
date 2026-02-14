@@ -9,17 +9,25 @@ export async function StatsSection() {
 
   const items = [
     {
+      id: "upcomingMatches",
       label: t("upcomingMatches"),
       value: stats.upcomingMatches,
       href: "/protected/matches",
     },
-    { label: t("openPolls"), value: stats.openPolls, href: "/protected/polls" },
     {
+      id: "openPolls",
+      label: t("openPolls"),
+      value: stats.openPolls,
+      href: "/protected/polls",
+    },
+    {
+      id: "unassigned",
       label: t("unassigned"),
       value: stats.unassignedMatches,
       href: "/protected/matches",
     },
     {
+      id: "activeUmpires",
       label: t("activeUmpires"),
       value: stats.activeUmpires,
       href: "/protected/umpires",
@@ -29,7 +37,7 @@ export async function StatsSection() {
   return (
     <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
       {items.map((item) => (
-        <Link key={item.label} href={item.href}>
+        <Link key={item.id} href={item.href}>
           <Card className="cursor-pointer transition-colors hover:border-foreground/20">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">

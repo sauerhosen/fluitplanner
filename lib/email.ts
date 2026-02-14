@@ -129,7 +129,7 @@ function verificationEmailHtml({
         <tr>
           <td style="padding:32px;">
             <p style="margin:0 0 8px;font-size:15px;color:#4a5e53;">${escapeHtml(t.verificationCode)}</p>
-            <p style="margin:0 0 24px;font-size:36px;font-weight:700;letter-spacing:10px;color:#1a2e24;font-family:'Courier New',monospace;">${code}</p>
+            <p style="margin:0 0 24px;font-size:36px;font-weight:700;letter-spacing:10px;color:#1a2e24;font-family:'Courier New',monospace;">${escapeHtml(code)}</p>
             <p style="margin:0 0 16px;font-size:15px;color:#4a5e53;">${escapeHtml(t.verificationClickButton)}</p>
             <a href="${safeLink}" style="display:inline-block;padding:12px 28px;background-color:#1B9A6C;color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;border-radius:8px;">${escapeHtml(t.verifyButton)}</a>
             <p style="margin:24px 0 0;font-size:13px;color:#6b7f73;">${escapeHtml(t.expiresIn)}</p>

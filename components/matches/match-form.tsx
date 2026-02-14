@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useTranslations, useFormatter } from "next-intl";
+import { useTranslations } from "next-intl";
 
 export function MatchFormDialog({
   match,
@@ -35,18 +35,13 @@ export function MatchFormDialog({
   const isEditing = match !== null;
   const t = useTranslations("matches");
   const tCommon = useTranslations("common");
-  const format = useFormatter();
 
   const [date, setDate] = useState(match?.date ?? "");
-  const [startTime, setStartTime] = useState(
-    match?.start_time
-      ? format.dateTime(new Date(match.start_time), {
-          hour: "2-digit",
-          minute: "2-digit",
-          hour12: false,
-        })
-      : "",
-  );
+  const [startTime, setStartTime] = useState(() => {
+    if (!match?.start_time) return "";
+    const d = new Date(match.start_time);
+    return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  });
   const [homeTeam, setHomeTeam] = useState(match?.home_team ?? "");
   const [awayTeam, setAwayTeam] = useState(match?.away_team ?? "");
   const [venue, setVenue] = useState(match?.venue ?? "");

@@ -233,7 +233,7 @@ export function PollDetailClient({
               variant="outline"
               size="sm"
               className="hidden sm:inline-flex"
-              onClick={() => setTransposed((t) => !t)}
+              onClick={() => setTransposed((prev) => !prev)}
               aria-label={t("swapRowsAndColumns")}
             >
               <ArrowRightLeft className="mr-2 h-4 w-4" />
