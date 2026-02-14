@@ -7,6 +7,8 @@ import { UmpireIdentifier } from "@/components/poll-response/umpire-identifier";
 import { VerificationForm } from "@/components/poll-response/verification-form";
 import { findUmpireById, getMyResponses } from "@/lib/actions/public-polls";
 import { verifyMagicLink } from "@/lib/actions/verification";
+import { LayoutDashboard } from "lucide-react";
+import Link from "next/link";
 import type {
   AvailabilityResponse,
   Poll,
@@ -203,9 +205,19 @@ export function PollResponsePage({
             Responding as <strong>{umpire.name}</strong>
           </p>
         </div>
-        <Button variant="ghost" size="sm" onClick={handleSwitchUser}>
-          Not you?
-        </Button>
+        <div className="flex items-center gap-1">
+          {umpire.auth_user_id && (
+            <Button variant="ghost" size="sm" asChild>
+              <Link href="/protected">
+                <LayoutDashboard className="mr-1 h-4 w-4" />
+                Dashboard
+              </Link>
+            </Button>
+          )}
+          <Button variant="ghost" size="sm" onClick={handleSwitchUser}>
+            Not you?
+          </Button>
+        </div>
       </div>
       <AvailabilityForm
         pollId={poll.id}
