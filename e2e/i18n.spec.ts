@@ -6,18 +6,25 @@ test.describe("i18n language toggle", () => {
 
     // Verify English default
     await expect(page.locator("html")).toHaveAttribute("lang", "en");
-    await expect(page.getByRole("link", { name: "Matches" })).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "Matches", exact: true }),
+    ).toBeVisible();
 
-    // Click language toggle (shows "NL" when currently in EN)
-    await page.getByRole("button", { name: "NL" }).click();
+    // Click language toggle in nav (shows "NL" when currently in EN)
+    const nav = page.getByRole("navigation");
+    await nav.getByRole("button", { name: "NL", exact: true }).click();
 
     // Verify Dutch
     await expect(page.locator("html")).toHaveAttribute("lang", "nl");
-    await expect(page.getByRole("link", { name: "Wedstrijden" })).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "Wedstrijden", exact: true }),
+    ).toBeVisible();
 
     // Toggle back
-    await page.getByRole("button", { name: "EN" }).click();
+    await nav.getByRole("button", { name: "EN", exact: true }).click();
     await expect(page.locator("html")).toHaveAttribute("lang", "en");
-    await expect(page.getByRole("link", { name: "Matches" })).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "Matches", exact: true }),
+    ).toBeVisible();
   });
 });
