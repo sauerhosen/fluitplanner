@@ -10,10 +10,9 @@ create table public.verification_codes (
   created_at timestamptz default now() not null
 );
 
--- Only one active code per email (enforced via partial unique index)
-create unique index verification_codes_email_active
-  on public.verification_codes (email)
-  where expires_at > now();
+-- Index for email lookups (one active code per email enforced at application level)
+create index verification_codes_email_idx
+  on public.verification_codes (email);
 
 -- Index for magic token lookups
 create index verification_codes_magic_token_idx
