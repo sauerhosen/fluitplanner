@@ -135,21 +135,29 @@ export function ResponseSummary({ pollId, slots, responses }: Props) {
       return updated;
     });
 
-    updatePollResponse(pollId, slotId, umpireId, next).then((result) => {
-      if (result.error) {
-        // Revert on error
-        setResponseMap((prev) => {
-          const reverted = new Map(prev);
-          if (current === null) {
-            reverted.delete(key);
-          } else {
-            reverted.set(key, current);
-          }
-          return reverted;
-        });
-        toast.error(`Failed to update response: ${result.error}`);
-      }
-    });
+    const revert = () => {
+      setResponseMap((prev) => {
+        const reverted = new Map(prev);
+        if (current === null) {
+          reverted.delete(key);
+        } else {
+          reverted.set(key, current);
+        }
+        return reverted;
+      });
+    };
+
+    updatePollResponse(pollId, slotId, umpireId, next)
+      .then((result) => {
+        if (result.error) {
+          revert();
+          toast.error(`Failed to update response: ${result.error}`);
+        }
+      })
+      .catch(() => {
+        revert();
+        toast.error("Failed to update response");
+      });
   }
 
   return (
