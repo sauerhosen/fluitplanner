@@ -46,7 +46,7 @@
   --card-foreground: hsl(150 10% 95%);
   --popover: hsl(160 12% 7.5%);
   --popover-foreground: hsl(150 10% 95%);
-  --primary: hsl(158 55% 42%);
+  --primary: hsl(158 55% 30%);
   --primary-foreground: hsl(0 0% 100%);
   --secondary: hsl(158 14% 14%);
   --secondary-foreground: hsl(150 10% 90%);
@@ -58,7 +58,7 @@
   --destructive-foreground: hsl(0 0% 98%);
   --border: hsl(158 10% 16%);
   --input: hsl(158 10% 16%);
-  --ring: hsl(158 55% 42%);
+  --ring: hsl(158 55% 30%);
   --chart-1: hsl(158 55% 48%);
   --chart-2: hsl(32 75% 55%);
   --chart-3: hsl(200 65% 52%);
@@ -66,12 +66,12 @@
   --chart-5: hsl(280 50% 60%);
   --sidebar-background: hsl(160 15% 5.5%);
   --sidebar-foreground: hsl(150 10% 90%);
-  --sidebar-primary: hsl(158 55% 42%);
+  --sidebar-primary: hsl(158 55% 30%);
   --sidebar-primary-foreground: hsl(0 0% 100%);
   --sidebar-accent: hsl(158 12% 14%);
   --sidebar-accent-foreground: hsl(150 10% 90%);
   --sidebar-border: hsl(158 10% 16%);
-  --sidebar-ring: hsl(158 55% 42%);
+  --sidebar-ring: hsl(158 55% 30%);
 }
 
 @theme inline {
