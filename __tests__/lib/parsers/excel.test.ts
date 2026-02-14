@@ -9,25 +9,17 @@ async function buildExcelBuffer(
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet("Sheet1");
 
-  if (rows.length === 0) {
-    const nodeBuffer = (await workbook.xlsx.writeBuffer()) as Buffer;
-    return nodeBuffer.buffer.slice(
-      nodeBuffer.byteOffset,
-      nodeBuffer.byteOffset + nodeBuffer.byteLength,
-    );
+  if (rows.length > 0) {
+    const headers = Object.keys(rows[0]);
+    sheet.addRow(headers);
+    for (const row of rows) {
+      sheet.addRow(headers.map((h) => row[h] ?? ""));
+    }
   }
 
-  const headers = Object.keys(rows[0]);
-  sheet.addRow(headers);
-  for (const row of rows) {
-    sheet.addRow(headers.map((h) => row[h] ?? ""));
-  }
-
-  const nodeBuffer = (await workbook.xlsx.writeBuffer()) as Buffer;
-  return nodeBuffer.buffer.slice(
-    nodeBuffer.byteOffset,
-    nodeBuffer.byteOffset + nodeBuffer.byteLength,
-  );
+  const result = await workbook.xlsx.writeBuffer();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (result as any).buffer as ArrayBuffer;
 }
 
 describe("parseExcel", () => {

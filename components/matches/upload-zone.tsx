@@ -41,7 +41,7 @@ export function UploadZone({
   async function handleFile(file: File) {
     if (file.name.endsWith(".xlsx") || file.name.endsWith(".xls")) {
       const buffer = await file.arrayBuffer();
-      const rows = parseExcel(buffer);
+      const rows = await parseExcel(buffer);
       processRows(rows);
     } else {
       const text = await file.text();

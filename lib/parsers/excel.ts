@@ -3,7 +3,8 @@ import type { RawRow } from "./types";
 
 export async function parseExcel(data: ArrayBuffer): Promise<RawRow[]> {
   const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(Buffer.from(data));
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await workbook.xlsx.load(Buffer.from(data) as any);
 
   const sheet = workbook.worksheets[0];
   if (!sheet || sheet.rowCount === 0) return [];
