@@ -76,3 +76,9 @@ Required in `.env.local`:
 
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+- `SMTP_HOST` — AWS SES SMTP host (e.g. `email-smtp.eu-west-1.amazonaws.com`)
+- `SMTP_PORT` — SMTP port (587)
+- `SMTP_USER` — SES SMTP username
+- `SMTP_PASS` — SES SMTP password
+- `SMTP_FROM` — sender address (e.g. `Fluitplanner <noreply@fluitplanner.nl>`)
+- `NEXT_PUBLIC_SITE_URL` — base URL for magic links (e.g. `https://fluitplanner.nl`)
