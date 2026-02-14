@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.2](https://github.com/sauerhosen/fluitplanner/compare/v1.4.1...v1.4.2) (2026-02-14)
+
+
+### Bug Fixes
+
+* retry SMTP send on transient DNS errors ([#25](https://github.com/sauerhosen/fluitplanner/issues/25)) ([a6af0ae](https://github.com/sauerhosen/fluitplanner/commit/a6af0aeab9eaca5a85cffd862b4c6321d55d048c))
+
 ## [1.4.1](https://github.com/sauerhosen/fluitplanner/compare/v1.4.0...v1.4.1) (2026-02-14)
 
 
