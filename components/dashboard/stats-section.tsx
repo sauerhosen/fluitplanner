@@ -28,7 +28,7 @@ export async function StatsSection() {
     <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
       {items.map((item) => (
         <Link key={item.label} href={item.href}>
-          <Card className="transition-colors hover:border-foreground/20">
+          <Card className="cursor-pointer transition-colors hover:border-foreground/20">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
                 {item.label}
