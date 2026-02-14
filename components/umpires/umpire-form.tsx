@@ -19,6 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useTranslations } from "next-intl";
 
 export function UmpireFormDialog({
   umpire,
@@ -31,6 +32,8 @@ export function UmpireFormDialog({
   onOpenChange: (open: boolean) => void;
   onSaved: () => void;
 }) {
+  const t = useTranslations("umpires");
+  const tCommon = useTranslations("common");
   const isEditing = umpire !== null;
 
   const [name, setName] = useState(umpire?.name ?? "");
@@ -62,7 +65,7 @@ export function UmpireFormDialog({
       onSaved();
       onOpenChange(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save umpire");
+      setError(err instanceof Error ? err.message : t("failedToSave"));
     } finally {
       setSaving(false);
     }
@@ -72,11 +75,13 @@ export function UmpireFormDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{isEditing ? "Edit Umpire" : "Add Umpire"}</DialogTitle>
+          <DialogTitle>
+            {isEditing ? t("editUmpire") : t("addUmpire")}
+          </DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="name">Name</Label>
+            <Label htmlFor="name">{t("nameLabel")}</Label>
             <Input
               id="name"
               value={name}
@@ -86,7 +91,7 @@ export function UmpireFormDialog({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email">{t("emailLabel")}</Label>
             <Input
               id="email"
               type="email"
@@ -97,15 +102,15 @@ export function UmpireFormDialog({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="level">Level</Label>
+            <Label htmlFor="level">{t("levelLabel")}</Label>
             <Select value={level} onValueChange={setLevel}>
               <SelectTrigger id="level">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="1">1 — Any</SelectItem>
-                <SelectItem value="2">2 — Experienced</SelectItem>
-                <SelectItem value="3">3 — Top</SelectItem>
+                <SelectItem value="1">{t("levelAny")}</SelectItem>
+                <SelectItem value="2">{t("levelExperienced")}</SelectItem>
+                <SelectItem value="3">{t("levelTop")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -118,10 +123,10 @@ export function UmpireFormDialog({
               variant="ghost"
               onClick={() => onOpenChange(false)}
             >
-              Cancel
+              {tCommon("cancel")}
             </Button>
             <Button type="submit" disabled={saving}>
-              {saving ? "Saving..." : isEditing ? "Update" : "Add"}
+              {saving ? t("saving") : isEditing ? t("update") : t("add")}
             </Button>
           </div>
         </form>

@@ -26,11 +26,15 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Trash2, Pencil, Plus, Check, X } from "lucide-react";
+import { useTranslations } from "next-intl";
 
-const LEVEL_LABELS: Record<number, string> = {
-  1: "Any",
-  2: "Experienced",
-  3: "Top",
+const LEVEL_LABEL_KEYS: Record<
+  number,
+  "levelLabelAny" | "levelLabelExperienced" | "levelLabelTop"
+> = {
+  1: "levelLabelAny",
+  2: "levelLabelExperienced",
+  3: "levelLabelTop",
 };
 
 const LEVEL_VARIANTS: Record<number, "default" | "secondary" | "destructive"> =
@@ -45,6 +49,7 @@ export function ManagedTeamsList({
 }: {
   initialTeams: ManagedTeam[];
 }) {
+  const t = useTranslations("settings");
   const [teams, setTeams] = useState<ManagedTeam[]>(initialTeams);
   const [newName, setNewName] = useState("");
   const [newLevel, setNewLevel] = useState<"1" | "2" | "3">("1");
@@ -112,9 +117,9 @@ export function ManagedTeamsList({
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Team Name</TableHead>
-            <TableHead className="w-40">Required Level</TableHead>
-            <TableHead className="w-24">Actions</TableHead>
+            <TableHead>{t("teamNameHeader")}</TableHead>
+            <TableHead className="w-40">{t("requiredLevelHeader")}</TableHead>
+            <TableHead className="w-24">{t("actionsHeader")}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -140,9 +145,11 @@ export function ManagedTeamsList({
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="1">1 — Any</SelectItem>
-                        <SelectItem value="2">2 — Experienced</SelectItem>
-                        <SelectItem value="3">3 — Top</SelectItem>
+                        <SelectItem value="1">{t("levelAny")}</SelectItem>
+                        <SelectItem value="2">
+                          {t("levelExperienced")}
+                        </SelectItem>
+                        <SelectItem value="3">{t("levelTop")}</SelectItem>
                       </SelectContent>
                     </Select>
                   </TableCell>
@@ -172,7 +179,7 @@ export function ManagedTeamsList({
                   <TableCell>
                     <Badge variant={LEVEL_VARIANTS[team.required_level]}>
                       {team.required_level} —{" "}
-                      {LEVEL_LABELS[team.required_level]}
+                      {t(LEVEL_LABEL_KEYS[team.required_level])}
                     </Badge>
                   </TableCell>
                   <TableCell>
@@ -203,7 +210,7 @@ export function ManagedTeamsList({
           <TableRow>
             <TableCell>
               <Input
-                placeholder="Team name (e.g. Heren 01)"
+                placeholder={t("teamNamePlaceholder")}
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleAdd()}
@@ -218,9 +225,9 @@ export function ManagedTeamsList({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="1">1 — Any</SelectItem>
-                  <SelectItem value="2">2 — Experienced</SelectItem>
-                  <SelectItem value="3">3 — Top</SelectItem>
+                  <SelectItem value="1">{t("levelAny")}</SelectItem>
+                  <SelectItem value="2">{t("levelExperienced")}</SelectItem>
+                  <SelectItem value="3">{t("levelTop")}</SelectItem>
                 </SelectContent>
               </Select>
             </TableCell>
