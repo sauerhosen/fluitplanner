@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.0](https://github.com/sauerhosen/fluitplanner/compare/v1.5.1...v1.6.0) (2026-02-14)
+
+
+### Features
+
+* add dashboard link on poll page for planners ([#37](https://github.com/sauerhosen/fluitplanner/issues/37)) ([17e1e0c](https://github.com/sauerhosen/fluitplanner/commit/17e1e0c462d254202123451c3cfea9080cf211c8))
+
 ## [1.5.1](https://github.com/sauerhosen/fluitplanner/compare/v1.5.0...v1.5.1) (2026-02-14)
 
 
