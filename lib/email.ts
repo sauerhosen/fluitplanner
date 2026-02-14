@@ -4,7 +4,27 @@ type VerificationEmailParams = {
   to: string;
   code: string;
   magicLink: string;
+  locale?: string;
 };
+
+type EmailTranslations = {
+  verificationSubject: string;
+  verificationCode: string;
+  verificationClickButton: string;
+  verifyButton: string;
+  expiresIn: string;
+  footer: string;
+};
+
+async function getEmailTranslations(
+  locale: string,
+): Promise<EmailTranslations> {
+  const messages =
+    locale === "nl"
+      ? (await import("../messages/nl.json")).default
+      : (await import("../messages/en.json")).default;
+  return messages.email;
+}
 
 function getTransport() {
   const host = process.env.SMTP_HOST;
@@ -28,9 +48,11 @@ export async function sendVerificationEmail({
   to,
   code,
   magicLink,
+  locale = "en",
 }: VerificationEmailParams): Promise<void> {
   const from =
     process.env.SMTP_FROM || "Fluitplanner <noreply@fluitplanner.nl>";
+  const t = await getEmailTranslations(locale);
   const maxRetries = 2;
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
@@ -38,9 +60,9 @@ export async function sendVerificationEmail({
       await transport.sendMail({
         from,
         to,
-        subject: "Your Fluitplanner verification code",
-        text: `Your verification code is: ${code}\n\nOr click this link to verify: ${magicLink}\n\nThis code expires in 30 minutes.`,
-        html: verificationEmailHtml({ code, magicLink }),
+        subject: t.verificationSubject,
+        text: `${t.verificationCode} ${code}\n\n${t.verificationClickButton} ${magicLink}\n\n${t.expiresIn}`,
+        html: verificationEmailHtml({ code, magicLink, t }),
       });
       return;
     } catch (err) {
@@ -81,9 +103,11 @@ function escapeHtml(str: string): string {
 function verificationEmailHtml({
   code,
   magicLink,
+  t,
 }: {
   code: string;
   magicLink: string;
+  t: EmailTranslations;
 }): string {
   const safeLink = escapeHtml(magicLink);
   // Branded HTML email with green accent matching the app (hsl(158 64% 30%) ≈ #1B9A6C)
@@ -104,17 +128,17 @@ function verificationEmailHtml({
         <!-- Body -->
         <tr>
           <td style="padding:32px;">
-            <p style="margin:0 0 8px;font-size:15px;color:#4a5e53;">Your verification code is:</p>
-            <p style="margin:0 0 24px;font-size:36px;font-weight:700;letter-spacing:10px;color:#1a2e24;font-family:'Courier New',monospace;">${code}</p>
-            <p style="margin:0 0 16px;font-size:15px;color:#4a5e53;">Or click the button below:</p>
-            <a href="${safeLink}" style="display:inline-block;padding:12px 28px;background-color:#1B9A6C;color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;border-radius:8px;">Verify my email</a>
-            <p style="margin:24px 0 0;font-size:13px;color:#6b7f73;">This code expires in 30 minutes.</p>
+            <p style="margin:0 0 8px;font-size:15px;color:#4a5e53;">${escapeHtml(t.verificationCode)}</p>
+            <p style="margin:0 0 24px;font-size:36px;font-weight:700;letter-spacing:10px;color:#1a2e24;font-family:'Courier New',monospace;">${escapeHtml(code)}</p>
+            <p style="margin:0 0 16px;font-size:15px;color:#4a5e53;">${escapeHtml(t.verificationClickButton)}</p>
+            <a href="${safeLink}" style="display:inline-block;padding:12px 28px;background-color:#1B9A6C;color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;border-radius:8px;">${escapeHtml(t.verifyButton)}</a>
+            <p style="margin:24px 0 0;font-size:13px;color:#6b7f73;">${escapeHtml(t.expiresIn)}</p>
           </td>
         </tr>
         <!-- Footer -->
         <tr>
           <td style="padding:16px 32px;background-color:#f5f9f7;border-top:1px solid #e2ece7;">
-            <p style="margin:0;font-size:12px;color:#6b7f73;">Fluitplanner &middot; You received this because someone requested access to a poll with your email address.</p>
+            <p style="margin:0;font-size:12px;color:#6b7f73;">Fluitplanner &middot; ${escapeHtml(t.footer)}</p>
           </td>
         </tr>
       </table>

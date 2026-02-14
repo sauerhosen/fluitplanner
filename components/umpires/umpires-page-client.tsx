@@ -16,12 +16,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Plus } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 export function UmpiresPageClient({
   initialUmpires,
 }: {
   initialUmpires: Umpire[];
 }) {
+  const t = useTranslations("umpires");
   const [umpires, setUmpires] = useState(initialUmpires);
   const [search, setSearch] = useState("");
   const [levelFilter, setLevelFilter] = useState<string>("all");
@@ -59,26 +61,26 @@ export function UmpiresPageClient({
       {/* Filters + Add button */}
       <div className="flex items-center gap-4">
         <Input
-          placeholder="Search name or email..."
+          placeholder={t("searchPlaceholder")}
           value={search}
           onChange={(e) => handleSearchChange(e.target.value)}
           className="max-w-xs"
         />
         <Select value={levelFilter} onValueChange={handleLevelChange}>
           <SelectTrigger className="w-48">
-            <SelectValue placeholder="Filter by level" />
+            <SelectValue placeholder={t("filterByLevel")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All levels</SelectItem>
-            <SelectItem value="1">1 — Any</SelectItem>
-            <SelectItem value="2">2 — Experienced</SelectItem>
-            <SelectItem value="3">3 — Top</SelectItem>
+            <SelectItem value="all">{t("allLevels")}</SelectItem>
+            <SelectItem value="1">{t("levelAny")}</SelectItem>
+            <SelectItem value="2">{t("levelExperienced")}</SelectItem>
+            <SelectItem value="3">{t("levelTop")}</SelectItem>
           </SelectContent>
         </Select>
         <div className="ml-auto">
           <Button onClick={() => setShowAddDialog(true)}>
             <Plus className="mr-2 h-4 w-4" />
-            Add Umpire
+            {t("addUmpire")}
           </Button>
         </div>
       </div>

@@ -22,17 +22,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { MoreHorizontal, Eye, Trash2, Inbox } from "lucide-react";
 import { SharePollButton } from "./share-poll-button";
-
-function formatDateRange(min: string | null, max: string | null): string {
-  if (!min) return "\u2014";
-  const fmt = (d: string) =>
-    new Date(d + "T00:00:00").toLocaleDateString("nl-NL", {
-      day: "numeric",
-      month: "short",
-    });
-  if (min === max) return fmt(min);
-  return `${fmt(min)} \u2013 ${fmt(max!)}`;
-}
+import { useTranslations, useFormatter } from "next-intl";
 
 export function PollTable({
   polls,
@@ -43,9 +33,23 @@ export function PollTable({
 }) {
   const router = useRouter();
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const t = useTranslations("polls");
+  const tCommon = useTranslations("common");
+  const format = useFormatter();
+
+  function formatDateRange(min: string | null, max: string | null): string {
+    if (!min) return "\u2014";
+    const fmt = (d: string) =>
+      format.dateTime(new Date(d + "T00:00:00"), {
+        day: "numeric",
+        month: "short",
+      });
+    if (min === max) return fmt(min);
+    return `${fmt(min)} \u2013 ${fmt(max!)}`;
+  }
 
   async function handleDelete(id: string) {
-    if (!confirm("Delete this poll? All responses will be lost.")) return;
+    if (!confirm(t("deleteConfirm"))) return;
     setDeletingId(id);
     try {
       await deletePoll(id);
@@ -59,7 +63,7 @@ export function PollTable({
     return (
       <div className="flex flex-col items-center gap-3 py-12 text-center text-muted-foreground">
         <Inbox className="h-10 w-10" />
-        <p>No polls yet. Create your first availability poll to get started.</p>
+        <p>{t("emptyState")}</p>
       </div>
     );
   }
@@ -69,11 +73,11 @@ export function PollTable({
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Title</TableHead>
-            <TableHead>Dates</TableHead>
-            <TableHead className="w-24">Status</TableHead>
-            <TableHead className="w-24">Responses</TableHead>
-            <TableHead className="w-40">Share</TableHead>
+            <TableHead>{t("titleHeader")}</TableHead>
+            <TableHead>{t("datesHeader")}</TableHead>
+            <TableHead className="w-24">{t("statusHeader")}</TableHead>
+            <TableHead className="w-24">{t("responsesHeader")}</TableHead>
+            <TableHead className="w-40">{t("shareHeader")}</TableHead>
             <TableHead className="w-12"></TableHead>
           </TableRow>
         </TableHeader>
@@ -93,7 +97,7 @@ export function PollTable({
                 <Badge
                   variant={poll.status === "open" ? "default" : "secondary"}
                 >
-                  {poll.status === "open" ? "Open" : "Closed"}
+                  {poll.status === "open" ? t("statusOpen") : t("statusClosed")}
                 </Badge>
               </TableCell>
               <TableCell>{poll.response_count}</TableCell>
@@ -105,7 +109,7 @@ export function PollTable({
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" size="icon" className="h-8 w-8">
                       <MoreHorizontal className="h-4 w-4" />
-                      <span className="sr-only">More actions</span>
+                      <span className="sr-only">{t("moreActions")}</span>
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
@@ -113,7 +117,7 @@ export function PollTable({
                       onClick={() => router.push(`/protected/polls/${poll.id}`)}
                     >
                       <Eye className="mr-2 h-4 w-4" />
-                      View Details
+                      {t("viewDetails")}
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       onClick={() => handleDelete(poll.id)}
@@ -121,7 +125,7 @@ export function PollTable({
                       className="text-destructive"
                     >
                       <Trash2 className="mr-2 h-4 w-4" />
-                      Delete
+                      {tCommon("delete")}
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>

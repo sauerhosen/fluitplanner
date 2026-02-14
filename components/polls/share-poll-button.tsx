@@ -3,10 +3,12 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Check, Copy, Share2 } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 export function SharePollButton({ token }: { token: string }) {
   const [copied, setCopied] = useState(false);
   const [canShare, setCanShare] = useState(false);
+  const t = useTranslations("polls");
 
   useEffect(() => {
     setCanShare(!!navigator.share);
@@ -20,7 +22,7 @@ export function SharePollButton({ token }: { token: string }) {
     const pollUrl = getPollUrl();
     if (navigator.share) {
       try {
-        await navigator.share({ title: "Availability Poll", url: pollUrl });
+        await navigator.share({ title: t("shareTitle"), url: pollUrl });
         return;
       } catch {
         // User cancelled or share failed — fall through to copy
@@ -44,12 +46,12 @@ export function SharePollButton({ token }: { token: string }) {
         ) : (
           <Copy className="mr-2 h-4 w-4" />
         )}
-        {copied ? "Copied!" : "Copy Link"}
+        {copied ? t("copied") : t("copyLink")}
       </Button>
       {canShare && (
         <Button variant="outline" size="sm" onClick={handleShare}>
           <Share2 className="mr-2 h-4 w-4" />
-          Share
+          {t("share")}
         </Button>
       )}
     </div>

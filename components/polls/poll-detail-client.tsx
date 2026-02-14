@@ -23,6 +23,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Pencil, Check, Trash2, ArrowRightLeft } from "lucide-react";
+import { useTranslations, useFormatter } from "next-intl";
 
 type Props = {
   initialPoll: PollDetail;
@@ -58,6 +59,9 @@ export function PollDetailClient({
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("matches");
   const [transposed, setTransposed] = useState(false);
+  const t = useTranslations("polls");
+  const tCommon = useTranslations("common");
+  const format = useFormatter();
 
   const allSelectableMatches = useMemo(() => {
     const pollMatchIds = new Set(poll.matches.map((m) => m.id));
@@ -94,7 +98,7 @@ export function PollDetailClient({
       await refreshPoll();
       setEditingTitle(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update title");
+      setError(err instanceof Error ? err.message : t("failedToUpdateTitle"));
     } finally {
       setSaving(false);
     }
@@ -108,7 +112,7 @@ export function PollDetailClient({
       await refreshPoll();
       setEditingMatches(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update matches");
+      setError(err instanceof Error ? err.message : t("failedToUpdateMatches"));
     } finally {
       setSaving(false);
     }
@@ -125,11 +129,15 @@ export function PollDetailClient({
   }
 
   async function handleDelete() {
-    if (!confirm("Delete this poll? All responses will be lost.")) return;
+    if (!confirm(t("deleteConfirm"))) return;
     setSaving(true);
     await deletePoll(poll.id);
     router.push("/protected/polls");
   }
+
+  const uniqueRespondentCount = [
+    ...new Set(poll.responses.map((r) => r.participant_name)),
+  ].length;
 
   return (
     <div className="flex min-w-0 flex-col gap-8">
@@ -155,7 +163,7 @@ export function PollDetailClient({
                 variant="ghost"
                 onClick={handleSaveTitle}
                 disabled={saving}
-                aria-label="Save title"
+                aria-label={t("saveTitle")}
               >
                 <Check className="h-4 w-4" />
               </Button>
@@ -170,7 +178,7 @@ export function PollDetailClient({
                   setTitleDraft(poll.title ?? "");
                   setEditingTitle(true);
                 }}
-                aria-label="Edit title"
+                aria-label={t("editTitle")}
               >
                 <Pencil className="h-4 w-4" />
               </Button>
@@ -179,7 +187,7 @@ export function PollDetailClient({
         </div>
         <div className="flex items-center gap-2">
           <Badge variant={poll.status === "open" ? "default" : "secondary"}>
-            {poll.status === "open" ? "Open" : "Closed"}
+            {poll.status === "open" ? t("statusOpen") : t("statusClosed")}
           </Badge>
           <Button
             variant="outline"
@@ -187,7 +195,7 @@ export function PollDetailClient({
             onClick={handleToggleStatus}
             disabled={saving}
           >
-            {poll.status === "open" ? "Close Poll" : "Reopen Poll"}
+            {poll.status === "open" ? t("closePoll") : t("reopenPoll")}
           </Button>
           <Button
             variant="outline"
@@ -197,14 +205,14 @@ export function PollDetailClient({
             className="text-destructive"
           >
             <Trash2 className="mr-2 h-4 w-4" />
-            Delete
+            {tCommon("delete")}
           </Button>
         </div>
       </div>
 
       {/* Share */}
       <div className="flex flex-col gap-2">
-        <Label>Share Link</Label>
+        <Label>{t("shareLinkLabel")}</Label>
         <SharePollButton token={poll.token} />
       </div>
 
@@ -213,35 +221,30 @@ export function PollDetailClient({
         <div className="flex items-center justify-between gap-2 overflow-x-auto">
           <TabsList>
             <TabsTrigger value="matches">
-              Matches ({poll.matches.length})
+              {t("matchesTab", { count: poll.matches.length })}
             </TabsTrigger>
             <TabsTrigger value="responses">
-              Responses (
-              {
-                [...new Set(poll.responses.map((r) => r.participant_name))]
-                  .length
-              }
-              )
+              {t("responsesTab", { count: uniqueRespondentCount })}
             </TabsTrigger>
-            <TabsTrigger value="assignments">Assignments</TabsTrigger>
+            <TabsTrigger value="assignments">{t("assignmentsTab")}</TabsTrigger>
           </TabsList>
           {activeTab === "assignments" && (
             <Button
               variant="outline"
               size="sm"
               className="hidden sm:inline-flex"
-              onClick={() => setTransposed((t) => !t)}
-              aria-label="Swap rows and columns"
+              onClick={() => setTransposed((prev) => !prev)}
+              aria-label={t("swapRowsAndColumns")}
             >
               <ArrowRightLeft className="mr-2 h-4 w-4" />
-              Swap axes
+              {t("swapAxes")}
             </Button>
           )}
         </div>
         <TabsContent value="matches">
           <div className="flex flex-col gap-4">
             <div className="flex items-center justify-between">
-              <Label>Slots ({poll.slots.length})</Label>
+              <Label>{t("slotsLabel", { count: poll.slots.length })}</Label>
               <Button
                 variant="outline"
                 size="sm"
@@ -255,7 +258,7 @@ export function PollDetailClient({
                   }
                 }}
               >
-                {editingMatches ? "Cancel" : "Edit Matches"}
+                {editingMatches ? tCommon("cancel") : t("editMatches")}
               </Button>
             </div>
 
@@ -267,11 +270,11 @@ export function PollDetailClient({
                   onSelectionChange={setSelectedMatchIds}
                 />
                 <div className="flex flex-col gap-2">
-                  <Label>Updated Time Slots Preview</Label>
+                  <Label>{t("updatedSlotsPreview")}</Label>
                   <SlotPreview slots={previewSlots} />
                 </div>
                 <Button onClick={handleSaveMatches} disabled={saving}>
-                  {saving ? "Saving..." : "Save Match Changes"}
+                  {saving ? t("saving") : t("saveMatchChanges")}
                 </Button>
               </div>
             ) : (
@@ -297,14 +300,11 @@ export function PollDetailClient({
                     } else {
                       dateGroups.push({
                         dateKey,
-                        label: new Date(slot.start_time).toLocaleDateString(
-                          "nl-NL",
-                          {
-                            weekday: "long",
-                            day: "numeric",
-                            month: "long",
-                          },
-                        ),
+                        label: format.dateTime(new Date(slot.start_time), {
+                          weekday: "long",
+                          day: "numeric",
+                          month: "long",
+                        }),
                         slots: [slot],
                       });
                     }
@@ -326,21 +326,17 @@ export function PollDetailClient({
                           return (
                             <div key={slot.id} className="rounded-lg border">
                               <div className="bg-muted px-3 py-2 text-sm font-medium">
-                                {new Date(slot.start_time).toLocaleTimeString(
-                                  "nl-NL",
-                                  {
-                                    hour: "2-digit",
-                                    minute: "2-digit",
-                                  },
-                                )}
+                                {format.dateTime(new Date(slot.start_time), {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                  hour12: false,
+                                })}
                                 {" – "}
-                                {new Date(slot.end_time).toLocaleTimeString(
-                                  "nl-NL",
-                                  {
-                                    hour: "2-digit",
-                                    minute: "2-digit",
-                                  },
-                                )}
+                                {format.dateTime(new Date(slot.end_time), {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                  hour12: false,
+                                })}
                               </div>
                               {slotMatches.length > 0 ? (
                                 <div className="divide-y px-3">
@@ -354,12 +350,14 @@ export function PollDetailClient({
                                       </span>
                                       {match.start_time && (
                                         <span className="text-muted-foreground text-xs">
-                                          {new Date(
-                                            match.start_time,
-                                          ).toLocaleTimeString("nl-NL", {
-                                            hour: "2-digit",
-                                            minute: "2-digit",
-                                          })}
+                                          {format.dateTime(
+                                            new Date(match.start_time),
+                                            {
+                                              hour: "2-digit",
+                                              minute: "2-digit",
+                                              hour12: false,
+                                            },
+                                          )}
                                         </span>
                                       )}
                                     </div>
@@ -367,7 +365,7 @@ export function PollDetailClient({
                                 </div>
                               ) : (
                                 <div className="text-muted-foreground px-3 py-1.5 text-sm">
-                                  No matches in this slot
+                                  {t("noMatchesInSlot")}
                                 </div>
                               )}
                             </div>

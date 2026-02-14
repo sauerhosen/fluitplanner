@@ -2,13 +2,18 @@ import Link from "next/link";
 import { Button } from "./ui/button";
 import { createClient } from "@/lib/supabase/server";
 import { LogoutButton } from "./logout-button";
+import { getTranslations } from "next-intl/server";
 
 export async function AuthButton({
   showDashboardLink = false,
 }: {
   showDashboardLink?: boolean;
 } = {}) {
-  const supabase = await createClient();
+  const [supabase, t, tNav] = await Promise.all([
+    createClient(),
+    getTranslations("auth"),
+    getTranslations("nav"),
+  ]);
 
   // You can also use getUser() which will be slower.
   const { data } = await supabase.auth.getClaims();
@@ -17,10 +22,12 @@ export async function AuthButton({
 
   return user ? (
     <div className="flex items-center gap-2 sm:gap-4">
-      <span className="hidden sm:inline text-sm">Hey, {user.email}!</span>
+      <span className="hidden sm:inline text-sm">
+        {t("greeting", { email: user.email as string })}
+      </span>
       {showDashboardLink && (
         <Button asChild size="sm" variant={"default"}>
-          <Link href="/protected">Dashboard</Link>
+          <Link href="/protected">{tNav("dashboard")}</Link>
         </Button>
       )}
       <LogoutButton />
@@ -28,10 +35,10 @@ export async function AuthButton({
   ) : (
     <div className="flex gap-2">
       <Button asChild size="sm" variant={"outline"}>
-        <Link href="/auth/login">Sign in</Link>
+        <Link href="/auth/login">{t("signIn")}</Link>
       </Button>
       <Button asChild size="sm" variant={"default"}>
-        <Link href="/auth/sign-up">Sign up</Link>
+        <Link href="/auth/sign-up">{t("signUpLink")}</Link>
       </Button>
     </div>
   );

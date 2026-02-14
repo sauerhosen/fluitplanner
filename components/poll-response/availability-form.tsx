@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { SlotRow } from "@/components/poll-response/slot-row";
 import { submitResponses } from "@/lib/actions/public-polls";
+import { useTranslations, useFormatter } from "next-intl";
 import type { PollSlot, AvailabilityResponse } from "@/lib/types/domain";
 
 type ResponseValue = "yes" | "if_need_be" | "no";
@@ -16,34 +17,6 @@ type Props = {
   existingResponses: AvailabilityResponse[];
 };
 
-function formatDateHeading(isoString: string): string {
-  const date = new Date(isoString);
-  return date.toLocaleDateString([], {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-  });
-}
-
-function groupSlotsByDate(slots: PollSlot[]) {
-  const groups: { dateKey: string; label: string; slots: PollSlot[] }[] = [];
-  for (const slot of slots) {
-    const date = new Date(slot.start_time);
-    const dateKey = date.toDateString();
-    const last = groups[groups.length - 1];
-    if (last && last.dateKey === dateKey) {
-      last.slots.push(slot);
-    } else {
-      groups.push({
-        dateKey,
-        label: formatDateHeading(slot.start_time),
-        slots: [slot],
-      });
-    }
-  }
-  return groups;
-}
-
 export function AvailabilityForm({
   pollId,
   umpireId,
@@ -51,6 +24,36 @@ export function AvailabilityForm({
   slots,
   existingResponses,
 }: Props) {
+  const t = useTranslations("pollResponse");
+  const format = useFormatter();
+
+  function formatDateHeading(isoString: string): string {
+    return format.dateTime(new Date(isoString), {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+    });
+  }
+
+  function groupSlotsByDate(slotsToGroup: PollSlot[]) {
+    const groups: { dateKey: string; label: string; slots: PollSlot[] }[] = [];
+    for (const slot of slotsToGroup) {
+      const date = new Date(slot.start_time);
+      const dateKey = date.toDateString();
+      const last = groups[groups.length - 1];
+      if (last && last.dateKey === dateKey) {
+        last.slots.push(slot);
+      } else {
+        groups.push({
+          dateKey,
+          label: formatDateHeading(slot.start_time),
+          slots: [slot],
+        });
+      }
+    }
+    return groups;
+  }
+
   const initialState: Record<string, ResponseValue | null> = {};
   for (const slot of slots) {
     const existing = existingResponses.find((r) => r.slot_id === slot.id);
@@ -81,11 +84,7 @@ export function AvailabilityForm({
       await submitResponses(pollId, umpireId, umpireName, toSubmit);
       setSaved(true);
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Failed to save. Please try again.",
-      );
+      setError(err instanceof Error ? err.message : t("failedToSave"));
     } finally {
       setSaving(false);
     }
@@ -118,7 +117,7 @@ export function AvailabilityForm({
       )}
       {saved && (
         <p className="text-sm text-green-600 dark:text-green-400">
-          Your availability has been saved!
+          {t("savedSuccess")}
         </p>
       )}
       <Button
@@ -126,7 +125,11 @@ export function AvailabilityForm({
         disabled={!hasSelections || saving}
         className="w-full"
       >
-        {saving ? "Saving\u2026" : saved ? "Save changes" : "Save availability"}
+        {saving
+          ? t("savingButton")
+          : saved
+            ? t("saveChangesButton")
+            : t("saveAvailabilityButton")}
       </Button>
     </form>
   );

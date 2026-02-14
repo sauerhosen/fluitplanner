@@ -7,15 +7,16 @@ import {
   ActionItemsSkeleton,
   ActivitySkeleton,
 } from "@/components/dashboard/dashboard-skeleton";
+import { getTranslations } from "next-intl/server";
 
-export default function DashboardPage() {
+export default async function DashboardPage() {
+  const t = await getTranslations("dashboard");
+
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-bold">Dashboard</h1>
-        <p className="text-muted-foreground">
-          Overview of your umpire planning.
-        </p>
+        <h1 className="text-2xl font-bold">{t("pageTitle")}</h1>
+        <p className="text-muted-foreground">{t("pageSubtitle")}</p>
       </div>
 
       <Suspense fallback={<StatsSkeleton />}>

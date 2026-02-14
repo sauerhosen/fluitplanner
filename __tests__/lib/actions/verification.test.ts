@@ -47,6 +47,12 @@ vi.mock("@/lib/email", () => ({
   sendVerificationEmail: vi.fn(),
 }));
 
+vi.mock("next-intl/server", () => ({
+  getTranslations: vi.fn(async () => (key: string) => key),
+  getLocale: vi.fn(async () => "en"),
+  getMessages: vi.fn(async () => ({})),
+}));
+
 function resetChain() {
   for (const fn of [
     mockFrom,

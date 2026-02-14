@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { useTranslations, useFormatter } from "next-intl";
 
 type ResponseValue = "yes" | "if_need_be" | "no";
 
@@ -11,35 +12,43 @@ type Props = {
   onChange: (value: ResponseValue | null) => void;
 };
 
-function formatTime(isoString: string): string {
-  const date = new Date(isoString);
-  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-}
-
-const BUTTONS: {
+type ButtonConfig = {
   value: ResponseValue;
-  label: string;
+  labelKey: "yes" | "ifNeedBe" | "no";
   activeClass: string;
-}[] = [
+};
+
+const BUTTONS: ButtonConfig[] = [
   {
     value: "yes",
-    label: "Yes",
+    labelKey: "yes",
     activeClass: "bg-green-600 text-white hover:bg-green-700 border-green-600",
   },
   {
     value: "if_need_be",
-    label: "If need be",
+    labelKey: "ifNeedBe",
     activeClass:
       "bg-yellow-500 text-white hover:bg-yellow-600 border-yellow-500",
   },
   {
     value: "no",
-    label: "No",
+    labelKey: "no",
     activeClass: "bg-red-600 text-white hover:bg-red-700 border-red-600",
   },
 ];
 
 export function SlotRow({ startTime, endTime, value, onChange }: Props) {
+  const t = useTranslations("pollResponse");
+  const format = useFormatter();
+
+  function formatTime(isoString: string): string {
+    return format.dateTime(new Date(isoString), {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+  }
+
   return (
     <div className="flex items-center justify-between border-b py-3 last:border-b-0">
       <div className="text-sm">
@@ -55,7 +64,7 @@ export function SlotRow({ startTime, endTime, value, onChange }: Props) {
             className={value === btn.value ? btn.activeClass : ""}
             onClick={() => onChange(value === btn.value ? null : btn.value)}
           >
-            {btn.label}
+            {t(btn.labelKey)}
           </Button>
         ))}
       </div>

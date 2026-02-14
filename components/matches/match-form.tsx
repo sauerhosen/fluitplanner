@@ -19,6 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useTranslations } from "next-intl";
 
 export function MatchFormDialog({
   match,
@@ -32,16 +33,15 @@ export function MatchFormDialog({
   onSaved: () => void;
 }) {
   const isEditing = match !== null;
+  const t = useTranslations("matches");
+  const tCommon = useTranslations("common");
 
   const [date, setDate] = useState(match?.date ?? "");
-  const [startTime, setStartTime] = useState(
-    match?.start_time
-      ? new Date(match.start_time).toLocaleTimeString("nl-NL", {
-          hour: "2-digit",
-          minute: "2-digit",
-        })
-      : "",
-  );
+  const [startTime, setStartTime] = useState(() => {
+    if (!match?.start_time) return "";
+    const d = new Date(match.start_time);
+    return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  });
   const [homeTeam, setHomeTeam] = useState(match?.home_team ?? "");
   const [awayTeam, setAwayTeam] = useState(match?.away_team ?? "");
   const [venue, setVenue] = useState(match?.venue ?? "");
@@ -87,12 +87,14 @@ export function MatchFormDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{isEditing ? "Edit Match" : "Add Match"}</DialogTitle>
+          <DialogTitle>
+            {isEditing ? t("editMatch") : t("addMatch")}
+          </DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="date">Date</Label>
+              <Label htmlFor="date">{t("dateLabel")}</Label>
               <Input
                 id="date"
                 type="date"
@@ -102,7 +104,7 @@ export function MatchFormDialog({
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="time">Time</Label>
+              <Label htmlFor="time">{t("timeLabel")}</Label>
               <Input
                 id="time"
                 type="time"
@@ -114,7 +116,7 @@ export function MatchFormDialog({
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="home">Home Team</Label>
+              <Label htmlFor="home">{t("homeTeamLabel")}</Label>
               <Input
                 id="home"
                 value={homeTeam}
@@ -123,7 +125,7 @@ export function MatchFormDialog({
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="away">Away Team</Label>
+              <Label htmlFor="away">{t("awayTeamLabel")}</Label>
               <Input
                 id="away"
                 value={awayTeam}
@@ -135,7 +137,7 @@ export function MatchFormDialog({
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="field">Field</Label>
+              <Label htmlFor="field">{t("fieldLabel")}</Label>
               <Input
                 id="field"
                 value={field}
@@ -143,7 +145,7 @@ export function MatchFormDialog({
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="venue">Venue</Label>
+              <Label htmlFor="venue">{t("venueLabel")}</Label>
               <Input
                 id="venue"
                 value={venue}
@@ -154,7 +156,7 @@ export function MatchFormDialog({
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="competition">Competition</Label>
+              <Label htmlFor="competition">{t("competitionLabel")}</Label>
               <Input
                 id="competition"
                 value={competition}
@@ -162,15 +164,15 @@ export function MatchFormDialog({
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="level">Required Level</Label>
+              <Label htmlFor="level">{t("requiredLevelLabel")}</Label>
               <Select value={requiredLevel} onValueChange={setRequiredLevel}>
                 <SelectTrigger id="level">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="1">1 — Any</SelectItem>
-                  <SelectItem value="2">2 — Experienced</SelectItem>
-                  <SelectItem value="3">3 — Top</SelectItem>
+                  <SelectItem value="1">{t("levelAny")}</SelectItem>
+                  <SelectItem value="2">{t("levelExperienced")}</SelectItem>
+                  <SelectItem value="3">{t("levelTop")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -182,10 +184,10 @@ export function MatchFormDialog({
               variant="ghost"
               onClick={() => onOpenChange(false)}
             >
-              Cancel
+              {tCommon("cancel")}
             </Button>
             <Button type="submit" disabled={saving}>
-              {saving ? "Saving..." : isEditing ? "Update" : "Add"}
+              {saving ? t("saving") : isEditing ? t("update") : t("add")}
             </Button>
           </div>
         </form>

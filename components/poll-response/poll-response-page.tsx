@@ -10,6 +10,7 @@ import { findUmpireById, getMyResponses } from "@/lib/actions/public-polls";
 import { verifyMagicLink } from "@/lib/actions/verification";
 import { LayoutDashboard } from "lucide-react";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import type {
   AvailabilityResponse,
   Poll,
@@ -58,6 +59,7 @@ export function PollResponsePage({
   pollToken,
   verifyToken,
 }: Props) {
+  const t = useTranslations("pollResponse");
   const [loading, setLoading] = useState(true);
   const [umpire, setUmpire] = useState<Umpire | null>(null);
   const [isPlanner, setIsPlanner] = useState(false);
@@ -130,7 +132,7 @@ export function PollResponsePage({
   if (loading) {
     return (
       <div className="py-12 text-center">
-        <p className="text-muted-foreground">Loading...</p>
+        <p className="text-muted-foreground">{t("loading")}</p>
       </div>
     );
   }
@@ -139,9 +141,9 @@ export function PollResponsePage({
   if (poll.status === "closed") {
     return (
       <div className="py-12 text-center">
-        <h1 className="text-2xl font-bold">Poll closed</h1>
+        <h1 className="text-2xl font-bold">{t("pollClosedTitle")}</h1>
         <p className="text-muted-foreground mt-2">
-          This poll is no longer accepting responses.
+          {t("pollClosedDescription")}
         </p>
       </div>
     );
@@ -152,11 +154,9 @@ export function PollResponsePage({
     return (
       <div className="py-12 text-center">
         <h1 className="text-2xl font-bold">
-          {poll.title ?? "Availability Poll"}
+          {poll.title ?? t("defaultPollTitle")}
         </h1>
-        <p className="text-muted-foreground mt-2">
-          This poll has no time slots yet.
-        </p>
+        <p className="text-muted-foreground mt-2">{t("noSlotsDescription")}</p>
       </div>
     );
   }
@@ -167,7 +167,7 @@ export function PollResponsePage({
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold">
-            {poll.title ?? "Availability Poll"}
+            {poll.title ?? t("defaultPollTitle")}
           </h1>
         </div>
         <VerificationForm
@@ -187,11 +187,9 @@ export function PollResponsePage({
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold">
-            {poll.title ?? "Availability Poll"}
+            {poll.title ?? t("defaultPollTitle")}
           </h1>
-          <p className="text-muted-foreground mt-1">
-            Enter your email to fill in your availability.
-          </p>
+          <p className="text-muted-foreground mt-1">{t("enterEmailPrompt")}</p>
         </div>
         <UmpireIdentifier
           pollToken={pollToken}
@@ -208,10 +206,10 @@ export function PollResponsePage({
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">
-            {poll.title ?? "Availability Poll"}
+            {poll.title ?? t("defaultPollTitle")}
           </h1>
           <p className="text-muted-foreground text-sm">
-            Responding as <strong>{umpire.name}</strong>
+            {t("respondingAs", { name: umpire.name })}
           </p>
         </div>
         <div className="flex items-center gap-1">
@@ -219,12 +217,12 @@ export function PollResponsePage({
             <Button variant="ghost" size="sm" asChild>
               <Link href="/protected">
                 <LayoutDashboard className="mr-1 h-4 w-4" />
-                Dashboard
+                {t("dashboard")}
               </Link>
             </Button>
           )}
           <Button variant="ghost" size="sm" onClick={handleSwitchUser}>
-            Not you?
+            {t("notYou")}
           </Button>
         </div>
       </div>

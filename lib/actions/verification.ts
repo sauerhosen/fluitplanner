@@ -5,6 +5,7 @@ import { nanoid } from "nanoid";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { sendVerificationEmail } from "@/lib/email";
+import { getLocale } from "next-intl/server";
 import type { Umpire } from "@/lib/types/domain";
 
 /* ------------------------------------------------------------------ */
@@ -129,7 +130,13 @@ export async function requestVerification(
   const magicLink = `${protocol}${baseUrl}/poll/${pollToken}?verify=${magicToken}`;
 
   try {
-    await sendVerificationEmail({ to: normalizedEmail, code, magicLink });
+    const locale = await getLocale();
+    await sendVerificationEmail({
+      to: normalizedEmail,
+      code,
+      magicLink,
+      locale,
+    });
   } catch (err) {
     console.error(
       "[verification] SMTP error:",

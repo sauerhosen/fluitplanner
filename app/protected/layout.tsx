@@ -1,15 +1,19 @@
 import { AuthButton } from "@/components/auth-button";
+import { LanguageSwitcher } from "@/components/language-switcher";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 import Image from "next/image";
 import Link from "next/link";
 import appIcon from "@/app/icon.png";
 import { Suspense } from "react";
+import { getTranslations } from "next-intl/server";
 
-export default function ProtectedLayout({
+export default async function ProtectedLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const t = await getTranslations("nav");
+
   return (
     <main className="min-h-screen flex flex-col items-center">
       <div className="flex-1 w-full flex flex-col gap-20 items-center">
@@ -25,25 +29,28 @@ export default function ProtectedLayout({
               </Link>
               <div className="flex items-center gap-2 sm:gap-4 text-xs sm:text-sm font-normal">
                 <Link href="/protected/matches" className="hover:underline">
-                  Matches
+                  {t("matches")}
                 </Link>
                 <Link href="/protected/polls" className="hover:underline">
-                  Polls
+                  {t("polls")}
                 </Link>
                 <Link href="/protected/umpires" className="hover:underline">
-                  Umpires
+                  {t("umpires")}
                 </Link>
                 <Link
                   href="/protected/settings"
                   className="hover:underline hidden sm:inline"
                 >
-                  Settings
+                  {t("settings")}
                 </Link>
               </div>
             </div>
-            <Suspense>
-              <AuthButton />
-            </Suspense>
+            <div className="flex items-center gap-1">
+              <LanguageSwitcher />
+              <Suspense>
+                <AuthButton />
+              </Suspense>
+            </div>
           </div>
         </nav>
         <div className="flex-1 flex flex-col gap-20 w-full max-w-5xl p-5 overflow-hidden">
@@ -53,6 +60,7 @@ export default function ProtectedLayout({
         <footer className="w-full flex items-center justify-center border-t mx-auto text-center text-xs gap-8 py-8">
           <p className="text-muted-foreground">Fluitplanner</p>
           <ThemeSwitcher />
+          <LanguageSwitcher />
         </footer>
       </div>
     </main>

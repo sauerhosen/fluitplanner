@@ -10,6 +10,7 @@ import type { ParseResult } from "@/lib/parsers/types";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Upload, ClipboardPaste } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 export function UploadZone({
   managedTeams,
@@ -27,6 +28,8 @@ export function UploadZone({
     updated: number;
   } | null>(null);
   const [dragOver, setDragOver] = useState(false);
+  const t = useTranslations("matches");
+  const tCommon = useTranslations("common");
 
   const processRows = useCallback(
     (rows: Record<string, string>[]) => {
@@ -108,16 +111,14 @@ export function UploadZone({
         <div className="flex flex-col items-center gap-3">
           <Upload className="h-8 w-8 text-muted-foreground" />
           <div>
-            <p className="font-medium">Drop a CSV or Excel file here</p>
-            <p className="text-sm text-muted-foreground">
-              Or use the buttons below
-            </p>
+            <p className="font-medium">{t("dropFileHere")}</p>
+            <p className="text-sm text-muted-foreground">{t("orUseButtons")}</p>
           </div>
           <div className="flex gap-2">
             <Button variant="outline" asChild>
               <label className="cursor-pointer">
                 <Upload className="mr-2 h-4 w-4" />
-                Choose File
+                {t("chooseFile")}
                 <input
                   type="file"
                   accept=".csv,.xlsx"
@@ -128,7 +129,7 @@ export function UploadZone({
             </Button>
             <Button variant="outline" onClick={() => setShowPaste(!showPaste)}>
               <ClipboardPaste className="mr-2 h-4 w-4" />
-              Paste
+              {t("paste")}
             </Button>
           </div>
         </div>
@@ -139,13 +140,13 @@ export function UploadZone({
         <div className="space-y-2">
           <textarea
             className="w-full h-32 rounded-md border bg-background p-3 text-sm font-mono"
-            placeholder="Paste spreadsheet data here (tab or semicolon separated)..."
+            placeholder={t("pastePlaceholder")}
             value={pasteText}
             onChange={(e) => setPasteText(e.target.value)}
           />
           <div className="flex gap-2">
             <Button onClick={handlePaste} disabled={!pasteText.trim()}>
-              Parse
+              {t("parse")}
             </Button>
             <Button
               variant="ghost"
@@ -154,7 +155,7 @@ export function UploadZone({
                 setPasteText("");
               }}
             >
-              Cancel
+              {tCommon("cancel")}
             </Button>
           </div>
         </div>
@@ -166,18 +167,16 @@ export function UploadZone({
           <div className="flex items-center justify-between">
             <div>
               <p className="font-medium">
-                {parseResult.matches.length} match
-                {parseResult.matches.length !== 1 ? "es" : ""} ready to import
+                {t("readyToImport", { count: parseResult.matches.length })}
               </p>
               {parseResult.skippedCount > 0 && (
                 <p className="text-sm text-muted-foreground">
-                  {parseResult.skippedCount} skipped (not in managed teams)
+                  {t("skippedCount", { count: parseResult.skippedCount })}
                 </p>
               )}
               {parseResult.errors.length > 0 && (
                 <p className="text-sm text-destructive">
-                  {parseResult.errors.length} error
-                  {parseResult.errors.length !== 1 ? "s" : ""}
+                  {t("errorCount", { count: parseResult.errors.length })}
                 </p>
               )}
             </div>
@@ -186,10 +185,10 @@ export function UploadZone({
                 onClick={handleImport}
                 disabled={importing || parseResult.matches.length === 0}
               >
-                {importing ? "Importing..." : "Import"}
+                {importing ? t("importing") : t("import")}
               </Button>
               <Button variant="ghost" onClick={handleReset}>
-                Cancel
+                {tCommon("cancel")}
               </Button>
             </div>
           </div>
@@ -207,8 +206,10 @@ export function UploadZone({
       {importResult && (
         <Card className="p-4">
           <p className="text-sm">
-            Import complete: {importResult.inserted} new, {importResult.updated}{" "}
-            updated.
+            {t("importComplete", {
+              inserted: importResult.inserted,
+              updated: importResult.updated,
+            })}
           </p>
         </Card>
       )}

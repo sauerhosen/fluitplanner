@@ -20,11 +20,15 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { MoreHorizontal, Pencil, Trash2, Check, X, Inbox } from "lucide-react";
+import { useTranslations } from "next-intl";
 
-const LEVEL_LABELS: Record<number, string> = {
-  1: "Any",
-  2: "Experienced",
-  3: "Top",
+const LEVEL_LABEL_KEYS: Record<
+  number,
+  "levelLabelAny" | "levelLabelExperienced" | "levelLabelTop"
+> = {
+  1: "levelLabelAny",
+  2: "levelLabelExperienced",
+  3: "levelLabelTop",
 };
 
 const LEVEL_VARIANTS: Record<number, "default" | "secondary" | "destructive"> =
@@ -43,6 +47,8 @@ export function UmpireTable({
   onEdit: (umpire: Umpire) => void;
   onDeleted: () => void;
 }) {
+  const t = useTranslations("umpires");
+  const tCommon = useTranslations("common");
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   async function handleDelete(id: string) {
@@ -59,10 +65,7 @@ export function UmpireTable({
     return (
       <div className="flex flex-col items-center gap-3 py-12 text-center text-muted-foreground">
         <Inbox className="h-10 w-10" />
-        <p>
-          No umpires yet. Umpires will appear here when they respond to an
-          availability poll, or you can add them manually.
-        </p>
+        <p>{t("emptyState")}</p>
       </div>
     );
   }
@@ -72,10 +75,10 @@ export function UmpireTable({
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Name</TableHead>
-            <TableHead>Email</TableHead>
-            <TableHead className="w-32">Level</TableHead>
-            <TableHead className="w-20">Verified</TableHead>
+            <TableHead>{t("nameHeader")}</TableHead>
+            <TableHead>{t("emailHeader")}</TableHead>
+            <TableHead className="w-32">{t("levelHeader")}</TableHead>
+            <TableHead className="w-20">{t("verifiedHeader")}</TableHead>
             <TableHead className="w-12"></TableHead>
           </TableRow>
         </TableHeader>
@@ -86,7 +89,7 @@ export function UmpireTable({
               <TableCell>{umpire.email}</TableCell>
               <TableCell>
                 <Badge variant={LEVEL_VARIANTS[umpire.level]}>
-                  {LEVEL_LABELS[umpire.level]}
+                  {t(LEVEL_LABEL_KEYS[umpire.level])}
                 </Badge>
               </TableCell>
               <TableCell>
@@ -101,13 +104,13 @@ export function UmpireTable({
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" size="icon" className="h-8 w-8">
                       <MoreHorizontal className="h-4 w-4" />
-                      <span className="sr-only">More actions</span>
+                      <span className="sr-only">{t("moreActions")}</span>
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem onClick={() => onEdit(umpire)}>
                       <Pencil className="mr-2 h-4 w-4" />
-                      Edit
+                      {t("edit")}
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       onClick={() => handleDelete(umpire.id)}
@@ -115,7 +118,7 @@ export function UmpireTable({
                       className="text-destructive"
                     >
                       <Trash2 className="mr-2 h-4 w-4" />
-                      Delete
+                      {tCommon("delete")}
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>

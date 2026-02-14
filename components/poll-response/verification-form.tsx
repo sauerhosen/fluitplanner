@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { verifyCode, requestVerification } from "@/lib/actions/verification";
+import { useTranslations } from "next-intl";
 import type { Umpire } from "@/lib/types/domain";
 
 type Props = {
@@ -22,6 +23,7 @@ export function VerificationForm({
   onVerified,
   onBack,
 }: Props) {
+  const t = useTranslations("pollResponse");
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -54,23 +56,25 @@ export function VerificationForm({
         } else if (result.error === "invalid_code") {
           setError(
             result.attemptsRemaining > 0
-              ? `Invalid code. ${result.attemptsRemaining} attempt${result.attemptsRemaining === 1 ? "" : "s"} remaining.`
-              : "Too many attempts. Please request a new code.",
+              ? t("invalidCodeWithAttempts", {
+                  attemptsRemaining: result.attemptsRemaining,
+                })
+              : t("tooManyAttempts"),
           );
           setCode("");
           inputRef.current?.focus();
         } else if (result.error === "locked") {
-          setError("Too many attempts. Please try again in 15 minutes.");
+          setError(t("lockedOut"));
         } else if (result.error === "no_active_code") {
-          setError("Code expired. Please request a new one.");
+          setError(t("codeExpired"));
         }
       } catch {
-        setError("Something went wrong. Please try again.");
+        setError(t("errorSomethingWentWrong"));
       } finally {
         setLoading(false);
       }
     },
-    [email, onVerified],
+    [email, onVerified, t],
   );
 
   function handleCodeChange(value: string) {
@@ -88,10 +92,10 @@ export function VerificationForm({
     try {
       const result = await requestVerification(email, pollToken);
       if ("error" in result) {
-        setError("Could not resend code. Please try again later.");
+        setError(t("couldNotResendCode"));
       }
     } catch {
-      setError("Could not resend code. Please try again later.");
+      setError(t("couldNotResendCode"));
     }
   }
 
@@ -103,14 +107,17 @@ export function VerificationForm({
   return (
     <form onSubmit={handleFormSubmit} className="space-y-4">
       <div className="space-y-1">
-        <h2 className="text-lg font-semibold">Check your email</h2>
+        <h2 className="text-lg font-semibold">{t("checkYourEmail")}</h2>
         <p className="text-muted-foreground text-sm">
-          We sent a 6-digit code to <strong>{maskedEmail}</strong>
+          {t.rich("codeSentTo", {
+            maskedEmail,
+            strong: (chunks) => <strong>{chunks}</strong>,
+          })}
         </p>
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="verification-code">Verification code</Label>
+        <Label htmlFor="verification-code">{t("verificationCode")}</Label>
         <Input
           ref={inputRef}
           id="verification-code"
@@ -133,7 +140,7 @@ export function VerificationForm({
         disabled={loading || code.length !== 6}
         className="w-full"
       >
-        {loading ? "Verifying\u2026" : "Verify"}
+        {loading ? t("verifying") : t("verify")}
       </Button>
 
       <div className="flex items-center justify-between text-sm">
@@ -144,15 +151,15 @@ export function VerificationForm({
           className="text-muted-foreground hover:text-foreground underline disabled:no-underline disabled:opacity-50"
         >
           {resendCooldown > 0
-            ? `Resend code (${resendCooldown}s)`
-            : "Resend code"}
+            ? t("resendCodeCountdown", { seconds: resendCooldown })
+            : t("resendCode")}
         </button>
         <button
           type="button"
           onClick={onBack}
           className="text-muted-foreground hover:text-foreground underline"
         >
-          Use a different email
+          {t("useDifferentEmail")}
         </button>
       </div>
     </form>

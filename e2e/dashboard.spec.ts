@@ -24,7 +24,7 @@ test.describe("Dashboard", () => {
 
   test("navigation links work from dashboard", async ({ page }) => {
     await page.goto("/protected");
-    await page.getByRole("link", { name: "Matches" }).click();
+    await page.getByRole("link", { name: "Matches", exact: true }).click();
     await expect(page).toHaveURL(/\/protected\/matches/);
   });
 });

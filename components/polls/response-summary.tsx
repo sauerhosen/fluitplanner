@@ -5,13 +5,14 @@ import { Check, X, HelpCircle } from "lucide-react";
 import { toast } from "sonner";
 import { updatePollResponse } from "@/lib/actions/poll-responses";
 import type { PollSlot, AvailabilityResponse } from "@/lib/types/domain";
+import { useTranslations, useFormatter } from "next-intl";
 
 type ResponseValue = "yes" | "if_need_be" | "no";
 
 const CYCLE_ORDER: (ResponseValue | null)[] = ["yes", "if_need_be", "no", null];
 
 /**
- * Advance a response value to the next state in the cycle: "yes" → "if_need_be" → "no" → no response.
+ * Advance a response value to the next state in the cycle: "yes" -> "if_need_be" -> "no" -> no response.
  *
  * @param current - The current response value, or `null` to indicate no response.
  * @returns The next `ResponseValue` in the sequence, or `null` when the cycle advances to no response.
@@ -21,70 +22,14 @@ function nextResponse(current: ResponseValue | null): ResponseValue | null {
   return CYCLE_ORDER[(idx + 1) % CYCLE_ORDER.length];
 }
 
-const RESPONSE_ICONS: Record<
-  ResponseValue,
-  { icon: typeof Check; className: string; label: string }
-> = {
-  yes: {
-    icon: Check,
-    className: "text-green-600 dark:text-green-400",
-    label: "available",
-  },
-  if_need_be: {
-    icon: HelpCircle,
-    className: "text-yellow-500 dark:text-yellow-400",
-    label: "if need be",
-  },
-  no: {
-    icon: X,
-    className: "text-red-500 dark:text-red-400",
-    label: "not available",
-  },
-};
-
 type DateGroup = {
   weekday: string;
   day: string;
   slots: PollSlot[];
 };
 
-function groupSlotsByDate(slots: PollSlot[]): DateGroup[] {
-  const groups: DateGroup[] = [];
-  for (const slot of slots) {
-    const date = new Date(slot.start_time);
-    const dateKey = date.toDateString();
-    const last = groups[groups.length - 1];
-    if (last && new Date(last.slots[0].start_time).toDateString() === dateKey) {
-      last.slots.push(slot);
-    } else {
-      groups.push({
-        weekday: date.toLocaleDateString("nl-NL", { weekday: "short" }),
-        day: date.toLocaleDateString("nl-NL", {
-          day: "numeric",
-          month: "short",
-        }),
-        slots: [slot],
-      });
-    }
-  }
-  return groups;
-}
-
 /**
- * Format an ISO 8601 date-time string as a Dutch 24-hour time (HH:MM).
- *
- * @param isoString - An ISO-formatted date-time string
- * @returns The localized time string for the "nl-NL" locale using two-digit hour and minute (e.g., "14:05")
- */
-function formatTime(isoString: string): string {
-  return new Date(isoString).toLocaleTimeString("nl-NL", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-/**
- * Create a stable composite key for a slot–umpire pair.
+ * Create a stable composite key for a slot-umpire pair.
  *
  * @param slotId - The slot's identifier
  * @param umpireId - The umpire's identifier
@@ -117,6 +62,63 @@ type Props = {
  * @returns A React element containing the availability table with clickable cells for cycling responses
  */
 export function ResponseSummary({ pollId, slots, responses }: Props) {
+  const t = useTranslations("polls");
+  const format = useFormatter();
+
+  function groupSlotsByDate(slotsToGroup: PollSlot[]): DateGroup[] {
+    const groups: DateGroup[] = [];
+    for (const slot of slotsToGroup) {
+      const date = new Date(slot.start_time);
+      const dateKey = date.toDateString();
+      const last = groups[groups.length - 1];
+      if (
+        last &&
+        new Date(last.slots[0].start_time).toDateString() === dateKey
+      ) {
+        last.slots.push(slot);
+      } else {
+        groups.push({
+          weekday: format.dateTime(date, { weekday: "short" }),
+          day: format.dateTime(date, {
+            day: "numeric",
+            month: "short",
+          }),
+          slots: [slot],
+        });
+      }
+    }
+    return groups;
+  }
+
+  function formatTime(isoString: string): string {
+    return format.dateTime(new Date(isoString), {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+  }
+
+  const RESPONSE_ICONS: Record<
+    ResponseValue,
+    { icon: typeof Check; className: string; label: string }
+  > = {
+    yes: {
+      icon: Check,
+      className: "text-green-600 dark:text-green-400",
+      label: t("availableLabel"),
+    },
+    if_need_be: {
+      icon: HelpCircle,
+      className: "text-yellow-500 dark:text-yellow-400",
+      label: t("ifNeedBeLabel"),
+    },
+    no: {
+      icon: X,
+      className: "text-red-500 dark:text-red-400",
+      label: t("notAvailableLabel"),
+    },
+  };
+
   const [responseMap, setResponseMap] = useState(() => {
     const map = new Map<string, ResponseValue>();
     for (const r of responses) {
@@ -141,8 +143,7 @@ export function ResponseSummary({ pollId, slots, responses }: Props) {
   if (participants.length === 0) {
     return (
       <p className="text-sm text-muted-foreground py-4">
-        No responses yet. Share the poll link with umpires to collect
-        availability.
+        {t("noResponsesYet")}
       </p>
     );
   }
@@ -181,12 +182,12 @@ export function ResponseSummary({ pollId, slots, responses }: Props) {
       .then((result) => {
         if (result.error) {
           revert();
-          toast.error(`Failed to update response: ${result.error}`);
+          toast.error(t("failedToUpdateResponse", { error: result.error }));
         }
       })
       .catch(() => {
         revert();
-        toast.error("Failed to update response");
+        toast.error(t("failedToUpdateResponseGeneric"));
       });
   }
 
@@ -242,7 +243,7 @@ export function ResponseSummary({ pollId, slots, responses }: Props) {
                   const key = cellKey(slot.id, umpireId);
                   const response = responseMap.get(key) ?? null;
                   const config = response ? RESPONSE_ICONS[response] : null;
-                  const label = `${name} – ${formatTime(slot.start_time)}: ${config?.label ?? "no response"}`;
+                  const label = `${name} – ${formatTime(slot.start_time)}: ${config?.label ?? t("noResponseLabel")}`;
                   return (
                     <td
                       key={slot.id}

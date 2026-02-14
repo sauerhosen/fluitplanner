@@ -1,4 +1,5 @@
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
+import { render } from "@/__tests__/helpers/render";
 import { describe, it, expect, vi } from "vitest";
 import { LogoutButton } from "@/components/logout-button";
 

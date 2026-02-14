@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import { Geist } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 import { Toaster } from "@/components/ui/sonner";
+import { NextIntlClientProvider } from "next-intl";
+import { getLocale, getMessages } from "next-intl/server";
+import { LocaleDetector } from "@/components/locale-detector";
 import "./globals.css";
 
 const defaultUrl = process.env.VERCEL_URL
@@ -20,13 +23,16 @@ const geistSans = Geist({
   subsets: ["latin"],
 });
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const locale = await getLocale();
+  const messages = await getMessages();
+
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang={locale} suppressHydrationWarning>
       <body className={`${geistSans.className} antialiased`}>
         <ThemeProvider
           attribute="class"
@@ -34,8 +40,11 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          {children}
-          <Toaster />
+          <NextIntlClientProvider messages={messages}>
+            <LocaleDetector />
+            {children}
+            <Toaster />
+          </NextIntlClientProvider>
         </ThemeProvider>
       </body>
     </html>

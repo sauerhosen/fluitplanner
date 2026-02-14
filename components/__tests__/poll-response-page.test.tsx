@@ -1,4 +1,5 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { screen, fireEvent } from "@testing-library/react";
+import { render } from "@/__tests__/helpers/render";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { SlotRow } from "@/components/poll-response/slot-row";
 

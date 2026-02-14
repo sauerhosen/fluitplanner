@@ -1,4 +1,5 @@
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
+import { render } from "@/__tests__/helpers/render";
 import { describe, it, expect } from "vitest";
 import { SlotPreview } from "@/components/polls/slot-preview";
 import type { TimeSlot } from "@/lib/types/domain";
