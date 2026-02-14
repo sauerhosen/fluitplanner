@@ -67,6 +67,7 @@ export function MatchTable({
     return format.dateTime(new Date(startTime), {
       hour: "2-digit",
       minute: "2-digit",
+      hour12: false,
     });
   }
 

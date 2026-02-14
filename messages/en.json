@@ -284,6 +284,11 @@
     "defaultMessage": "An unexpected error occurred.",
     "tryAgain": "Try again"
   },
+  "theme": {
+    "light": "Light",
+    "dark": "Dark",
+    "system": "System"
+  },
   "email": {
     "verificationSubject": "Your Fluitplanner verification code",
     "verificationCode": "Your verification code is:",

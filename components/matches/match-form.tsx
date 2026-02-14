@@ -43,6 +43,7 @@ export function MatchFormDialog({
       ? format.dateTime(new Date(match.start_time), {
           hour: "2-digit",
           minute: "2-digit",
+          hour12: false,
         })
       : "",
   );

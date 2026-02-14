@@ -329,11 +329,13 @@ export function PollDetailClient({
                                 {format.dateTime(new Date(slot.start_time), {
                                   hour: "2-digit",
                                   minute: "2-digit",
+                                  hour12: false,
                                 })}
                                 {" – "}
                                 {format.dateTime(new Date(slot.end_time), {
                                   hour: "2-digit",
                                   minute: "2-digit",
+                                  hour12: false,
                                 })}
                               </div>
                               {slotMatches.length > 0 ? (
@@ -353,6 +355,7 @@ export function PollDetailClient({
                                             {
                                               hour: "2-digit",
                                               minute: "2-digit",
+                                              hour12: false,
                                             },
                                           )}
                                         </span>

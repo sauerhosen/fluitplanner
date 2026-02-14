@@ -284,6 +284,11 @@
     "defaultMessage": "Er is een onverwachte fout opgetreden.",
     "tryAgain": "Opnieuw proberen"
   },
+  "theme": {
+    "light": "Licht",
+    "dark": "Donker",
+    "system": "Systeem"
+  },
   "email": {
     "verificationSubject": "Je Fluitplanner verificatiecode",
     "verificationCode": "Je verificatiecode is:",

@@ -19,11 +19,10 @@ describe("SlotPreview", () => {
 
     render(<SlotPreview slots={slots} />);
 
-    // With en locale, useFormatter renders in 12h format
     expect(screen.getByText(/10:45/)).toBeInTheDocument();
     expect(screen.getByText(/12:45/)).toBeInTheDocument();
-    expect(screen.getByText(/02:00/)).toBeInTheDocument();
-    expect(screen.getByText(/04:00/)).toBeInTheDocument();
+    expect(screen.getByText(/14:00/)).toBeInTheDocument();
+    expect(screen.getByText(/16:00/)).toBeInTheDocument();
   });
 
   it("shows message when no slots", () => {

@@ -17,6 +17,9 @@ export function LocaleDetector() {
       setLocale(detected).then(() => {
         window.location.reload();
       });
+    } else {
+      // Persist detected locale without reload
+      setLocale(detected);
     }
   }, [currentLocale]);
 

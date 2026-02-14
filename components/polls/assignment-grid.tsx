@@ -334,6 +334,7 @@ export function AssignmentGrid({
                               {format.dateTime(new Date(match.start_time), {
                                 hour: "2-digit",
                                 minute: "2-digit",
+                                hour12: false,
                               })}
                             </span>
                           )}
@@ -399,6 +400,7 @@ export function AssignmentGrid({
                           {format.dateTime(new Date(match.start_time), {
                             hour: "2-digit",
                             minute: "2-digit",
+                            hour12: false,
                           })}
                         </span>
                       )}

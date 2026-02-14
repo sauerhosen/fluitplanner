@@ -94,6 +94,7 @@ export function ResponseSummary({ pollId, slots, responses }: Props) {
     return format.dateTime(new Date(isoString), {
       hour: "2-digit",
       minute: "2-digit",
+      hour12: false,
     });
   }
 
