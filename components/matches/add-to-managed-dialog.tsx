@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -39,6 +40,8 @@ export function AddToManagedDialog({ open, teams, onDone }: Props) {
         teams.map((name) => ({ name, requiredLevel: levels[name] ?? 1 })),
       );
       onDone();
+    } catch {
+      toast.error(t("addToManagedError"));
     } finally {
       setSaving(false);
     }

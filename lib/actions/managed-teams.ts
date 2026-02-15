@@ -65,6 +65,8 @@ export async function deleteManagedTeam(id: string): Promise<void> {
 export async function batchCreateManagedTeams(
   teams: { name: string; requiredLevel: 1 | 2 | 3 }[],
 ): Promise<ManagedTeam[]> {
+  if (teams.length === 0) return [];
+
   const supabase = await createClient();
   const {
     data: { user },

@@ -135,7 +135,8 @@
     "addToManagedTitle": "Teams toevoegen aan beheerde teams?",
     "addToManagedDescription": "Deze teams staan nog niet in je beheerde teams. Wil je ze toevoegen?",
     "addToManagedConfirm": "Toevoegen aan beheerde teams",
-    "addToManagedSkip": "Overslaan"
+    "addToManagedSkip": "Overslaan",
+    "addToManagedError": "Teams toevoegen mislukt. Probeer het opnieuw."
   },
   "polls": {
     "pageTitle": "Peilingen",

@@ -42,14 +42,13 @@ describe("MatchesPageClient", () => {
     ).toBeInTheDocument();
   });
 
-  it("passes dateFrom and dateTo filters when date range is set", async () => {
+  it("initializes with default date range filters", () => {
     render(
       <MatchesPageClient initialMatches={[]} managedTeams={managedTeams} />,
     );
-    // The component initializes with a default date range (today to today+2mo)
-    // The date range picker button should be present
-    expect(
-      screen.getByRole("button", { name: /date range/i }),
-    ).toBeInTheDocument();
+    // The component sets a default date range (today → today+2mo)
+    // which should be reflected in the button text (not "All matches")
+    const button = screen.getByRole("button", { name: /date range/i });
+    expect(button).not.toHaveTextContent(/all matches/i);
   });
 });

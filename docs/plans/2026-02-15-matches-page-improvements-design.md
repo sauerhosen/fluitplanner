@@ -73,7 +73,7 @@ Shown after successful import if non-managed teams were selected:
 
 - Lists the newly selected non-managed teams
 - Each with a level dropdown (defaults to 1)
-- "Add to managed teams" button calls `addManagedTeam` for each
+- "Add to managed teams" button calls `batchCreateManagedTeams` for all selected teams at once
 - "Skip" dismisses without adding
 
 #### Mapper changes

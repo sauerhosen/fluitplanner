@@ -135,7 +135,8 @@
     "addToManagedTitle": "Add teams to managed?",
     "addToManagedDescription": "These teams are not in your managed teams yet. Would you like to add them?",
     "addToManagedConfirm": "Add to managed teams",
-    "addToManagedSkip": "Skip"
+    "addToManagedSkip": "Skip",
+    "addToManagedError": "Failed to add teams. Please try again."
   },
   "polls": {
     "pageTitle": "Polls",

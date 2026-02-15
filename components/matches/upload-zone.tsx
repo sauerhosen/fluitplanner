@@ -116,10 +116,11 @@ export function UploadZone({
       const result = await upsertMatches(parseResult.matches);
       setImportResult(result);
       setParseResult(null);
-      onImportComplete();
 
       if (importMode === "advanced" && nonManagedSelected.length > 0) {
         setShowAddToManaged(true);
+      } else {
+        onImportComplete();
       }
     } finally {
       setImporting(false);

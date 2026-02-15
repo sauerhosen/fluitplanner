@@ -81,7 +81,9 @@ describe("TeamSelector", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: /^select all$/i }));
     const checkboxes = screen.getAllByRole("checkbox");
-    checkboxes.forEach((cb) => expect(cb).toBeChecked());
+    for (const cb of checkboxes) {
+      expect(cb).toBeChecked();
+    }
   });
 
   it("deselect all unchecks all teams", () => {
@@ -95,7 +97,9 @@ describe("TeamSelector", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: /deselect all/i }));
     const checkboxes = screen.getAllByRole("checkbox");
-    checkboxes.forEach((cb) => expect(cb).not.toBeChecked());
+    for (const cb of checkboxes) {
+      expect(cb).not.toBeChecked();
+    }
   });
 
   it("disables continue when no teams selected", () => {

@@ -48,10 +48,10 @@ export function TeamSelector({
     setSelected(new Set());
   }
 
-  const managedCount = teams.filter((t) => managedSet.has(t)).length;
+  const managedCount = teams.filter((name) => managedSet.has(name)).length;
   const additionalCount =
     selected.size -
-    teams.filter((t) => managedSet.has(t) && selected.has(t)).length;
+    teams.filter((name) => managedSet.has(name) && selected.has(name)).length;
 
   return (
     <Card className="p-4 space-y-4">
