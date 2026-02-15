@@ -11,7 +11,8 @@
     "matches": "Matches",
     "polls": "Polls",
     "umpires": "Umpires",
-    "settings": "Settings"
+    "settings": "Settings",
+    "privacy": "Privacy"
   },
   "auth": {
     "loginTitle": "Login",
@@ -288,6 +289,27 @@
     "light": "Light",
     "dark": "Dark",
     "system": "System"
+  },
+  "footer": {
+    "privacyPolicy": "Privacy Policy"
+  },
+  "privacy": {
+    "title": "Privacy Policy",
+    "lastUpdated": "Last updated: February 2025",
+    "introTitle": "Introduction",
+    "introText": "Fluitplanner is a field hockey umpire availability and match assignment tool. We respect your privacy and are committed to protecting your personal data. This privacy policy explains what data we collect and how we use it.",
+    "whatWeCollectTitle": "What data we collect",
+    "whatWeCollectItems": "Email address (for account creation and verification)|Name (for identification in polls and assignments)|Availability responses (your yes/no/if need be answers to polls)|Match assignment data",
+    "whyWeCollectTitle": "Why we collect this data",
+    "whyWeCollectText": "We collect and process your data solely to provide the Fluitplanner service: managing umpire availability polls and match assignments. We do not use your data for marketing or advertising purposes.",
+    "storageTitle": "Data storage",
+    "storageText": "Your data is stored securely using Supabase, hosted in the EU. We do not share your data with third parties.",
+    "cookiesTitle": "Cookies",
+    "cookiesText": "We use essential cookies only for authentication and language preferences. We do not use tracking or analytics cookies.",
+    "rightsTitle": "Your rights",
+    "rightsText": "You have the right to access, correct, or delete your personal data. Contact us to exercise these rights.",
+    "contactTitle": "Contact",
+    "contactText": "For privacy-related questions, contact us at:"
   },
   "email": {
     "verificationSubject": "Your Fluitplanner verification code",

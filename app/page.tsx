@@ -1,10 +1,12 @@
 import { AuthButton } from "@/components/auth-button";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 import { getTranslations } from "next-intl/server";
+import Link from "next/link";
 import { Suspense } from "react";
 
 export default async function Home() {
   const t = await getTranslations("landing");
+  const ft = await getTranslations("footer");
   return (
     <main className="relative flex min-h-screen flex-col items-center justify-center p-6">
       <div className="absolute right-4 top-4">
@@ -23,6 +25,12 @@ export default async function Home() {
           </Suspense>
         </div>
       </div>
+
+      <footer className="absolute bottom-6 text-xs text-muted-foreground">
+        <Link href="/privacy" className="hover:underline">
+          {ft("privacyPolicy")}
+        </Link>
+      </footer>
     </main>
   );
 }

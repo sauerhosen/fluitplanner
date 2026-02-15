@@ -11,7 +11,8 @@
     "matches": "Wedstrijden",
     "polls": "Peilingen",
     "umpires": "Scheidsrechters",
-    "settings": "Instellingen"
+    "settings": "Instellingen",
+    "privacy": "Privacy"
   },
   "auth": {
     "loginTitle": "Inloggen",
@@ -288,6 +289,27 @@
     "light": "Licht",
     "dark": "Donker",
     "system": "Systeem"
+  },
+  "footer": {
+    "privacyPolicy": "Privacybeleid"
+  },
+  "privacy": {
+    "title": "Privacybeleid",
+    "lastUpdated": "Laatst bijgewerkt: februari 2025",
+    "introTitle": "Inleiding",
+    "introText": "Fluitplanner is een tool voor beschikbaarheid en wedstrijdindeling van hockeyscheidsrechters. Wij respecteren je privacy en zetten ons in om je persoonsgegevens te beschermen. Dit privacybeleid legt uit welke gegevens we verzamelen en hoe we deze gebruiken.",
+    "whatWeCollectTitle": "Welke gegevens we verzamelen",
+    "whatWeCollectItems": "E-mailadres (voor accountaanmaak en verificatie)|Naam (voor identificatie in peilingen en indelingen)|Beschikbaarheidsreacties (je ja/nee/indien nodig antwoorden op peilingen)|Wedstrijdindelingsgegevens",
+    "whyWeCollectTitle": "Waarom we deze gegevens verzamelen",
+    "whyWeCollectText": "We verzamelen en verwerken je gegevens uitsluitend om de Fluitplanner-dienst te leveren: het beheren van beschikbaarheidspeilingen en wedstrijdindelingen voor scheidsrechters. We gebruiken je gegevens niet voor marketing- of reclamedoeleinden.",
+    "storageTitle": "Gegevensopslag",
+    "storageText": "Je gegevens worden veilig opgeslagen via Supabase, gehost in de EU. We delen je gegevens niet met derden.",
+    "cookiesTitle": "Cookies",
+    "cookiesText": "We gebruiken alleen essentiële cookies voor authenticatie en taalvoorkeuren. We gebruiken geen tracking- of analytische cookies.",
+    "rightsTitle": "Je rechten",
+    "rightsText": "Je hebt het recht om je persoonsgegevens in te zien, te corrigeren of te verwijderen. Neem contact met ons op om deze rechten uit te oefenen.",
+    "contactTitle": "Contact",
+    "contactText": "Voor privacygerelateerde vragen kun je contact opnemen via:"
   },
   "email": {
     "verificationSubject": "Je Fluitplanner verificatiecode",
