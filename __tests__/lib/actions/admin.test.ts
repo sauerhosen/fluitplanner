@@ -44,7 +44,28 @@ vi.mock("@/lib/supabase/server", () => ({
 const mockListUsers = vi.fn();
 const mockInviteUserByEmail = vi.fn();
 const mockUpdateUserById = vi.fn();
+
+const mockServiceSelect = vi.fn();
 const mockServiceInsert = vi.fn();
+const mockServiceUpdate = vi.fn();
+const mockServiceDelete = vi.fn();
+const mockServiceEq = vi.fn();
+const mockServiceSingle = vi.fn();
+const mockServiceOrder = vi.fn();
+
+function serviceChainable() {
+  return {
+    select: mockServiceSelect,
+    insert: mockServiceInsert,
+    update: mockServiceUpdate,
+    delete: mockServiceDelete,
+    eq: mockServiceEq,
+    single: mockServiceSingle,
+    order: mockServiceOrder,
+  };
+}
+
+const mockServiceFrom = vi.fn(() => serviceChainable());
 
 vi.mock("@/lib/supabase/service", () => ({
   createServiceClient: vi.fn(() => ({
@@ -55,9 +76,7 @@ vi.mock("@/lib/supabase/service", () => ({
         updateUserById: mockUpdateUserById,
       },
     },
-    from: vi.fn(() => ({
-      insert: mockServiceInsert,
-    })),
+    from: mockServiceFrom,
   })),
 }));
 
@@ -78,7 +97,14 @@ function resetChain() {
     mockListUsers,
     mockInviteUserByEmail,
     mockUpdateUserById,
+    mockServiceFrom,
+    mockServiceSelect,
     mockServiceInsert,
+    mockServiceUpdate,
+    mockServiceDelete,
+    mockServiceEq,
+    mockServiceSingle,
+    mockServiceOrder,
     mockIsRootDomain,
   ]) {
     fn.mockReset();
@@ -90,6 +116,15 @@ function resetChain() {
   mockInsert.mockReturnValue(chainable());
   mockUpdate.mockReturnValue(chainable());
   mockSingle.mockResolvedValue({ data: null, error: null });
+
+  mockServiceFrom.mockReturnValue(serviceChainable());
+  mockServiceSelect.mockReturnValue(serviceChainable());
+  mockServiceInsert.mockReturnValue(serviceChainable());
+  mockServiceUpdate.mockReturnValue(serviceChainable());
+  mockServiceDelete.mockReturnValue(serviceChainable());
+  mockServiceEq.mockReturnValue(serviceChainable());
+  mockServiceOrder.mockReturnValue(serviceChainable());
+  mockServiceSingle.mockResolvedValue({ data: null, error: null });
   mockIsRootDomain.mockResolvedValue(true);
   mockGetUser.mockResolvedValue({
     data: {
@@ -154,15 +189,15 @@ describe("getOrganizations", () => {
         created_by: "user-1",
       },
     ];
-    mockOrder.mockResolvedValue({ data: orgs, error: null });
+    mockServiceOrder.mockResolvedValue({ data: orgs, error: null });
 
     const { getOrganizations } = await import("@/lib/actions/admin");
     const result = await getOrganizations();
 
     expect(result).toEqual(orgs);
-    expect(mockFrom).toHaveBeenCalledWith("organizations");
-    expect(mockSelect).toHaveBeenCalledWith("*");
-    expect(mockOrder).toHaveBeenCalledWith("name");
+    expect(mockServiceFrom).toHaveBeenCalledWith("organizations");
+    expect(mockServiceSelect).toHaveBeenCalledWith("*");
+    expect(mockServiceOrder).toHaveBeenCalledWith("name");
   });
 });
 
@@ -209,14 +244,14 @@ describe("createOrganization", () => {
       created_at: "2026-02-15",
       created_by: "user-1",
     };
-    mockSingle.mockResolvedValue({ data: createdOrg, error: null });
+    mockServiceSingle.mockResolvedValue({ data: createdOrg, error: null });
 
     const { createOrganization } = await import("@/lib/actions/admin");
     const result = await createOrganization("New Club", "new-club");
 
     expect(result).toEqual(createdOrg);
-    expect(mockFrom).toHaveBeenCalledWith("organizations");
-    expect(mockInsert).toHaveBeenCalledWith({
+    expect(mockServiceFrom).toHaveBeenCalledWith("organizations");
+    expect(mockServiceInsert).toHaveBeenCalledWith({
       name: "New Club",
       slug: "new-club",
       created_by: "user-1",
@@ -238,7 +273,7 @@ describe("updateOrganization", () => {
       created_at: "2026-01-01",
       created_by: "user-1",
     };
-    mockSingle.mockResolvedValue({ data: updatedOrg, error: null });
+    mockServiceSingle.mockResolvedValue({ data: updatedOrg, error: null });
 
     const { updateOrganization } = await import("@/lib/actions/admin");
     const result = await updateOrganization("org-1", {
@@ -247,12 +282,12 @@ describe("updateOrganization", () => {
     });
 
     expect(result).toEqual(updatedOrg);
-    expect(mockFrom).toHaveBeenCalledWith("organizations");
-    expect(mockUpdate).toHaveBeenCalledWith({
+    expect(mockServiceFrom).toHaveBeenCalledWith("organizations");
+    expect(mockServiceUpdate).toHaveBeenCalledWith({
       name: "Updated Club",
       is_active: false,
     });
-    expect(mockEq).toHaveBeenCalledWith("id", "org-1");
+    expect(mockServiceEq).toHaveBeenCalledWith("id", "org-1");
   });
 });
 
@@ -268,13 +303,13 @@ describe("invitePlanner", () => {
       },
       error: null,
     });
-    mockInsert.mockResolvedValue({ data: null, error: null });
+    mockServiceInsert.mockResolvedValue({ data: null, error: null });
 
     const { invitePlanner } = await import("@/lib/actions/admin");
     await invitePlanner("org-1", "planner@example.com");
 
-    expect(mockFrom).toHaveBeenCalledWith("organization_members");
-    expect(mockInsert).toHaveBeenCalledWith({
+    expect(mockServiceFrom).toHaveBeenCalledWith("organization_members");
+    expect(mockServiceInsert).toHaveBeenCalledWith({
       organization_id: "org-1",
       user_id: "existing-user",
       role: "planner",

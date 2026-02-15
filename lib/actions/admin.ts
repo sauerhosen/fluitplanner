@@ -22,8 +22,9 @@ async function requireMasterAdmin() {
 const SLUG_REGEX = /^[a-z0-9][a-z0-9-]*[a-z0-9]$/;
 
 export async function getOrganizations(): Promise<Organization[]> {
-  const { supabase } = await requireMasterAdmin();
-  const { data, error } = await supabase
+  await requireMasterAdmin();
+  const serviceClient = createServiceClient();
+  const { data, error } = await serviceClient
     .from("organizations")
     .select("*")
     .order("name");
@@ -35,7 +36,8 @@ export async function createOrganization(
   name: string,
   slug: string,
 ): Promise<Organization> {
-  const { supabase, user } = await requireMasterAdmin();
+  const { user } = await requireMasterAdmin();
+  const serviceClient = createServiceClient();
 
   if (!SLUG_REGEX.test(slug) || slug.length < 2) {
     throw new Error(
@@ -43,7 +45,7 @@ export async function createOrganization(
     );
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await serviceClient
     .from("organizations")
     .insert({ name, slug, created_by: user.id })
     .select()
@@ -57,8 +59,9 @@ export async function updateOrganization(
   id: string,
   updates: { name?: string; is_active?: boolean },
 ): Promise<Organization> {
-  const { supabase } = await requireMasterAdmin();
-  const { data, error } = await supabase
+  await requireMasterAdmin();
+  const serviceClient = createServiceClient();
+  const { data, error } = await serviceClient
     .from("organizations")
     .update(updates)
     .eq("id", id)
@@ -72,7 +75,7 @@ export async function invitePlanner(
   organizationId: string,
   email: string,
 ): Promise<void> {
-  const { supabase } = await requireMasterAdmin();
+  await requireMasterAdmin();
   const serviceClient = createServiceClient();
 
   // Check if user already exists (paginate to handle >1000 users)
@@ -91,7 +94,7 @@ export async function invitePlanner(
 
   if (existingUser) {
     // Add to org directly
-    const { error } = await supabase.from("organization_members").insert({
+    const { error } = await serviceClient.from("organization_members").insert({
       organization_id: organizationId,
       user_id: existingUser.id,
       role: "planner",
@@ -113,7 +116,7 @@ export async function invitePlanner(
 }
 
 export async function getUsers(): Promise<UserWithMemberships[]> {
-  const { supabase } = await requireMasterAdmin();
+  await requireMasterAdmin();
   const serviceClient = createServiceClient();
 
   // Get all users via admin API (paginate to handle >1000 users)
@@ -134,8 +137,8 @@ export async function getUsers(): Promise<UserWithMemberships[]> {
     page++;
   }
 
-  // Get all memberships with organization info
-  const { data: memberships, error } = await supabase
+  // Get all memberships with organization info (service client to see all orgs)
+  const { data: memberships, error } = await serviceClient
     .from("organization_members")
     .select("*, organizations(name, slug)");
 
@@ -164,8 +167,9 @@ export async function removeUserFromOrg(
   userId: string,
   organizationId: string,
 ): Promise<void> {
-  const { supabase } = await requireMasterAdmin();
-  const { error } = await supabase
+  await requireMasterAdmin();
+  const serviceClient = createServiceClient();
+  const { error } = await serviceClient
     .from("organization_members")
     .delete()
     .eq("user_id", userId)
