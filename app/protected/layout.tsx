@@ -59,6 +59,12 @@ export default async function ProtectedLayout({
 
         <footer className="w-full flex items-center justify-center border-t mx-auto text-center text-xs gap-8 py-8">
           <p className="text-muted-foreground">Fluitplanner</p>
+          <Link
+            href="/privacy"
+            className="text-muted-foreground hover:underline"
+          >
+            {t("privacy")}
+          </Link>
           <ThemeSwitcher />
           <LanguageSwitcher />
         </footer>
