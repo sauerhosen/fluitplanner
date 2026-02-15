@@ -111,6 +111,7 @@
     "parse": "Parse",
     "readyToImport": "{count, plural, one {# match} other {# matches}} ready to import",
     "skippedCount": "{count} skipped (not in managed teams)",
+    "parseError": "Failed to parse file. Please check the format and try again.",
     "errorCount": "{count, plural, one {# error} other {# errors}}",
     "importing": "Importing...",
     "import": "Import",

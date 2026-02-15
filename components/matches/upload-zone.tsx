@@ -10,6 +10,7 @@ import type { ParseResult, RawRow } from "@/lib/parsers/types";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { toast } from "sonner";
 import { Upload, ClipboardPaste } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { TeamSelector } from "./team-selector";
@@ -59,15 +60,19 @@ export function UploadZone({
   );
 
   async function handleFile(file: File) {
-    if (file.name.endsWith(".xlsx")) {
-      const { parseExcel } = await import("@/lib/parsers/excel");
-      const buffer = await file.arrayBuffer();
-      const rows = await parseExcel(buffer);
-      processRows(rows);
-    } else if (file.name.endsWith(".csv")) {
-      const text = await file.text();
-      const rows = parseCSV(text);
-      processRows(rows);
+    try {
+      if (file.name.endsWith(".xlsx")) {
+        const { parseExcel } = await import("@/lib/parsers/excel");
+        const buffer = await file.arrayBuffer();
+        const rows = await parseExcel(buffer);
+        processRows(rows);
+      } else if (file.name.endsWith(".csv")) {
+        const text = await file.text();
+        const rows = parseCSV(text);
+        processRows(rows);
+      }
+    } catch {
+      toast.error(t("parseError"));
     }
   }
 

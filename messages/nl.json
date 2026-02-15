@@ -111,6 +111,7 @@
     "parse": "Verwerken",
     "readyToImport": "{count, plural, one {# wedstrijd} other {# wedstrijden}} klaar om te importeren",
     "skippedCount": "{count} overgeslagen (niet in beheerde teams)",
+    "parseError": "Kan bestand niet verwerken. Controleer het formaat en probeer opnieuw.",
     "errorCount": "{count, plural, one {# fout} other {# fouten}}",
     "importing": "Importeren...",
     "import": "Importeren",
