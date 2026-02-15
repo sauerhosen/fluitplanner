@@ -121,7 +121,21 @@
     "presetThisMonth": "Deze maand",
     "presetNextTwoMonths": "Komende 2 maanden",
     "presetPastMonth": "Afgelopen maand",
-    "presetAll": "Alle wedstrijden"
+    "presetAll": "Alle wedstrijden",
+    "importModeQuick": "Snel importeren",
+    "importModeAdvanced": "Uitgebreid importeren",
+    "importModeQuickDesc": "Importeer wedstrijden van alleen beheerde teams",
+    "importModeAdvancedDesc": "Selecteer welke teams je wilt importeren",
+    "teamSelectorTitle": "Selecteer teams om te importeren",
+    "teamSelectorManaged": "Beheerd",
+    "teamSelectorSelectAll": "Alles selecteren",
+    "teamSelectorDeselectAll": "Alles deselecteren",
+    "teamSelectorSummary": "{total} teams in bestand, {managed} beheerd, {additional} extra",
+    "teamSelectorContinue": "Doorgaan",
+    "addToManagedTitle": "Teams toevoegen aan beheerde teams?",
+    "addToManagedDescription": "Deze teams staan nog niet in je beheerde teams. Wil je ze toevoegen?",
+    "addToManagedConfirm": "Toevoegen aan beheerde teams",
+    "addToManagedSkip": "Overslaan"
   },
   "polls": {
     "pageTitle": "Peilingen",

@@ -121,7 +121,21 @@
     "presetThisMonth": "This month",
     "presetNextTwoMonths": "Next 2 months",
     "presetPastMonth": "Past month",
-    "presetAll": "All matches"
+    "presetAll": "All matches",
+    "importModeQuick": "Quick import",
+    "importModeAdvanced": "Advanced import",
+    "importModeQuickDesc": "Import matches for managed teams only",
+    "importModeAdvancedDesc": "Select which teams to import",
+    "teamSelectorTitle": "Select teams to import",
+    "teamSelectorManaged": "Managed",
+    "teamSelectorSelectAll": "Select all",
+    "teamSelectorDeselectAll": "Deselect all",
+    "teamSelectorSummary": "{total} teams in file, {managed} managed, {additional} additional",
+    "teamSelectorContinue": "Continue",
+    "addToManagedTitle": "Add teams to managed?",
+    "addToManagedDescription": "These teams are not in your managed teams yet. Would you like to add them?",
+    "addToManagedConfirm": "Add to managed teams",
+    "addToManagedSkip": "Skip"
   },
   "polls": {
     "pageTitle": "Polls",
