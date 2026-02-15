@@ -1,12 +1,20 @@
 import { redirect } from "next/navigation";
 import { isRootDomain } from "@/lib/tenant";
+import { createClient } from "@/lib/supabase/server";
 import { getOrganizations } from "@/lib/actions/admin";
 import { getTranslations } from "next-intl/server";
 import { OrganizationList } from "@/components/admin/organization-list";
 
 export default async function OrganizationsPage() {
-  const rootDomain = await isRootDomain();
-  if (!rootDomain) redirect("/protected");
+  const [rootDomain, supabase] = await Promise.all([
+    isRootDomain(),
+    createClient(),
+  ]);
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!rootDomain || !user?.user_metadata?.is_master_admin)
+    redirect("/protected");
 
   const [t, organizations] = await Promise.all([
     getTranslations("admin"),

@@ -8,17 +8,23 @@ import appIcon from "@/app/icon.png";
 import { Suspense } from "react";
 import { getTranslations } from "next-intl/server";
 import { isRootDomain, getTenantSlug } from "@/lib/tenant";
+import { createClient } from "@/lib/supabase/server";
 
 export default async function ProtectedLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const [t, isRoot, tenantSlug] = await Promise.all([
+  const [t, isRoot, tenantSlug, supabase] = await Promise.all([
     getTranslations("nav"),
     isRootDomain(),
     getTenantSlug(),
+    createClient(),
   ]);
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const isMasterAdmin = isRoot && !!user?.user_metadata?.is_master_admin;
 
   return (
     <main className="min-h-screen flex flex-col items-center">
@@ -44,7 +50,7 @@ export default async function ProtectedLayout({
                 <Link href="/protected/umpires" className="hover:underline">
                   {t("umpires")}
                 </Link>
-                {isRoot && (
+                {isMasterAdmin && (
                   <>
                     <Link
                       href="/protected/organizations"
