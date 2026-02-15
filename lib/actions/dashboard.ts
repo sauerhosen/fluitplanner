@@ -231,7 +231,7 @@ export async function getActionItems(): Promise<ActionItem[]> {
 
     const { count: totalUmpires, error: umpError } = await supabase
       .from("organization_umpires")
-      .select("id", { count: "exact", head: true })
+      .select("umpire_id", { count: "exact", head: true })
       .eq("organization_id", tenantId);
 
     if (umpError) throw new Error(umpError.message);
