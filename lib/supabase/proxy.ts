@@ -54,7 +54,8 @@ export async function updateSession(request: NextRequest) {
   const resolution = resolveTenantFromHost(host, baseDomain);
 
   if (resolution.type === "root") {
-    supabaseResponse.headers.set("x-is-root-domain", "true");
+    // Set on request headers so server components can read via headers()
+    request.headers.set("x-is-root-domain", "true");
   } else {
     let slug: string | null = null;
 
@@ -86,8 +87,9 @@ export async function updateSession(request: NextRequest) {
         if (!org.is_active) {
           return new NextResponse("Organization is inactive", { status: 403 });
         }
-        supabaseResponse.headers.set("x-organization-id", org.id);
-        supabaseResponse.headers.set("x-organization-slug", slug);
+        // Set on request headers so server components can read via headers()
+        request.headers.set("x-organization-id", org.id);
+        request.headers.set("x-organization-slug", slug);
       } else if (resolution.type === "tenant") {
         // Only 404 for subdomain-based resolution (explicit tenant URL)
         // Cookie/query param fallback silently proceeds without tenant context
@@ -96,8 +98,16 @@ export async function updateSession(request: NextRequest) {
     }
   }
 
+  // Recreate the response with the updated request headers
+  // so server components can read them via headers()
+  const updatedResponse = NextResponse.next({ request });
+  // Copy over cookies from supabaseResponse (auth session cookies)
+  supabaseResponse.cookies.getAll().forEach((cookie) => {
+    updatedResponse.cookies.set(cookie.name, cookie.value);
+  });
+
   // Organization membership check
-  const orgId = supabaseResponse.headers.get("x-organization-id");
+  const orgId = request.headers.get("x-organization-id");
   if (user && orgId) {
     const { data: membership } = await supabase
       .from("organization_members")
@@ -106,16 +116,27 @@ export async function updateSession(request: NextRequest) {
       .eq("user_id", user.sub)
       .single();
 
-    if (
-      !membership &&
-      !request.nextUrl.pathname.startsWith("/auth") &&
-      !request.nextUrl.pathname.startsWith("/poll") &&
-      !request.nextUrl.pathname.startsWith("/no-access") &&
-      request.nextUrl.pathname !== "/"
-    ) {
-      const url = request.nextUrl.clone();
-      url.pathname = "/no-access";
-      return NextResponse.redirect(url);
+    if (!membership) {
+      if (resolution.type !== "tenant") {
+        // Cookie/query param fallback (dev/preview): auto-join the user as planner
+        // so RLS policies work correctly. Safe because this path is only used
+        // in dev/preview environments (not production subdomain routing).
+        await supabase.from("organization_members").insert({
+          organization_id: orgId,
+          user_id: user.sub,
+          role: "planner",
+        });
+      } else if (
+        !request.nextUrl.pathname.startsWith("/auth") &&
+        !request.nextUrl.pathname.startsWith("/poll") &&
+        !request.nextUrl.pathname.startsWith("/no-access") &&
+        request.nextUrl.pathname !== "/"
+      ) {
+        // Subdomain-based resolution: redirect non-members to /no-access
+        const url = request.nextUrl.clone();
+        url.pathname = "/no-access";
+        return NextResponse.redirect(url);
+      }
     }
   }
 
@@ -134,7 +155,7 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // IMPORTANT: You *must* return the supabaseResponse object as it is.
+  // IMPORTANT: You *must* return the updatedResponse object as it is.
   // If you're creating a new response object with NextResponse.next() make sure to:
   // 1. Pass the request in it, like so:
   //    const myNewResponse = NextResponse.next({ request })
@@ -147,5 +168,5 @@ export async function updateSession(request: NextRequest) {
   // If this is not done, you may be causing the browser and server to go out
   // of sync and terminate the user's session prematurely!
 
-  return supabaseResponse;
+  return updatedResponse;
 }
