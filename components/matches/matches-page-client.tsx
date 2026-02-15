@@ -7,7 +7,7 @@ import { getMatches } from "@/lib/actions/matches";
 import { UploadZone } from "./upload-zone";
 import { MatchTable } from "./match-table";
 import { MatchFormDialog } from "./match-form";
-import { DateRangePicker } from "./date-range-picker";
+import { DateRangePicker } from "@/components/shared/date-range-picker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {

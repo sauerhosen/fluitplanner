@@ -1,7 +1,7 @@
 import { screen, fireEvent } from "@testing-library/react";
 import { render } from "@/__tests__/helpers/render";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { DateRangePicker } from "../date-range-picker";
+import { DateRangePicker } from "@/components/shared/date-range-picker";
 import type { DateRange } from "react-day-picker";
 
 describe("DateRangePicker", () => {
@@ -31,21 +31,19 @@ describe("DateRangePicker", () => {
     expect(
       screen.getByRole("button", { name: /this week/i }),
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: /all matches/i }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^all$/i })).toBeInTheDocument();
   });
 
   it("calls onChange with undefined range when 'All matches' is clicked", async () => {
     render(<DateRangePicker value={defaultRange} onChange={onChange} />);
     fireEvent.click(screen.getByRole("button", { name: /date range/i }));
-    fireEvent.click(screen.getByRole("button", { name: /all matches/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^all$/i }));
     expect(onChange).toHaveBeenCalledWith(undefined);
   });
 
   it("shows 'All matches' text when value is undefined", () => {
     render(<DateRangePicker value={undefined} onChange={onChange} />);
     const button = screen.getByRole("button", { name: /date range/i });
-    expect(button).toHaveTextContent(/all matches/i);
+    expect(button).toHaveTextContent(/^all$/i);
   });
 });

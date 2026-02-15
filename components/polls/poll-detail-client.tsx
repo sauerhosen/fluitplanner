@@ -24,6 +24,9 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Pencil, Check, Trash2, ArrowRightLeft } from "lucide-react";
 import { useTranslations, useFormatter } from "next-intl";
+import { DateRangePicker } from "@/components/shared/date-range-picker";
+import type { DateRange } from "react-day-picker";
+import { format as fnsFormat } from "date-fns";
 
 type Props = {
   initialPoll: PollDetail;
@@ -59,6 +62,7 @@ export function PollDetailClient({
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("matches");
   const [transposed, setTransposed] = useState(false);
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
   const t = useTranslations("polls");
   const tCommon = useTranslations("common");
   const format = useFormatter();
@@ -75,6 +79,23 @@ export function PollDetailClient({
     });
     return combined;
   }, [poll.matches, availableMatches]);
+
+  const filteredMatches = useMemo(() => {
+    if (!dateRange?.from) return poll.matches;
+    const from = fnsFormat(dateRange.from, "yyyy-MM-dd");
+    const to = dateRange.to ? fnsFormat(dateRange.to, "yyyy-MM-dd") : from;
+    return poll.matches.filter((m) => m.date >= from && m.date <= to);
+  }, [poll.matches, dateRange]);
+
+  const filteredSlots = useMemo(() => {
+    if (!dateRange?.from) return poll.slots;
+    const from = fnsFormat(dateRange.from, "yyyy-MM-dd");
+    const to = dateRange.to ? fnsFormat(dateRange.to, "yyyy-MM-dd") : from;
+    return poll.slots.filter((s) => {
+      const slotDate = fnsFormat(new Date(s.start_time), "yyyy-MM-dd");
+      return slotDate >= from && slotDate <= to;
+    });
+  }, [poll.slots, dateRange]);
 
   const previewSlots = useMemo(() => {
     if (!editingMatches) return [];
@@ -221,30 +242,33 @@ export function PollDetailClient({
         <div className="flex items-center justify-between gap-2 overflow-x-auto">
           <TabsList>
             <TabsTrigger value="matches">
-              {t("matchesTab", { count: poll.matches.length })}
+              {t("matchesTab", { count: filteredMatches.length })}
             </TabsTrigger>
             <TabsTrigger value="responses">
               {t("responsesTab", { count: uniqueRespondentCount })}
             </TabsTrigger>
             <TabsTrigger value="assignments">{t("assignmentsTab")}</TabsTrigger>
           </TabsList>
-          {activeTab === "assignments" && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="hidden sm:inline-flex"
-              onClick={() => setTransposed((prev) => !prev)}
-              aria-label={t("swapRowsAndColumns")}
-            >
-              <ArrowRightLeft className="mr-2 h-4 w-4" />
-              {t("swapAxes")}
-            </Button>
-          )}
+          <div className="flex items-center gap-2">
+            <DateRangePicker value={dateRange} onChange={setDateRange} />
+            {activeTab === "assignments" && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="hidden sm:inline-flex"
+                onClick={() => setTransposed((prev) => !prev)}
+                aria-label={t("swapRowsAndColumns")}
+              >
+                <ArrowRightLeft className="mr-2 h-4 w-4" />
+                {t("swapAxes")}
+              </Button>
+            )}
+          </div>
         </div>
         <TabsContent value="matches">
           <div className="flex flex-col gap-4">
             <div className="flex items-center justify-between">
-              <Label>{t("slotsLabel", { count: poll.slots.length })}</Label>
+              <Label>{t("slotsLabel", { count: filteredSlots.length })}</Label>
               <Button
                 variant="outline"
                 size="sm"
@@ -280,7 +304,7 @@ export function PollDetailClient({
             ) : (
               <div className="flex flex-col gap-4">
                 {(() => {
-                  const sortedSlots = poll.slots
+                  const sortedSlots = filteredSlots
                     .slice()
                     .sort(
                       (a, b) =>
@@ -318,7 +342,7 @@ export function PollDetailClient({
                         {group.slots.map((slot) => {
                           const slotStart = new Date(slot.start_time).getTime();
                           const slotEnd = new Date(slot.end_time).getTime();
-                          const slotMatches = poll.matches.filter((m) => {
+                          const slotMatches = filteredMatches.filter((m) => {
                             if (!m.start_time) return false;
                             const mt = new Date(m.start_time).getTime();
                             return mt >= slotStart && mt < slotEnd;
@@ -382,15 +406,15 @@ export function PollDetailClient({
         <TabsContent value="responses">
           <ResponseSummary
             pollId={poll.id}
-            slots={poll.slots}
+            slots={filteredSlots}
             responses={poll.responses}
           />
         </TabsContent>
         <TabsContent value="assignments">
           <AssignmentGrid
             pollId={poll.id}
-            matches={poll.matches}
-            slots={poll.slots}
+            matches={filteredMatches}
+            slots={filteredSlots}
             responses={poll.responses}
             assignments={poll.assignments}
             umpires={umpires}
