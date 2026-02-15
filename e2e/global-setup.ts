@@ -78,6 +78,16 @@ async function globalSetup(config: FullConfig) {
   await page.getByRole("button", { name: "Login" }).click();
   await page.waitForURL(/\/protected/, { timeout: 10000 });
 
+  // Add tenant cookie for multi-tenancy (localhost uses cookie-based tenant resolution)
+  await context.addCookies([
+    {
+      name: "x-tenant",
+      value: "default",
+      domain: "localhost",
+      path: "/",
+    },
+  ]);
+
   // Save authenticated state
   await context.storageState({ path: "e2e/.auth/state.json" });
   await browser.close();

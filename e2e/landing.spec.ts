@@ -1,6 +1,22 @@
 import { test, expect } from "@playwright/test";
 
-test.use({ storageState: { cookies: [], origins: [] } });
+test.use({
+  storageState: {
+    cookies: [
+      {
+        name: "x-tenant",
+        value: "default",
+        domain: "localhost",
+        path: "/",
+        expires: -1,
+        httpOnly: false,
+        secure: false,
+        sameSite: "Lax" as const,
+      },
+    ],
+    origins: [],
+  },
+});
 
 test.describe("Landing page", () => {
   test("shows branding and auth buttons", async ({ page }) => {
