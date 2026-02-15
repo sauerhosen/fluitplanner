@@ -57,6 +57,23 @@ export type Umpire = {
   updated_at: string;
 };
 
+export type Organization = {
+  id: string;
+  name: string;
+  slug: string;
+  is_active: boolean;
+  created_at: string;
+  created_by: string;
+};
+
+export type OrganizationMember = {
+  id: string;
+  organization_id: string;
+  user_id: string;
+  role: "planner" | "viewer";
+  created_at: string;
+};
+
 export type TimeSlot = {
   start: Date;
   end: Date;
