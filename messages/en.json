@@ -372,7 +372,8 @@
     "selectOrganization": "Select organization",
     "inviting": "Inviting...",
     "invite": "Invite",
-    "confirmDisable": "Are you sure you want to disable this organization?"
+    "confirmDisable": "Are you sure you want to disable this organization?",
+    "status": "Status"
   },
   "noAccess": {
     "title": "No Access",

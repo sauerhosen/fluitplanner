@@ -106,6 +106,17 @@ export async function updateUmpire(
   updates: Partial<{ name: string; email: string; level: 1 | 2 | 3 }>,
 ): Promise<Umpire> {
   const { supabase } = await requireAuth();
+  const tenantId = await requireTenantId();
+
+  // Verify the umpire belongs to the current org's roster
+  const { data: rosterEntry } = await supabase
+    .from("organization_umpires")
+    .select("umpire_id")
+    .eq("organization_id", tenantId)
+    .eq("umpire_id", id)
+    .single();
+
+  if (!rosterEntry) throw new Error("Umpire not in this organization");
 
   const cleanUpdates: Record<string, unknown> = {};
   if (updates.name !== undefined) cleanUpdates.name = updates.name.trim();

@@ -80,7 +80,7 @@ export function OrganizationList({
             <TableRow>
               <TableHead>{t("name")}</TableHead>
               <TableHead>{t("slug")}</TableHead>
-              <TableHead className="text-center">Status</TableHead>
+              <TableHead className="text-center">{t("status")}</TableHead>
               <TableHead className="w-[50px]" />
             </TableRow>
           </TableHeader>

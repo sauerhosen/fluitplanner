@@ -75,9 +75,19 @@ export async function invitePlanner(
   const { supabase } = await requireMasterAdmin();
   const serviceClient = createServiceClient();
 
-  // Check if user already exists
-  const { data: existingUsers } = await serviceClient.auth.admin.listUsers();
-  const existingUser = existingUsers?.users?.find((u) => u.email === email);
+  // Check if user already exists (paginate to handle >1000 users)
+  const allUsers: Array<{ id: string; email?: string }> = [];
+  let page = 1;
+  const perPage = 1000;
+  while (true) {
+    const {
+      data: { users },
+    } = await serviceClient.auth.admin.listUsers({ page, perPage });
+    allUsers.push(...users);
+    if (users.length < perPage) break;
+    page++;
+  }
+  const existingUser = allUsers.find((u) => u.email === email);
 
   if (existingUser) {
     // Add to org directly
@@ -100,8 +110,23 @@ export async function getUsers(): Promise<UserWithMemberships[]> {
   const { supabase } = await requireMasterAdmin();
   const serviceClient = createServiceClient();
 
-  // Get all users via admin API
-  const { data: authUsers } = await serviceClient.auth.admin.listUsers();
+  // Get all users via admin API (paginate to handle >1000 users)
+  const allAuthUsers: Array<{
+    id: string;
+    email?: string;
+    created_at: string;
+    user_metadata?: Record<string, unknown>;
+  }> = [];
+  let page = 1;
+  const perPage = 1000;
+  while (true) {
+    const {
+      data: { users },
+    } = await serviceClient.auth.admin.listUsers({ page, perPage });
+    allAuthUsers.push(...users);
+    if (users.length < perPage) break;
+    page++;
+  }
 
   // Get all memberships with organization info
   const { data: memberships, error } = await supabase
@@ -111,7 +136,7 @@ export async function getUsers(): Promise<UserWithMemberships[]> {
   if (error) throw new Error(error.message);
 
   // Map users with their memberships
-  return (authUsers?.users ?? []).map((u) => ({
+  return allAuthUsers.map((u) => ({
     id: u.id,
     email: u.email ?? "",
     created_at: u.created_at,

@@ -372,7 +372,8 @@
     "selectOrganization": "Selecteer organisatie",
     "inviting": "Uitnodigen...",
     "invite": "Uitnodigen",
-    "confirmDisable": "Weet je zeker dat je deze organisatie wilt uitschakelen?"
+    "confirmDisable": "Weet je zeker dat je deze organisatie wilt uitschakelen?",
+    "status": "Status"
   },
   "noAccess": {
     "title": "Geen toegang",
