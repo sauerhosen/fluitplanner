@@ -61,3 +61,29 @@ export async function deleteManagedTeam(id: string): Promise<void> {
 
   if (error) throw new Error(error.message);
 }
+
+export async function batchCreateManagedTeams(
+  teams: { name: string; requiredLevel: 1 | 2 | 3 }[],
+): Promise<ManagedTeam[]> {
+  if (teams.length === 0) return [];
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  const rows = teams.map((t) => ({
+    name: t.name.trim(),
+    required_level: t.requiredLevel,
+    created_by: user.id,
+  }));
+
+  const { data, error } = await supabase
+    .from("managed_teams")
+    .insert(rows)
+    .select();
+
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}

@@ -1,6 +1,19 @@
 import type { ManagedTeam } from "@/lib/types/domain";
 import type { RawRow, ParseResult, ParsedMatch, MapperOptions } from "./types";
 
+export function extractHomeTeams(rows: RawRow[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const row of rows) {
+    const name = (row["Thuis team"] ?? "").trim();
+    if (name && !seen.has(name)) {
+      seen.add(name);
+      result.push(name);
+    }
+  }
+  return result;
+}
+
 function parseDutchDate(dateStr: string): string | null {
   const match = dateStr.match(/^(\d{2})-(\d{2})-(\d{4})$/);
   if (!match) return null;
@@ -26,6 +39,10 @@ export function mapKNHBRows(
   const errors: string[] = [];
   let skippedCount = 0;
 
+  // Determine if we're using selectedTeams or managedTeams for filtering
+  const useSelectedTeams = options.selectedTeams != null;
+  const selectedSet = useSelectedTeams ? new Set(options.selectedTeams) : null;
+
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
     const homeTeam = (row["Thuis team"] ?? "").trim();
@@ -46,12 +63,22 @@ export function mapKNHBRows(
       continue;
     }
 
-    // Filter by managed teams
-    const managedTeam = teamMap.get(homeTeam);
-    if (!managedTeam) {
-      skippedCount++;
-      continue;
+    // Filter by selected teams or managed teams
+    if (useSelectedTeams) {
+      if (!selectedSet!.has(homeTeam)) {
+        skippedCount++;
+        continue;
+      }
+    } else {
+      if (!teamMap.has(homeTeam)) {
+        skippedCount++;
+        continue;
+      }
     }
+
+    // Get required_level from managed team if available, otherwise default to 1
+    const managedTeam = teamMap.get(homeTeam);
+    const requiredLevel = managedTeam?.required_level ?? 1;
 
     const dateISO = parseDutchDate(datumRaw);
     if (!dateISO) {
@@ -72,7 +99,7 @@ export function mapKNHBRows(
       venue,
       field,
       competition: null,
-      required_level: managedTeam.required_level,
+      required_level: requiredLevel,
     });
   }
 

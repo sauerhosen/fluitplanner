@@ -4,7 +4,11 @@ import messages from "@/messages/en.json";
 
 function AllProviders({ children }: { children: React.ReactNode }) {
   return (
-    <NextIntlClientProvider locale="en" messages={messages}>
+    <NextIntlClientProvider
+      locale="en"
+      messages={messages}
+      timeZone="Europe/Amsterdam"
+    >
       {children}
     </NextIntlClientProvider>
   );

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { mapKNHBRows } from "@/lib/parsers/knhb-mapper";
+import { mapKNHBRows, extractHomeTeams } from "@/lib/parsers/knhb-mapper";
 import type { RawRow } from "@/lib/parsers/types";
 import type { ManagedTeam } from "@/lib/types/domain";
 
@@ -113,6 +113,69 @@ describe("mapKNHBRows", () => {
     expect(result.matches).toHaveLength(2);
     expect(result.matches[0].required_level).toBe(3);
     expect(result.matches[1].required_level).toBe(2);
+    expect(result.skippedCount).toBe(1);
+  });
+});
+
+describe("extractHomeTeams", () => {
+  it("returns unique home team names from rows", () => {
+    const rows = [
+      row({ "Thuis team": "Team A" }),
+      row({ "Thuis team": "Team B" }),
+      row({ "Thuis team": "Team A" }), // duplicate
+    ];
+    expect(extractHomeTeams(rows)).toEqual(["Team A", "Team B"]);
+  });
+
+  it("trims whitespace and skips empty names", () => {
+    const rows = [
+      row({ "Thuis team": " Team A " }),
+      row({ "Thuis team": "" }),
+      row({ "Thuis team": "  " }),
+    ];
+    expect(extractHomeTeams(rows)).toEqual(["Team A"]);
+  });
+});
+
+describe("mapKNHBRows with selectedTeams", () => {
+  it("filters by selectedTeams instead of managedTeams when provided", () => {
+    const rows = [
+      row({ "Thuis team": "Team A" }),
+      row({ "Thuis team": "Team B" }),
+      row({ "Thuis team": "Team C" }),
+    ];
+    const result = mapKNHBRows(rows, {
+      managedTeams: [team("Team A", 3)],
+      selectedTeams: ["Team A", "Team B"],
+    });
+    expect(result.matches).toHaveLength(2);
+    expect(result.matches[0].home_team).toBe("Team A");
+    expect(result.matches[1].home_team).toBe("Team B");
+  });
+
+  it("uses managed team required_level when available, defaults to 1 otherwise", () => {
+    const rows = [
+      row({ "Thuis team": "Team A" }),
+      row({ "Thuis team": "Team B" }),
+    ];
+    const result = mapKNHBRows(rows, {
+      managedTeams: [team("Team A", 3)],
+      selectedTeams: ["Team A", "Team B"],
+    });
+    expect(result.matches[0].required_level).toBe(3); // from managed team
+    expect(result.matches[1].required_level).toBe(1); // default
+  });
+
+  it("reports skipped count for teams not in selectedTeams", () => {
+    const rows = [
+      row({ "Thuis team": "Team A" }),
+      row({ "Thuis team": "Team C" }),
+    ];
+    const result = mapKNHBRows(rows, {
+      managedTeams: [],
+      selectedTeams: ["Team A"],
+    });
+    expect(result.matches).toHaveLength(1);
     expect(result.skippedCount).toBe(1);
   });
 });

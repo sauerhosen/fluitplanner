@@ -21,4 +21,5 @@ export type ParseResult = {
 
 export type MapperOptions = {
   managedTeams: ManagedTeam[];
+  selectedTeams?: string[];
 };

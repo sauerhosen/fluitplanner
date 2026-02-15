@@ -4,10 +4,17 @@ import { getMatches } from "@/lib/actions/matches";
 import { getManagedTeams } from "@/lib/actions/managed-teams";
 import { MatchesPageClient } from "@/components/matches/matches-page-client";
 import { getTranslations } from "next-intl/server";
+import { addMonths, format } from "date-fns";
 
 async function MatchesLoader() {
+  const today = new Date();
+  const twoMonthsAhead = addMonths(today, 2);
+
   const [matches, managedTeams] = await Promise.all([
-    getMatches(),
+    getMatches({
+      dateFrom: format(today, "yyyy-MM-dd"),
+      dateTo: format(twoMonthsAhead, "yyyy-MM-dd"),
+    }),
     getManagedTeams(),
   ]);
 
