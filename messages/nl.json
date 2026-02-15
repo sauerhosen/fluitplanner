@@ -20,6 +20,7 @@
     "umpires": "Scheidsrechters",
     "settings": "Instellingen",
     "organizations": "Organisaties",
+    "users": "Gebruikers",
     "privacy": "Privacy"
   },
   "auth": {
@@ -358,6 +359,19 @@
     "save": "Opslaan",
     "cancel": "Annuleren",
     "users": "Gebruikers",
+    "noUsers": "Geen gebruikers gevonden.",
+    "emailHeader": "E-mail",
+    "membershipsHeader": "Lidmaatschappen",
+    "createdHeader": "Aangemaakt",
+    "masterAdmin": "Master Admin",
+    "planner": "Planner",
+    "viewer": "Viewer",
+    "removeFromOrg": "Verwijderen uit {org}",
+    "confirmRemoveFromOrg": "Deze gebruiker verwijderen uit {org}?",
+    "inviteToOrg": "Uitnodigen voor organisatie",
+    "selectOrganization": "Selecteer organisatie",
+    "inviting": "Uitnodigen...",
+    "invite": "Uitnodigen",
     "confirmDisable": "Weet je zeker dat je deze organisatie wilt uitschakelen?"
   },
   "noAccess": {

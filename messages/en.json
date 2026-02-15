@@ -20,6 +20,7 @@
     "umpires": "Umpires",
     "settings": "Settings",
     "organizations": "Organizations",
+    "users": "Users",
     "privacy": "Privacy"
   },
   "auth": {
@@ -358,6 +359,19 @@
     "save": "Save",
     "cancel": "Cancel",
     "users": "Users",
+    "noUsers": "No users found.",
+    "emailHeader": "Email",
+    "membershipsHeader": "Memberships",
+    "createdHeader": "Created",
+    "masterAdmin": "Master Admin",
+    "planner": "Planner",
+    "viewer": "Viewer",
+    "removeFromOrg": "Remove from {org}",
+    "confirmRemoveFromOrg": "Remove this user from {org}?",
+    "inviteToOrg": "Invite to organization",
+    "selectOrganization": "Select organization",
+    "inviting": "Inviting...",
+    "invite": "Invite",
     "confirmDisable": "Are you sure you want to disable this organization?"
   },
   "noAccess": {

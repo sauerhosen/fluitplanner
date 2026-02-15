@@ -77,6 +77,21 @@ export type OrganizationMember = {
   created_at: string;
 };
 
+export type UserMembership = {
+  organization_id: string;
+  organization_name: string;
+  organization_slug: string;
+  role: "planner" | "viewer";
+};
+
+export type UserWithMemberships = {
+  id: string;
+  email: string;
+  created_at: string;
+  is_master_admin: boolean;
+  memberships: UserMembership[];
+};
+
 export type TimeSlot = {
   start: Date;
   end: Date;

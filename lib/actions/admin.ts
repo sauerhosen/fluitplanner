@@ -3,7 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { isRootDomain } from "@/lib/tenant";
-import type { Organization } from "@/lib/types/domain";
+import type { Organization, UserWithMemberships } from "@/lib/types/domain";
 
 async function requireMasterAdmin() {
   const rootDomain = await isRootDomain();
@@ -94,4 +94,50 @@ export async function invitePlanner(
     });
     if (error) throw new Error(error.message);
   }
+}
+
+export async function getUsers(): Promise<UserWithMemberships[]> {
+  const { supabase } = await requireMasterAdmin();
+  const serviceClient = createServiceClient();
+
+  // Get all users via admin API
+  const { data: authUsers } = await serviceClient.auth.admin.listUsers();
+
+  // Get all memberships with organization info
+  const { data: memberships, error } = await supabase
+    .from("organization_members")
+    .select("*, organizations(name, slug)");
+
+  if (error) throw new Error(error.message);
+
+  // Map users with their memberships
+  return (authUsers?.users ?? []).map((u) => ({
+    id: u.id,
+    email: u.email ?? "",
+    created_at: u.created_at,
+    is_master_admin: u.user_metadata?.is_master_admin === true,
+    memberships: (memberships ?? [])
+      .filter((m) => m.user_id === u.id)
+      .map((m) => ({
+        organization_id: m.organization_id,
+        organization_name:
+          (m.organizations as { name: string; slug: string })?.name ?? "",
+        organization_slug:
+          (m.organizations as { name: string; slug: string })?.slug ?? "",
+        role: m.role,
+      })),
+  }));
+}
+
+export async function removeUserFromOrg(
+  userId: string,
+  organizationId: string,
+): Promise<void> {
+  const { supabase } = await requireMasterAdmin();
+  const { error } = await supabase
+    .from("organization_members")
+    .delete()
+    .eq("user_id", userId)
+    .eq("organization_id", organizationId);
+  if (error) throw new Error(error.message);
 }

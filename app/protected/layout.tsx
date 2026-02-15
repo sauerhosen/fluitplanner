@@ -42,12 +42,20 @@ export default async function ProtectedLayout({
                   {t("umpires")}
                 </Link>
                 {isRoot && (
-                  <Link
-                    href="/protected/organizations"
-                    className="hover:underline hidden sm:inline"
-                  >
-                    {t("organizations")}
-                  </Link>
+                  <>
+                    <Link
+                      href="/protected/organizations"
+                      className="hover:underline hidden sm:inline"
+                    >
+                      {t("organizations")}
+                    </Link>
+                    <Link
+                      href="/protected/users"
+                      className="hover:underline hidden sm:inline"
+                    >
+                      {t("users")}
+                    </Link>
+                  </>
                 )}
                 <Link
                   href="/protected/settings"
