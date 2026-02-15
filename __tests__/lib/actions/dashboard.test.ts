@@ -34,6 +34,13 @@ function chainable() {
 
 const mockFrom = vi.fn(() => chainable());
 
+vi.mock("@/lib/tenant", () => ({
+  requireTenantId: vi.fn(async () => "test-org-id"),
+  getTenantId: vi.fn(async () => "test-org-id"),
+  getTenantSlug: vi.fn(async () => "test"),
+  isRootDomain: vi.fn(async () => false),
+}));
+
 vi.mock("@/lib/supabase/server", () => ({
   createClient: vi.fn(async () => ({
     from: mockFrom,

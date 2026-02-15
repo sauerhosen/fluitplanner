@@ -19,6 +19,13 @@ function chainable() {
 const mockFrom = vi.fn(() => chainable());
 const mockGetUser = vi.fn();
 
+vi.mock("@/lib/tenant", () => ({
+  requireTenantId: vi.fn(async () => "test-org-id"),
+  getTenantId: vi.fn(async () => "test-org-id"),
+  getTenantSlug: vi.fn(async () => "test"),
+  isRootDomain: vi.fn(async () => false),
+}));
+
 vi.mock("@/lib/supabase/server", () => ({
   createClient: vi.fn(async () => ({
     from: mockFrom,
@@ -79,11 +86,11 @@ describe("updatePollResponse", () => {
     expect(result).toEqual({ error: "Poll not found" });
   });
 
-  it("returns error when user does not own poll", async () => {
+  it("returns error when poll does not belong to organization", async () => {
     mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } });
     mockSingle.mockResolvedValueOnce({
-      data: { id: "poll-1", created_by: "other-user" },
-      error: null,
+      data: null,
+      error: { message: "not found" },
     });
     const result = await updatePollResponse(
       "poll-1",
@@ -91,7 +98,7 @@ describe("updatePollResponse", () => {
       "umpire-1",
       "yes",
     );
-    expect(result).toEqual({ error: "Not authorized" });
+    expect(result).toEqual({ error: "Poll not found" });
   });
 
   it("upserts response when value is yes/if_need_be/no", async () => {

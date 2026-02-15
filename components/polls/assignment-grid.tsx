@@ -141,6 +141,7 @@ export function AssignmentGrid({
             match_id: matchId,
             umpire_id: umpireId,
             created_at: new Date().toISOString(),
+            organization_id: null,
           },
         ]);
       }
@@ -165,6 +166,7 @@ export function AssignmentGrid({
                   match_id: matchId,
                   umpire_id: umpireId,
                   created_at: new Date().toISOString(),
+                  organization_id: null,
                 },
               ]
             : (prev) =>

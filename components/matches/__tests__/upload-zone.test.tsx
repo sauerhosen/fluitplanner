@@ -26,6 +26,7 @@ const managedTeams: ManagedTeam[] = [
     required_level: 1,
     created_by: "u1",
     created_at: "2026-01-01",
+    organization_id: null,
   },
 ];
 

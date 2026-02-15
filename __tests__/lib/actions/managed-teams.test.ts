@@ -4,6 +4,13 @@ const mockInsert = vi.fn();
 const mockSelect = vi.fn();
 const mockGetUser = vi.fn();
 
+vi.mock("@/lib/tenant", () => ({
+  requireTenantId: vi.fn(async () => "test-org-id"),
+  getTenantId: vi.fn(async () => "test-org-id"),
+  getTenantSlug: vi.fn(async () => "test"),
+  isRootDomain: vi.fn(async () => false),
+}));
+
 vi.mock("@/lib/supabase/server", () => ({
   createClient: vi.fn(async () => ({
     from: vi.fn(() => ({
@@ -56,8 +63,18 @@ describe("batchCreateManagedTeams", () => {
     const result = await batchCreateManagedTeams(teams);
 
     expect(mockInsert).toHaveBeenCalledWith([
-      { name: "Team A", required_level: 1, created_by: "user-1" },
-      { name: "Team B", required_level: 2, created_by: "user-1" },
+      {
+        name: "Team A",
+        required_level: 1,
+        created_by: "user-1",
+        organization_id: "test-org-id",
+      },
+      {
+        name: "Team B",
+        required_level: 2,
+        created_by: "user-1",
+        organization_id: "test-org-id",
+      },
     ]);
     expect(result).toHaveLength(2);
   });

@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { requireTenantId } from "@/lib/tenant";
 import { groupMatchesIntoSlots } from "@/lib/domain/slots";
 import { diffSlots } from "@/lib/domain/diff-slots";
 import type {
@@ -48,13 +49,14 @@ async function requireAuth() {
 /* ------------------------------------------------------------------ */
 
 export async function getPolls(): Promise<PollWithMeta[]> {
-  const { supabase, user } = await requireAuth();
+  const { supabase } = await requireAuth();
+  const tenantId = await requireTenantId();
 
-  // Fetch polls belonging to user
+  // Fetch polls belonging to organization
   const { data: polls, error } = await supabase
     .from("polls")
     .select("*")
-    .eq("created_by", user.id)
+    .eq("organization_id", tenantId)
     .order("created_at", { ascending: false });
 
   if (error) throw new Error(error.message);
@@ -135,14 +137,15 @@ export async function getPolls(): Promise<PollWithMeta[]> {
 /* ------------------------------------------------------------------ */
 
 export async function getPoll(id: string): Promise<PollDetail> {
-  const { supabase, user } = await requireAuth();
+  const { supabase } = await requireAuth();
+  const tenantId = await requireTenantId();
 
-  // Fetch poll (scoped to authenticated owner)
+  // Fetch poll (scoped to organization)
   const { data: poll, error: pollError } = await supabase
     .from("polls")
     .select("*")
     .eq("id", id)
-    .eq("created_by", user.id)
+    .eq("organization_id", tenantId)
     .single();
 
   if (pollError) throw new Error(pollError.message);
@@ -215,13 +218,14 @@ export async function getPoll(id: string): Promise<PollDetail> {
 export async function getAvailableMatches(
   excludePollId?: string,
 ): Promise<Match[]> {
-  const { supabase, user } = await requireAuth();
+  const { supabase } = await requireAuth();
+  const tenantId = await requireTenantId();
 
-  // Get all matches for this user
+  // Get all matches for this organization
   const { data: allMatches, error: mError } = await supabase
     .from("matches")
     .select("*")
-    .eq("created_by", user.id)
+    .eq("organization_id", tenantId)
     .not("start_time", "is", null)
     .order("date")
     .order("start_time");
@@ -285,6 +289,8 @@ export async function createPoll(
   // Generate token
   const token = nanoid(12);
 
+  const tenantId = await requireTenantId();
+
   // Insert poll
   const { data: poll, error: pollError } = await supabase
     .from("polls")
@@ -293,6 +299,7 @@ export async function createPoll(
       token,
       status: "open",
       created_by: user.id,
+      organization_id: tenantId,
     })
     .select()
     .single();

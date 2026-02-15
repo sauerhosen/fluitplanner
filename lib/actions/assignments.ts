@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { requireTenantId } from "@/lib/tenant";
 import type { Assignment, Umpire } from "@/lib/types/domain";
 import { revalidatePath } from "next/cache";
 
@@ -34,9 +35,16 @@ export async function createAssignment(
 ): Promise<Assignment> {
   const { supabase } = await requireAuth();
 
+  const tenantId = await requireTenantId();
+
   const { data, error } = await supabase
     .from("assignments")
-    .insert({ poll_id: pollId, match_id: matchId, umpire_id: umpireId })
+    .insert({
+      poll_id: pollId,
+      match_id: matchId,
+      umpire_id: umpireId,
+      organization_id: tenantId,
+    })
     .select()
     .single();
 

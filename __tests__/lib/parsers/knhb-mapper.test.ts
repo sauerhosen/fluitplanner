@@ -9,6 +9,7 @@ const team = (name: string, level: 1 | 2 | 3 = 1): ManagedTeam => ({
   required_level: level,
   created_by: "u1",
   created_at: "2025-01-01",
+  organization_id: null,
 });
 
 const row = (overrides: Partial<Record<string, string>> = {}): RawRow => ({
