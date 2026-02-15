@@ -21,7 +21,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { MoreHorizontal, Plus } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useFormatter } from "next-intl";
 import { CreateOrganizationDialog } from "./create-organization-dialog";
 
 export function OrganizationList({
@@ -30,7 +29,6 @@ export function OrganizationList({
   organizations: Organization[];
 }) {
   const t = useTranslations("admin");
-  const format = useFormatter();
   const [organizations, setOrganizations] =
     useState<Organization[]>(initialOrganizations);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -105,18 +103,14 @@ export function OrganizationList({
                     <DropdownMenuTrigger asChild>
                       <Button variant="ghost" size="icon">
                         <MoreHorizontal className="h-4 w-4" />
-                        <span className="sr-only">
-                          {t("editOrganization")}
-                        </span>
+                        <span className="sr-only">{t("editOrganization")}</span>
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       <DropdownMenuItem onClick={() => setEditingOrg(org)}>
                         {t("editOrganization")}
                       </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => handleToggleActive(org)}
-                      >
+                      <DropdownMenuItem onClick={() => handleToggleActive(org)}>
                         {org.is_active ? t("disable") : t("enable")}
                       </DropdownMenuItem>
                     </DropdownMenuContent>
