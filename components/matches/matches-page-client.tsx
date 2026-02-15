@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import type { Match, ManagedTeam } from "@/lib/types/domain";
 import type { MatchFilters } from "@/lib/actions/matches";
 import { getMatches } from "@/lib/actions/matches";
 import { UploadZone } from "./upload-zone";
 import { MatchTable } from "./match-table";
 import { MatchFormDialog } from "./match-form";
+import { DateRangePicker } from "./date-range-picker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -18,6 +19,8 @@ import {
 } from "@/components/ui/select";
 import { Plus } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { addMonths, format } from "date-fns";
+import type { DateRange } from "react-day-picker";
 
 export function MatchesPageClient({
   initialMatches,
@@ -33,18 +36,41 @@ export function MatchesPageClient({
   const [showAddDialog, setShowAddDialog] = useState(false);
   const t = useTranslations("matches");
 
+  const defaultDateRange = useMemo<DateRange>(
+    () => ({ from: new Date(), to: addMonths(new Date(), 2) }),
+    [],
+  );
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(
+    defaultDateRange,
+  );
+
+  function buildDateFilters(
+    range: DateRange | undefined,
+  ): Pick<MatchFilters, "dateFrom" | "dateTo"> {
+    if (!range?.from) return {};
+    const result: Pick<MatchFilters, "dateFrom" | "dateTo"> = {
+      dateFrom: format(range.from, "yyyy-MM-dd"),
+    };
+    if (range.to) result.dateTo = format(range.to, "yyyy-MM-dd");
+    return result;
+  }
+
   const refreshMatches = useCallback(async () => {
-    const filters: MatchFilters = {};
+    const filters: MatchFilters = {
+      ...buildDateFilters(dateRange),
+    };
     if (search) filters.search = search;
     if (levelFilter !== "all")
       filters.requiredLevel = Number(levelFilter) as 1 | 2 | 3;
     const data = await getMatches(filters);
     setMatches(data);
-  }, [search, levelFilter]);
+  }, [search, levelFilter, dateRange]);
 
   async function handleSearchChange(value: string) {
     setSearch(value);
-    const filters: MatchFilters = {};
+    const filters: MatchFilters = {
+      ...buildDateFilters(dateRange),
+    };
     if (value) filters.search = value;
     if (levelFilter !== "all")
       filters.requiredLevel = Number(levelFilter) as 1 | 2 | 3;
@@ -54,9 +80,23 @@ export function MatchesPageClient({
 
   async function handleLevelChange(value: string) {
     setLevelFilter(value);
-    const filters: MatchFilters = {};
+    const filters: MatchFilters = {
+      ...buildDateFilters(dateRange),
+    };
     if (search) filters.search = search;
     if (value !== "all") filters.requiredLevel = Number(value) as 1 | 2 | 3;
+    const data = await getMatches(filters);
+    setMatches(data);
+  }
+
+  async function handleDateRangeChange(range: DateRange | undefined) {
+    setDateRange(range);
+    const filters: MatchFilters = {
+      ...buildDateFilters(range),
+    };
+    if (search) filters.search = search;
+    if (levelFilter !== "all")
+      filters.requiredLevel = Number(levelFilter) as 1 | 2 | 3;
     const data = await getMatches(filters);
     setMatches(data);
   }
@@ -87,6 +127,7 @@ export function MatchesPageClient({
             <SelectItem value="3">{t("levelTop")}</SelectItem>
           </SelectContent>
         </Select>
+        <DateRangePicker value={dateRange} onChange={handleDateRangeChange} />
         <div className="ml-auto">
           <Button onClick={() => setShowAddDialog(true)}>
             <Plus className="mr-2 h-4 w-4" />
