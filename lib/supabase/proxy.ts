@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { hasEnvVars } from "../utils";
+import { resolveTenantFromHost } from "@/lib/tenant-resolver";
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
@@ -46,6 +47,52 @@ export async function updateSession(request: NextRequest) {
   // with the Supabase client, your users may be randomly logged out.
   const { data } = await supabase.auth.getClaims();
   const user = data?.claims;
+
+  // Tenant resolution
+  const host = request.headers.get("host") ?? "localhost:3000";
+  const baseDomain = process.env.NEXT_PUBLIC_BASE_DOMAIN ?? "fluiten.org";
+  const resolution = resolveTenantFromHost(host, baseDomain);
+
+  if (resolution.type === "root") {
+    supabaseResponse.headers.set("x-is-root-domain", "true");
+  } else {
+    let slug: string | null = null;
+
+    if (resolution.type === "tenant") {
+      slug = resolution.slug;
+    } else {
+      // Fallback: cookie then query param
+      slug = request.cookies.get("x-tenant")?.value ?? null;
+      const paramSlug = request.nextUrl.searchParams.get("tenant");
+      if (paramSlug) {
+        slug = paramSlug;
+        supabaseResponse.cookies.set("x-tenant", paramSlug, {
+          path: "/",
+          httpOnly: true,
+          sameSite: "lax",
+        });
+      }
+    }
+
+    if (slug) {
+      // Look up org by slug
+      const { data: org } = await supabase
+        .from("organizations")
+        .select("id, is_active")
+        .eq("slug", slug)
+        .single();
+
+      if (!org) {
+        return new NextResponse("Organization not found", { status: 404 });
+      }
+      if (!org.is_active) {
+        return new NextResponse("Organization is inactive", { status: 403 });
+      }
+
+      supabaseResponse.headers.set("x-organization-id", org.id);
+      supabaseResponse.headers.set("x-organization-slug", slug);
+    }
+  }
 
   if (
     request.nextUrl.pathname !== "/" &&
