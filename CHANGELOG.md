@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.0](https://github.com/sauerhosen/fluitplanner/compare/v1.8.0...v1.9.0) (2026-02-15)
+
+
+### Features
+
+* add GDPR-compliant privacy policy ([#47](https://github.com/sauerhosen/fluitplanner/issues/47)) ([a5cab3f](https://github.com/sauerhosen/fluitplanner/commit/a5cab3f9a4a2f153b1ad7836e5de8bdc021f7705))
+
 ## [1.8.0](https://github.com/sauerhosen/fluitplanner/compare/v1.7.0...v1.8.0) (2026-02-14)
 
 
