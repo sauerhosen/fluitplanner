@@ -304,6 +304,7 @@ export function UploadZone({
 
       {/* Add to managed dialog (advanced mode, post-import) */}
       <AddToManagedDialog
+        key={nonManagedSelected.join(",")}
         open={showAddToManaged}
         teams={nonManagedSelected}
         onDone={handleAddToManagedDone}

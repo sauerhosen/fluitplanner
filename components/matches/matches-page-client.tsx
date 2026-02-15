@@ -36,68 +36,49 @@ export function MatchesPageClient({
   const [showAddDialog, setShowAddDialog] = useState(false);
   const t = useTranslations("matches");
 
-  const defaultDateRange = useMemo<DateRange>(
-    () => ({ from: new Date(), to: addMonths(new Date(), 2) }),
-    [],
-  );
+  const defaultDateRange = useMemo<DateRange>(() => {
+    const now = new Date();
+    return { from: now, to: addMonths(now, 2) };
+  }, []);
   const [dateRange, setDateRange] = useState<DateRange | undefined>(
     defaultDateRange,
   );
 
-  function buildDateFilters(
+  function buildFilters(
+    s: string,
+    level: string,
     range: DateRange | undefined,
-  ): Pick<MatchFilters, "dateFrom" | "dateTo"> {
-    if (!range?.from) return {};
-    const result: Pick<MatchFilters, "dateFrom" | "dateTo"> = {
-      dateFrom: format(range.from, "yyyy-MM-dd"),
-    };
-    if (range.to) result.dateTo = format(range.to, "yyyy-MM-dd");
-    return result;
+  ): MatchFilters {
+    const filters: MatchFilters = {};
+    if (range?.from) {
+      filters.dateFrom = format(range.from, "yyyy-MM-dd");
+      if (range.to) filters.dateTo = format(range.to, "yyyy-MM-dd");
+    }
+    if (s) filters.search = s;
+    if (level !== "all") filters.requiredLevel = Number(level) as 1 | 2 | 3;
+    return filters;
   }
 
   const refreshMatches = useCallback(async () => {
-    const filters: MatchFilters = {
-      ...buildDateFilters(dateRange),
-    };
-    if (search) filters.search = search;
-    if (levelFilter !== "all")
-      filters.requiredLevel = Number(levelFilter) as 1 | 2 | 3;
-    const data = await getMatches(filters);
+    const data = await getMatches(buildFilters(search, levelFilter, dateRange));
     setMatches(data);
   }, [search, levelFilter, dateRange]);
 
   async function handleSearchChange(value: string) {
     setSearch(value);
-    const filters: MatchFilters = {
-      ...buildDateFilters(dateRange),
-    };
-    if (value) filters.search = value;
-    if (levelFilter !== "all")
-      filters.requiredLevel = Number(levelFilter) as 1 | 2 | 3;
-    const data = await getMatches(filters);
+    const data = await getMatches(buildFilters(value, levelFilter, dateRange));
     setMatches(data);
   }
 
   async function handleLevelChange(value: string) {
     setLevelFilter(value);
-    const filters: MatchFilters = {
-      ...buildDateFilters(dateRange),
-    };
-    if (search) filters.search = search;
-    if (value !== "all") filters.requiredLevel = Number(value) as 1 | 2 | 3;
-    const data = await getMatches(filters);
+    const data = await getMatches(buildFilters(search, value, dateRange));
     setMatches(data);
   }
 
   async function handleDateRangeChange(range: DateRange | undefined) {
     setDateRange(range);
-    const filters: MatchFilters = {
-      ...buildDateFilters(range),
-    };
-    if (search) filters.search = search;
-    if (levelFilter !== "all")
-      filters.requiredLevel = Number(levelFilter) as 1 | 2 | 3;
-    const data = await getMatches(filters);
+    const data = await getMatches(buildFilters(search, levelFilter, range));
     setMatches(data);
   }
 
