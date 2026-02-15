@@ -310,6 +310,9 @@
     "defaultMessage": "An unexpected error occurred.",
     "tryAgain": "Try again"
   },
+  "organization": {
+    "switchOrganization": "Switch organization"
+  },
   "theme": {
     "light": "Light",
     "dark": "Dark",

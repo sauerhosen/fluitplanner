@@ -1,21 +1,23 @@
 import { AuthButton } from "@/components/auth-button";
 import { LanguageSwitcher } from "@/components/language-switcher";
+import { OrganizationSwitcher } from "@/components/organization-switcher";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 import Image from "next/image";
 import Link from "next/link";
 import appIcon from "@/app/icon.png";
 import { Suspense } from "react";
 import { getTranslations } from "next-intl/server";
-import { isRootDomain } from "@/lib/tenant";
+import { isRootDomain, getTenantSlug } from "@/lib/tenant";
 
 export default async function ProtectedLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const [t, isRoot] = await Promise.all([
+  const [t, isRoot, tenantSlug] = await Promise.all([
     getTranslations("nav"),
     isRootDomain(),
+    getTenantSlug(),
   ]);
 
   return (
@@ -31,6 +33,7 @@ export default async function ProtectedLayout({
                   className="h-6 w-6 sm:h-7 sm:w-7 rounded"
                 />
               </Link>
+              <OrganizationSwitcher currentSlug={tenantSlug} />
               <div className="flex items-center gap-2 sm:gap-4 text-xs sm:text-sm font-normal">
                 <Link href="/protected/matches" className="hover:underline">
                   {t("matches")}

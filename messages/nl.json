@@ -310,6 +310,9 @@
     "defaultMessage": "Er is een onverwachte fout opgetreden.",
     "tryAgain": "Opnieuw proberen"
   },
+  "organization": {
+    "switchOrganization": "Organisatie wisselen"
+  },
   "theme": {
     "light": "Licht",
     "dark": "Donker",
