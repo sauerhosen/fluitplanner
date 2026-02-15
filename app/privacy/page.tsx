@@ -43,8 +43,18 @@ export default async function PrivacyPage() {
         </section>
 
         <section>
+          <h2 className="text-lg font-semibold mb-2">{t("legalBasisTitle")}</h2>
+          <p className="text-sm text-muted-foreground">{t("legalBasisText")}</p>
+        </section>
+
+        <section>
           <h2 className="text-lg font-semibold mb-2">{t("storageTitle")}</h2>
           <p className="text-sm text-muted-foreground">{t("storageText")}</p>
+        </section>
+
+        <section>
+          <h2 className="text-lg font-semibold mb-2">{t("retentionTitle")}</h2>
+          <p className="text-sm text-muted-foreground">{t("retentionText")}</p>
         </section>
 
         <section>
@@ -55,6 +65,11 @@ export default async function PrivacyPage() {
         <section>
           <h2 className="text-lg font-semibold mb-2">{t("rightsTitle")}</h2>
           <p className="text-sm text-muted-foreground">{t("rightsText")}</p>
+        </section>
+
+        <section>
+          <h2 className="text-lg font-semibold mb-2">{t("changesTitle")}</h2>
+          <p className="text-sm text-muted-foreground">{t("changesText")}</p>
         </section>
 
         <section>
