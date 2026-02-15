@@ -82,15 +82,17 @@ export async function updateSession(request: NextRequest) {
         .eq("slug", slug)
         .single();
 
-      if (!org) {
+      if (org) {
+        if (!org.is_active) {
+          return new NextResponse("Organization is inactive", { status: 403 });
+        }
+        supabaseResponse.headers.set("x-organization-id", org.id);
+        supabaseResponse.headers.set("x-organization-slug", slug);
+      } else if (resolution.type === "tenant") {
+        // Only 404 for subdomain-based resolution (explicit tenant URL)
+        // Cookie/query param fallback silently proceeds without tenant context
         return new NextResponse("Organization not found", { status: 404 });
       }
-      if (!org.is_active) {
-        return new NextResponse("Organization is inactive", { status: 403 });
-      }
-
-      supabaseResponse.headers.set("x-organization-id", org.id);
-      supabaseResponse.headers.set("x-organization-slug", slug);
     }
   }
 

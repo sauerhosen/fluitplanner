@@ -2,18 +2,7 @@ import { test, expect } from "@playwright/test";
 
 test.use({
   storageState: {
-    cookies: [
-      {
-        name: "x-tenant",
-        value: "default",
-        domain: "localhost",
-        path: "/",
-        expires: -1,
-        httpOnly: false,
-        secure: false,
-        sameSite: "Lax" as const,
-      },
-    ],
+    cookies: [],
     origins: [],
   },
 });
