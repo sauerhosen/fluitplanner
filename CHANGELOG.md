@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.0.0](https://github.com/sauerhosen/fluitplanner/compare/v1.11.0...v2.0.0) (2026-02-15)
+
+
+### ⚠ BREAKING CHANGES
+
+* multi-tenancy with organization-scoped data isolation ([#53](https://github.com/sauerhosen/fluitplanner/issues/53))
+
+### Features
+
+* multi-tenancy with organization-scoped data isolation ([#53](https://github.com/sauerhosen/fluitplanner/issues/53)) ([a1e879b](https://github.com/sauerhosen/fluitplanner/commit/a1e879b240f5f4abd9fd5d765153386eb6b163c8))
+
 ## [1.11.0](https://github.com/sauerhosen/fluitplanner/compare/v1.10.0...v1.11.0) (2026-02-15)
 
 
