@@ -148,3 +148,17 @@ export async function deleteUmpire(id: string): Promise<void> {
 
   if (error) throw new Error(error.message);
 }
+
+export async function deleteUmpires(ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+  const { supabase } = await requireAuth();
+  const tenantId = await requireTenantId();
+
+  const { error } = await supabase
+    .from("organization_umpires")
+    .delete()
+    .eq("organization_id", tenantId)
+    .in("umpire_id", ids);
+
+  if (error) throw new Error(error.message);
+}

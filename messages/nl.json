@@ -11,7 +11,13 @@
     "presetThisMonth": "Deze maand",
     "presetNextTwoMonths": "Komende 2 maanden",
     "presetPastMonth": "Afgelopen maand",
-    "presetAll": "Alles"
+    "presetAll": "Alles",
+    "selectAll": "Alles selecteren",
+    "selectedCount": "{count, plural, one {# item} other {# items}} geselecteerd",
+    "bulkDeleteConfirm": "{count, plural, one {# item} other {# items}} verwijderen? Dit kan niet ongedaan worden gemaakt.",
+    "deleteSelected": "Selectie verwijderen",
+    "deleting": "Verwijderen\u2026",
+    "clearSelection": "Selectie wissen"
   },
   "nav": {
     "dashboard": "Dashboard",

@@ -11,7 +11,13 @@
     "presetThisMonth": "This month",
     "presetNextTwoMonths": "Next 2 months",
     "presetPastMonth": "Past month",
-    "presetAll": "All"
+    "presetAll": "All",
+    "selectAll": "Select all",
+    "selectedCount": "{count, plural, one {# item} other {# items}} selected",
+    "bulkDeleteConfirm": "Delete {count, plural, one {# item} other {# items}}? This cannot be undone.",
+    "deleteSelected": "Delete selected",
+    "deleting": "Deleting\u2026",
+    "clearSelection": "Clear selection"
   },
   "nav": {
     "dashboard": "Dashboard",
