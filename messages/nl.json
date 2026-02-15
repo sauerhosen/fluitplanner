@@ -373,7 +373,9 @@
     "inviting": "Uitnodigen...",
     "invite": "Uitnodigen",
     "confirmDisable": "Weet je zeker dat je deze organisatie wilt uitschakelen?",
-    "status": "Status"
+    "status": "Status",
+    "invalidSlug": "Ongeldige slug: moet kleine letters, cijfers en streepjes bevatten, minimaal 2 tekens",
+    "saving": "Opslaan..."
   },
   "noAccess": {
     "title": "Geen toegang",

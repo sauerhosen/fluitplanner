@@ -22,24 +22,28 @@ export async function GET(request: NextRequest) {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      const invitedToOrg = user?.user_metadata?.invited_to_org;
+      const invitedToOrg = user?.app_metadata?.invited_to_org;
 
       if (user && invitedToOrg) {
         const serviceClient = createServiceClient();
 
-        await serviceClient.from("organization_members").upsert(
-          {
-            organization_id: invitedToOrg,
-            user_id: user.id,
-            role: "planner",
-          },
-          { onConflict: "organization_id,user_id" },
-        );
+        const { error: upsertError } = await serviceClient
+          .from("organization_members")
+          .upsert(
+            {
+              organization_id: invitedToOrg,
+              user_id: user.id,
+              role: "planner",
+            },
+            { onConflict: "organization_id,user_id" },
+          );
 
-        // Clear the metadata so it doesn't re-trigger
-        await serviceClient.auth.admin.updateUserById(user.id, {
-          user_metadata: { invited_to_org: null },
-        });
+        // Only clear metadata if upsert succeeded
+        if (!upsertError) {
+          await serviceClient.auth.admin.updateUserById(user.id, {
+            app_metadata: { invited_to_org: null },
+          });
+        }
       }
 
       // redirect user to specified redirect URL or root of app

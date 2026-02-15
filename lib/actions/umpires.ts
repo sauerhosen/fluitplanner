@@ -114,7 +114,7 @@ export async function updateUmpire(
     .select("umpire_id")
     .eq("organization_id", tenantId)
     .eq("umpire_id", id)
-    .single();
+    .maybeSingle();
 
   if (!rosterEntry) throw new Error("Umpire not in this organization");
 

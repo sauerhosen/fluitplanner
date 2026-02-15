@@ -43,6 +43,7 @@ vi.mock("@/lib/supabase/server", () => ({
 
 const mockListUsers = vi.fn();
 const mockInviteUserByEmail = vi.fn();
+const mockUpdateUserById = vi.fn();
 const mockServiceInsert = vi.fn();
 
 vi.mock("@/lib/supabase/service", () => ({
@@ -51,6 +52,7 @@ vi.mock("@/lib/supabase/service", () => ({
       admin: {
         listUsers: mockListUsers,
         inviteUserByEmail: mockInviteUserByEmail,
+        updateUserById: mockUpdateUserById,
       },
     },
     from: vi.fn(() => ({
@@ -75,6 +77,7 @@ function resetChain() {
     mockGetUser,
     mockListUsers,
     mockInviteUserByEmail,
+    mockUpdateUserById,
     mockServiceInsert,
     mockIsRootDomain,
   ]) {
@@ -283,13 +286,18 @@ describe("invitePlanner", () => {
       data: { users: [] },
       error: null,
     });
-    mockInviteUserByEmail.mockResolvedValue({ data: {}, error: null });
+    mockInviteUserByEmail.mockResolvedValue({
+      data: { user: { id: "new-user-id" } },
+      error: null,
+    });
+    mockUpdateUserById.mockResolvedValue({ data: {}, error: null });
 
     const { invitePlanner } = await import("@/lib/actions/admin");
     await invitePlanner("org-1", "new@example.com");
 
-    expect(mockInviteUserByEmail).toHaveBeenCalledWith("new@example.com", {
-      data: { invited_to_org: "org-1" },
+    expect(mockInviteUserByEmail).toHaveBeenCalledWith("new@example.com");
+    expect(mockUpdateUserById).toHaveBeenCalledWith("new-user-id", {
+      app_metadata: { invited_to_org: "org-1" },
     });
   });
 });

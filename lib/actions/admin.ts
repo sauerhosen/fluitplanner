@@ -99,10 +99,16 @@ export async function invitePlanner(
     if (error) throw new Error(error.message);
   } else {
     // Invite via Supabase auth (sends magic link)
-    const { error } = await serviceClient.auth.admin.inviteUserByEmail(email, {
-      data: { invited_to_org: organizationId },
-    });
+    const { data: inviteData, error } =
+      await serviceClient.auth.admin.inviteUserByEmail(email);
     if (error) throw new Error(error.message);
+
+    // Store invited_to_org in app_metadata (admin-only writable, not spoofable)
+    if (inviteData?.user) {
+      await serviceClient.auth.admin.updateUserById(inviteData.user.id, {
+        app_metadata: { invited_to_org: organizationId },
+      });
+    }
   }
 }
 

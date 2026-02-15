@@ -78,9 +78,7 @@ export function CreateOrganizationDialog({
 
     if (!name.trim()) return;
     if (!isEditing && !isValidSlug(slug)) {
-      setError(
-        "Invalid slug: must be lowercase alphanumeric with hyphens, at least 2 characters",
-      );
+      setError(t("invalidSlug"));
       return;
     }
 
@@ -143,7 +141,7 @@ export function CreateOrganizationDialog({
               {t("cancel")}
             </Button>
             <Button type="submit" disabled={saving}>
-              {saving ? "..." : t("save")}
+              {saving ? t("saving") : t("save")}
             </Button>
           </div>
         </form>
