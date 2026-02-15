@@ -62,24 +62,36 @@ export async function updateSession(request: NextRequest) {
     if (resolution.type === "tenant") {
       slug = resolution.slug;
     } else {
-      // Fallback: cookie → query param → default org
+      // Fallback: cookie → query param
       slug = request.cookies.get("x-tenant")?.value ?? null;
       const paramSlug = request.nextUrl.searchParams.get("tenant");
       if (paramSlug) {
         slug = paramSlug;
+        // Persist tenant cookie so subsequent requests don't need the query param
+        supabaseResponse.cookies.set("x-tenant", paramSlug, {
+          path: "/",
+          httpOnly: true,
+          sameSite: "lax",
+          secure: process.env.NODE_ENV === "production",
+        });
       }
-      // Default to "default" org when no tenant is specified in fallback mode
-      // (dev/preview environments where subdomain routing isn't available)
-      if (!slug) {
-        slug = "default";
+      // Auto-resolve tenant from user's membership when no cookie/param is set
+      if (!slug && user) {
+        const resolvedSlug = await resolveSlugFromMembership(
+          supabase,
+          user.sub,
+        );
+        if (resolvedSlug) {
+          slug = resolvedSlug;
+          supabaseResponse.cookies.set("x-tenant", resolvedSlug, {
+            path: "/",
+            httpOnly: true,
+            sameSite: "lax",
+            secure: process.env.NODE_ENV === "production",
+          });
+        }
       }
-      // Persist tenant cookie so subsequent requests don't need the query param
-      supabaseResponse.cookies.set("x-tenant", slug, {
-        path: "/",
-        httpOnly: true,
-        sameSite: "lax",
-        secure: process.env.NODE_ENV === "production",
-      });
+
       // Allow admin pages to be accessible in fallback mode (dev/preview)
       request.headers.set("x-is-fallback-mode", "true");
     }
@@ -180,4 +192,30 @@ export async function updateSession(request: NextRequest) {
   // of sync and terminate the user's session prematurely!
 
   return updatedResponse;
+}
+
+/**
+ * Look up the user's first organization membership and return its slug.
+ * Used in fallback mode to auto-resolve tenant when no cookie/param is set.
+ */
+async function resolveSlugFromMembership(
+  supabase: Awaited<ReturnType<typeof createServerClient>>,
+  userId: string,
+): Promise<string | null> {
+  const { data: membership } = await supabase
+    .from("organization_members")
+    .select("organization_id")
+    .eq("user_id", userId)
+    .limit(1)
+    .maybeSingle();
+
+  if (!membership) return null;
+
+  const { data: org } = await supabase
+    .from("organizations")
+    .select("slug")
+    .eq("id", membership.organization_id)
+    .single();
+
+  return (org?.slug as string) ?? null;
 }
