@@ -62,18 +62,24 @@ export async function updateSession(request: NextRequest) {
     if (resolution.type === "tenant") {
       slug = resolution.slug;
     } else {
-      // Fallback: cookie then query param
+      // Fallback: cookie → query param → default org
       slug = request.cookies.get("x-tenant")?.value ?? null;
       const paramSlug = request.nextUrl.searchParams.get("tenant");
       if (paramSlug) {
         slug = paramSlug;
-        supabaseResponse.cookies.set("x-tenant", paramSlug, {
-          path: "/",
-          httpOnly: true,
-          sameSite: "lax",
-          secure: process.env.NODE_ENV === "production",
-        });
       }
+      // Default to "default" org when no tenant is specified in fallback mode
+      // (dev/preview environments where subdomain routing isn't available)
+      if (!slug) {
+        slug = "default";
+      }
+      // Persist tenant cookie so subsequent requests don't need the query param
+      supabaseResponse.cookies.set("x-tenant", slug, {
+        path: "/",
+        httpOnly: true,
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production",
+      });
     }
 
     if (slug) {
