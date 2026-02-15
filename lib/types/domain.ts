@@ -10,6 +10,7 @@ export type Match = {
   required_level: 1 | 2 | 3;
   created_by: string;
   created_at: string;
+  organization_id: string | null;
 };
 
 export type Poll = {
@@ -19,6 +20,7 @@ export type Poll = {
   status: "open" | "closed";
   created_by: string;
   created_at: string;
+  organization_id: string | null;
 };
 
 export type PollSlot = {
@@ -45,6 +47,7 @@ export type ManagedTeam = {
   required_level: 1 | 2 | 3;
   created_by: string;
   created_at: string;
+  organization_id: string | null;
 };
 
 export type Umpire = {
@@ -85,4 +88,5 @@ export type Assignment = {
   match_id: string;
   umpire_id: string;
   created_at: string;
+  organization_id: string | null;
 };
