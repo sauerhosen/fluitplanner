@@ -3,6 +3,8 @@ type TenantResolution =
   | { type: "root" }
   | { type: "fallback" };
 
+const VALID_SLUG = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/;
+
 export function resolveTenantFromHost(
   host: string,
   baseDomain: string,
@@ -21,13 +23,15 @@ export function resolveTenantFromHost(
 
   if (hostWithoutPort.endsWith(`.${baseWithoutPort}`)) {
     const slug = hostWithoutPort.slice(0, -(baseWithoutPort.length + 1));
-    return { type: "tenant", slug };
+    if (VALID_SLUG.test(slug)) return { type: "tenant", slug };
+    return { type: "fallback" };
   }
 
   // localhost with subdomain (e.g. hic.localhost)
   if (hostWithoutPort.endsWith(".localhost")) {
     const slug = hostWithoutPort.slice(0, -".localhost".length);
-    return { type: "tenant", slug };
+    if (VALID_SLUG.test(slug)) return { type: "tenant", slug };
+    return { type: "fallback" };
   }
 
   // localhost without subdomain, or vercel.app, etc.

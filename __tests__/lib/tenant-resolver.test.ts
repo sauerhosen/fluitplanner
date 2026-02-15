@@ -34,4 +34,16 @@ describe("resolveTenantFromHost", () => {
     const result = resolveTenantFromHost("hic.localhost:3000", "fluiten.org");
     expect(result).toEqual({ type: "tenant", slug: "hic" });
   });
+
+  it("returns fallback for invalid subdomain slugs", () => {
+    expect(
+      resolveTenantFromHost("../admin.fluiten.org", "fluiten.org"),
+    ).toEqual({ type: "fallback" });
+    expect(resolveTenantFromHost("UPPER.fluiten.org", "fluiten.org")).toEqual({
+      type: "fallback",
+    });
+    expect(
+      resolveTenantFromHost("-leading.fluiten.org", "fluiten.org"),
+    ).toEqual({ type: "fallback" });
+  });
 });

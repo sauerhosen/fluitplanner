@@ -71,6 +71,7 @@ export async function updateSession(request: NextRequest) {
           path: "/",
           httpOnly: true,
           sameSite: "lax",
+          secure: process.env.NODE_ENV === "production",
         });
       }
     }
@@ -102,8 +103,9 @@ export async function updateSession(request: NextRequest) {
   // so server components can read them via headers()
   const updatedResponse = NextResponse.next({ request });
   // Copy over cookies from supabaseResponse (auth session cookies)
+  // Pass the full cookie object to preserve attributes (httpOnly, secure, etc.)
   supabaseResponse.cookies.getAll().forEach((cookie) => {
-    updatedResponse.cookies.set(cookie.name, cookie.value);
+    updatedResponse.cookies.set(cookie);
   });
 
   // Organization membership check
@@ -121,11 +123,12 @@ export async function updateSession(request: NextRequest) {
         // Cookie/query param fallback (dev/preview): auto-join the user as planner
         // so RLS policies work correctly. Safe because this path is only used
         // in dev/preview environments (not production subdomain routing).
-        await supabase.from("organization_members").insert({
-          organization_id: orgId,
-          user_id: user.sub,
-          role: "planner",
-        });
+        await supabase
+          .from("organization_members")
+          .upsert(
+            { organization_id: orgId, user_id: user.sub, role: "planner" },
+            { onConflict: "organization_id,user_id" },
+          );
       } else if (
         !request.nextUrl.pathname.startsWith("/auth") &&
         !request.nextUrl.pathname.startsWith("/poll") &&
