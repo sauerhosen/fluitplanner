@@ -25,16 +25,29 @@ describe("AddToManagedDialog", () => {
     expect(screen.getByText("Team D")).toBeInTheDocument();
   });
 
-  it("calls batchCreateManagedTeams on confirm", async () => {
+  it("sends only selected teams on confirm", async () => {
     render(<AddToManagedDialog open={true} teams={teams} onDone={onDone} />);
+    // Uncheck "Team D" — both are checked by default
+    const checkboxes = screen.getAllByRole("checkbox");
+    fireEvent.click(checkboxes[1]); // uncheck Team D
     fireEvent.click(screen.getByRole("button", { name: /add to managed/i }));
     await waitFor(() => {
       expect(mockBatch).toHaveBeenCalledWith([
         { name: "Team C", requiredLevel: 1 },
-        { name: "Team D", requiredLevel: 1 },
       ]);
     });
     expect(onDone).toHaveBeenCalled();
+  });
+
+  it("disables confirm button when no teams selected", () => {
+    render(<AddToManagedDialog open={true} teams={teams} onDone={onDone} />);
+    const checkboxes = screen.getAllByRole("checkbox");
+    // Uncheck both teams
+    fireEvent.click(checkboxes[0]);
+    fireEvent.click(checkboxes[1]);
+    expect(
+      screen.getByRole("button", { name: /add to managed/i }),
+    ).toBeDisabled();
   });
 
   it("calls onDone without adding when skip is clicked", () => {
