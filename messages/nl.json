@@ -378,7 +378,8 @@
     "confirmDisable": "Weet je zeker dat je deze organisatie wilt uitschakelen?",
     "status": "Status",
     "invalidSlug": "Ongeldige slug: moet kleine letters, cijfers en streepjes bevatten, minimaal 2 tekens",
-    "saving": "Opslaan..."
+    "saving": "Opslaan...",
+    "errorOccurred": "Er is een fout opgetreden. Probeer het opnieuw."
   },
   "noAccess": {
     "title": "Geen toegang",

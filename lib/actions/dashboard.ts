@@ -74,8 +74,9 @@ export async function getDashboardStats(): Promise<DashboardStats> {
   // Get all matches in open polls
   const { data: pollMatches, error: pmError } = await supabase
     .from("poll_matches")
-    .select("poll_id, match_id, polls!inner(id, status)")
-    .eq("polls.status", "open");
+    .select("poll_id, match_id, polls!inner(id, status, organization_id)")
+    .eq("polls.status", "open")
+    .eq("polls.organization_id", tenantId);
 
   if (pmError) throw new Error(pmError.message);
 
@@ -115,10 +116,11 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     ).length;
   }
 
-  // 4. Active umpires (distinct umpire_ids from availability_responses)
+  // 4. Active umpires (distinct umpire_ids from availability_responses, scoped via polls)
   const { data: umpireResponses, error: umpError } = await supabase
     .from("availability_responses")
-    .select("umpire_id")
+    .select("umpire_id, polls!inner(organization_id)")
+    .eq("polls.organization_id", tenantId)
     .not("umpire_id", "is", null);
 
   if (umpError) throw new Error(umpError.message);
@@ -228,8 +230,9 @@ export async function getActionItems(): Promise<ActionItem[]> {
     }
 
     const { count: totalUmpires, error: umpError } = await supabase
-      .from("umpires")
-      .select("id", { count: "exact", head: true });
+      .from("organization_umpires")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", tenantId);
 
     if (umpError) throw new Error(umpError.message);
 

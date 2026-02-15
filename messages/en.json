@@ -378,7 +378,8 @@
     "confirmDisable": "Are you sure you want to disable this organization?",
     "status": "Status",
     "invalidSlug": "Invalid slug: must be lowercase alphanumeric with hyphens, at least 2 characters",
-    "saving": "Saving..."
+    "saving": "Saving...",
+    "errorOccurred": "An error occurred. Please try again."
   },
   "noAccess": {
     "title": "No Access",

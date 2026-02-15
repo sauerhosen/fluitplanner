@@ -235,8 +235,9 @@ export async function getAvailableMatches(
   // Get match IDs already in active polls (status = 'open')
   let query = supabase
     .from("poll_matches")
-    .select("match_id, polls!inner(id, status)")
-    .eq("polls.status", "open");
+    .select("match_id, polls!inner(id, status, organization_id)")
+    .eq("polls.status", "open")
+    .eq("polls.organization_id", tenantId);
 
   if (excludePollId) {
     query = query.neq("polls.id", excludePollId);
@@ -348,6 +349,17 @@ export async function updatePollMatches(
   if (matchIds.length === 0) throw new Error("At least one match is required");
 
   const { supabase } = await requireAuth();
+  const tenantId = await requireTenantId();
+
+  // Verify poll belongs to this tenant
+  const { data: poll, error: pollCheckError } = await supabase
+    .from("polls")
+    .select("id")
+    .eq("id", pollId)
+    .eq("organization_id", tenantId)
+    .single();
+
+  if (pollCheckError || !poll) throw new Error("Poll not found");
 
   // Fetch and validate match start times
   const uniqueMatchIds = [...new Set(matchIds)];
@@ -434,11 +446,13 @@ export async function updatePollTitle(
   if (!title.trim()) throw new Error("Title is required");
 
   const { supabase } = await requireAuth();
+  const tenantId = await requireTenantId();
 
   const { data, error } = await supabase
     .from("polls")
     .update({ title: title.trim() })
     .eq("id", pollId)
+    .eq("organization_id", tenantId)
     .select()
     .single();
 
@@ -453,12 +467,14 @@ export async function updatePollTitle(
 
 export async function togglePollStatus(pollId: string): Promise<Poll> {
   const { supabase } = await requireAuth();
+  const tenantId = await requireTenantId();
 
   // Fetch current status
   const { data: current, error: fetchError } = await supabase
     .from("polls")
     .select("status")
     .eq("id", pollId)
+    .eq("organization_id", tenantId)
     .single();
 
   if (fetchError) throw new Error(fetchError.message);
@@ -469,6 +485,7 @@ export async function togglePollStatus(pollId: string): Promise<Poll> {
     .from("polls")
     .update({ status: newStatus })
     .eq("id", pollId)
+    .eq("organization_id", tenantId)
     .select()
     .single();
 
@@ -483,8 +500,13 @@ export async function togglePollStatus(pollId: string): Promise<Poll> {
 
 export async function deletePoll(pollId: string): Promise<void> {
   const { supabase } = await requireAuth();
+  const tenantId = await requireTenantId();
 
-  const { error } = await supabase.from("polls").delete().eq("id", pollId);
+  const { error } = await supabase
+    .from("polls")
+    .delete()
+    .eq("id", pollId)
+    .eq("organization_id", tenantId);
   if (error) throw new Error(error.message);
   revalidatePath("/protected/polls");
 }

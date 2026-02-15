@@ -202,20 +202,15 @@ async function resolveSlugFromMembership(
   supabase: Awaited<ReturnType<typeof createServerClient>>,
   userId: string,
 ): Promise<string | null> {
-  const { data: membership } = await supabase
+  const { data } = await supabase
     .from("organization_members")
-    .select("organization_id")
+    .select("organizations(slug)")
     .eq("user_id", userId)
     .limit(1)
     .maybeSingle();
 
-  if (!membership) return null;
+  if (!data) return null;
 
-  const { data: org } = await supabase
-    .from("organizations")
-    .select("slug")
-    .eq("id", membership.organization_id)
-    .single();
-
-  return (org?.slug as string) ?? null;
+  const org = data.organizations as unknown as { slug: string } | null;
+  return org?.slug ?? null;
 }

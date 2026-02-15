@@ -336,3 +336,145 @@ describe("invitePlanner", () => {
     });
   });
 });
+
+/* ================================================================== */
+/*  getUsers                                                           */
+/* ================================================================== */
+
+describe("getUsers", () => {
+  it("returns users with their memberships", async () => {
+    mockListUsers.mockResolvedValue({
+      data: {
+        users: [
+          {
+            id: "user-a",
+            email: "a@example.com",
+            created_at: "2026-01-01",
+            user_metadata: { is_master_admin: true },
+          },
+          {
+            id: "user-b",
+            email: "b@example.com",
+            created_at: "2026-01-02",
+            user_metadata: {},
+          },
+        ],
+      },
+      error: null,
+    });
+
+    const memberships = [
+      {
+        user_id: "user-a",
+        organization_id: "org-1",
+        role: "planner",
+        organizations: { name: "Club Alpha", slug: "club-alpha" },
+      },
+      {
+        user_id: "user-b",
+        organization_id: "org-1",
+        role: "viewer",
+        organizations: { name: "Club Alpha", slug: "club-alpha" },
+      },
+      {
+        user_id: "user-b",
+        organization_id: "org-2",
+        role: "planner",
+        organizations: { name: "Club Beta", slug: "club-beta" },
+      },
+    ];
+    mockServiceSelect.mockResolvedValue({ data: memberships, error: null });
+
+    const { getUsers } = await import("@/lib/actions/admin");
+    const result = await getUsers();
+
+    expect(result).toHaveLength(2);
+
+    expect(result[0].id).toBe("user-a");
+    expect(result[0].email).toBe("a@example.com");
+    expect(result[0].is_master_admin).toBe(true);
+    expect(result[0].memberships).toHaveLength(1);
+    expect(result[0].memberships[0].organization_name).toBe("Club Alpha");
+    expect(result[0].memberships[0].role).toBe("planner");
+
+    expect(result[1].id).toBe("user-b");
+    expect(result[1].is_master_admin).toBe(false);
+    expect(result[1].memberships).toHaveLength(2);
+  });
+
+  it("returns empty memberships for users without org membership", async () => {
+    mockListUsers.mockResolvedValue({
+      data: {
+        users: [
+          {
+            id: "user-lonely",
+            email: "lonely@example.com",
+            created_at: "2026-01-01",
+            user_metadata: {},
+          },
+        ],
+      },
+      error: null,
+    });
+
+    mockServiceSelect.mockResolvedValue({ data: [], error: null });
+
+    const { getUsers } = await import("@/lib/actions/admin");
+    const result = await getUsers();
+
+    expect(result).toHaveLength(1);
+    expect(result[0].memberships).toEqual([]);
+  });
+
+  it("throws when memberships query fails", async () => {
+    mockListUsers.mockResolvedValue({
+      data: {
+        users: [{ id: "u1", email: "a@b.com", created_at: "2026-01-01" }],
+      },
+      error: null,
+    });
+    mockServiceSelect.mockResolvedValue({
+      data: null,
+      error: { message: "DB error" },
+    });
+
+    const { getUsers } = await import("@/lib/actions/admin");
+    await expect(getUsers()).rejects.toThrow("DB error");
+  });
+});
+
+/* ================================================================== */
+/*  removeUserFromOrg                                                  */
+/* ================================================================== */
+
+describe("removeUserFromOrg", () => {
+  it("deletes membership by user and org id", async () => {
+    // Chain: from().delete().eq("user_id",...).eq("organization_id",...)
+    // The second .eq() is the terminal call, so we resolve it
+    mockServiceEq
+      .mockReturnValueOnce(serviceChainable()) // first .eq() returns chainable
+      .mockResolvedValueOnce({ data: null, error: null }); // second .eq() resolves
+
+    const { removeUserFromOrg } = await import("@/lib/actions/admin");
+    await removeUserFromOrg("user-1", "org-1");
+
+    expect(mockServiceFrom).toHaveBeenCalledWith("organization_members");
+    expect(mockServiceDelete).toHaveBeenCalled();
+    expect(mockServiceEq).toHaveBeenCalledWith("user_id", "user-1");
+    expect(mockServiceEq).toHaveBeenCalledWith("organization_id", "org-1");
+  });
+
+  it("throws when delete fails", async () => {
+    mockServiceEq
+      .mockReturnValueOnce(serviceChainable())
+      .mockResolvedValueOnce({
+        data: null,
+        error: { message: "Delete failed" },
+      });
+
+    const { removeUserFromOrg } = await import("@/lib/actions/admin");
+    await expect(removeUserFromOrg("user-1", "org-1")).rejects.toThrow(
+      "Delete failed",
+    );
+  });
+});

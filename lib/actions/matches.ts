@@ -92,9 +92,12 @@ export async function getMatches(filters?: MatchFilters): Promise<Match[]> {
     query = query.eq("required_level", filters.requiredLevel);
   }
   if (filters?.search) {
-    query = query.or(
-      `home_team.ilike.%${filters.search}%,away_team.ilike.%${filters.search}%`,
-    );
+    const sanitized = filters.search.replace(/[%_,().]/g, "");
+    if (sanitized) {
+      query = query.or(
+        `home_team.ilike.%${sanitized}%,away_team.ilike.%${sanitized}%`,
+      );
+    }
   }
 
   const { data, error } = await query;
@@ -129,10 +132,17 @@ export async function updateMatch(
   >,
 ): Promise<Match> {
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+  const tenantId = await requireTenantId();
+
   const { data, error } = await supabase
     .from("matches")
     .update(updates)
     .eq("id", id)
+    .eq("organization_id", tenantId)
     .select()
     .single();
 
@@ -142,6 +152,16 @@ export async function updateMatch(
 
 export async function deleteMatch(id: string): Promise<void> {
   const supabase = await createClient();
-  const { error } = await supabase.from("matches").delete().eq("id", id);
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+  const tenantId = await requireTenantId();
+
+  const { error } = await supabase
+    .from("matches")
+    .delete()
+    .eq("id", id)
+    .eq("organization_id", tenantId);
   if (error) throw new Error(error.message);
 }

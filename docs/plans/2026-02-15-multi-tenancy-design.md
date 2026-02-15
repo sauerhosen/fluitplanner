@@ -26,7 +26,7 @@ Set `x-organization-id` and `x-organization-slug` request headers for downstream
 
 - `getTenantId()` — reads `x-organization-id` from request headers. Used in all server actions and data fetches.
 - `getTenantSlug()` — reads slug for display purposes.
-- `isMasterAdmin()` — checks root domain + user metadata flag.
+- `isRootDomain()` — checks if the request is on the root domain (for master admin pages). Used in conjunction with `user_metadata.is_master_admin` in `requireMasterAdmin()`.
 
 ### Supabase Client Extension
 

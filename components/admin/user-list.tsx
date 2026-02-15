@@ -38,8 +38,12 @@ export function UserList({
   const [inviteEmail, setInviteEmail] = useState<string | null>(null);
 
   async function refreshUsers() {
-    const data = await getUsers();
-    setUsers(data);
+    try {
+      const data = await getUsers();
+      setUsers(data);
+    } catch {
+      // Silently fail — list remains stale
+    }
   }
 
   async function handleRemoveFromOrg(
@@ -51,8 +55,12 @@ export function UserList({
       t("confirmRemoveFromOrg", { org: orgName }),
     );
     if (!confirmed) return;
-    await removeUserFromOrg(userId, organizationId);
-    await refreshUsers();
+    try {
+      await removeUserFromOrg(userId, organizationId);
+      await refreshUsers();
+    } catch {
+      // Silently fail — state remains unchanged
+    }
   }
 
   if (users.length === 0) {

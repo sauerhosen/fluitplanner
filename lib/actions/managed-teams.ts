@@ -49,10 +49,12 @@ export async function updateManagedTeam(
   requiredLevel: 1 | 2 | 3,
 ): Promise<ManagedTeam> {
   const supabase = await createClient();
+  const tenantId = await requireTenantId();
   const { data, error } = await supabase
     .from("managed_teams")
     .update({ name: name.trim(), required_level: requiredLevel })
     .eq("id", id)
+    .eq("organization_id", tenantId)
     .select()
     .single();
 
@@ -62,7 +64,12 @@ export async function updateManagedTeam(
 
 export async function deleteManagedTeam(id: string): Promise<void> {
   const supabase = await createClient();
-  const { error } = await supabase.from("managed_teams").delete().eq("id", id);
+  const tenantId = await requireTenantId();
+  const { error } = await supabase
+    .from("managed_teams")
+    .delete()
+    .eq("id", id)
+    .eq("organization_id", tenantId);
 
   if (error) throw new Error(error.message);
 }

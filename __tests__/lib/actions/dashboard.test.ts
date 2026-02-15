@@ -114,8 +114,10 @@ describe("getDashboardStats", () => {
     // eq call #3: eq("created_by", user.id) → resolves
     mockEq.mockResolvedValueOnce({ data: [], count: 2, error: null });
 
-    // Query 3: .from("poll_matches").select().eq("polls.status","open")
-    // eq call #4: eq("polls.status", "open") → resolves
+    // Query 3: .from("poll_matches").select().eq("polls.status","open").eq("polls.organization_id",...)
+    // eq call #4: eq("polls.status", "open") → chainable
+    mockEq.mockReturnValueOnce(chainable());
+    // eq call #5: eq("polls.organization_id", tenantId) → resolves
     mockEq.mockResolvedValueOnce({
       data: [
         { poll_id: "p1", match_id: "m1" },
@@ -135,7 +137,9 @@ describe("getDashboardStats", () => {
       error: null,
     });
 
-    // Query 5: .from("availability_responses").select("umpire_id").not(...)
+    // Query 5: .from("availability_responses").select(...).eq("polls.organization_id",...).not(...)
+    // eq call #6: eq("polls.organization_id", tenantId) → chainable
+    mockEq.mockReturnValueOnce(chainable());
     mockNot.mockResolvedValueOnce({
       data: [
         { umpire_id: "u1" },
@@ -186,19 +190,19 @@ describe("getActionItems", () => {
     mockSelect.mockReturnValueOnce(chainable()); // Q2
     mockSelect.mockReturnValueOnce(chainable()); // Q3
     mockSelect.mockReturnValueOnce(chainable()); // Q4
-    mockSelect.mockResolvedValueOnce({ data: [], count: 10, error: null }); // Q5 umpires
+    mockSelect.mockReturnValueOnce(chainable()); // Q5 organization_umpires (now chainable for .eq)
     mockSelect.mockReturnValueOnce(chainable()); // Q6
     mockSelect.mockResolvedValueOnce({
       data: [{ match_id: "m1" }, { match_id: "m2" }],
       error: null,
     }); // Q7
 
-    // Q1: .from("polls").select("id, title").eq("status","open").eq("created_by",...)
+    // Q1: .from("polls").select("id, title").eq("status","open").eq("organization_id",...)
     mockEq.mockReturnValueOnce(chainable()); // eq("status")
     mockEq.mockResolvedValueOnce({
       data: [{ id: "p1", title: "Week 10" }],
       error: null,
-    }); // eq("created_by")
+    }); // eq("organization_id")
 
     // Q2: .from("poll_matches").select(...).in("poll_id", [...])
     mockIn.mockResolvedValueOnce({
@@ -221,10 +225,11 @@ describe("getActionItems", () => {
       error: null,
     });
 
-    // Q5: umpires count handled via mockSelect above
+    // Q5: .from("organization_umpires").select("id", {count}).eq("organization_id", tenantId)
+    mockEq.mockResolvedValueOnce({ data: [], count: 10, error: null });
 
-    // Q6: .from("matches").select(...).eq("created_by",...).gte().lte()
-    mockEq.mockReturnValueOnce(chainable()); // eq("created_by")
+    // Q6: .from("matches").select(...).eq("organization_id",...).gte().lte()
+    mockEq.mockReturnValueOnce(chainable()); // eq("organization_id")
     mockLte.mockResolvedValueOnce({
       data: [
         {
@@ -261,14 +266,14 @@ describe("getActionItems", () => {
   });
 
   it("returns empty array when there are no action items", async () => {
-    // Q1: .from("polls").select("id, title").eq("status","open").eq("created_by",...)
+    // Q1: .from("polls").select("id, title").eq("status","open").eq("organization_id",...)
     mockEq.mockReturnValueOnce(chainable()); // eq("status")
-    mockEq.mockResolvedValueOnce({ data: [], error: null }); // eq("created_by")
+    mockEq.mockResolvedValueOnce({ data: [], error: null }); // eq("organization_id")
 
     // pollIds is empty, so skip poll_matches/assignments/responses/umpires
 
-    // Q2: .from("matches").select(...).eq("created_by",...).gte().lte()
-    mockEq.mockReturnValueOnce(chainable()); // eq("created_by")
+    // Q2: .from("matches").select(...).eq("organization_id",...).gte().lte()
+    mockEq.mockReturnValueOnce(chainable()); // eq("organization_id")
     mockLte.mockResolvedValueOnce({ data: [], error: null });
 
     // No upcoming matches, so skip poll_matches query

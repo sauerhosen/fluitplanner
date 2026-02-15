@@ -186,7 +186,16 @@ export function AssignmentGrid({
         setSaving(null);
       }
     },
-    [saving, assignmentSet, assignmentCounts, pollId, setAssignments, t],
+    [
+      saving,
+      assignmentSet,
+      assignmentCounts,
+      pollId,
+      setAssignments,
+      t,
+      matches,
+      initialAssignments,
+    ],
   );
 
   const sortedMatches = useMemo(

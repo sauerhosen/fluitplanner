@@ -35,8 +35,12 @@ export function OrganizationList({
   const [editingOrg, setEditingOrg] = useState<Organization | null>(null);
 
   async function refreshOrganizations() {
-    const data = await getOrganizations();
-    setOrganizations(data);
+    try {
+      const data = await getOrganizations();
+      setOrganizations(data);
+    } catch {
+      // Silently fail — list remains stale
+    }
   }
 
   async function handleToggleActive(org: Organization) {
@@ -44,8 +48,12 @@ export function OrganizationList({
       const confirmed = window.confirm(t("confirmDisable"));
       if (!confirmed) return;
     }
-    await updateOrganization(org.id, { is_active: !org.is_active });
-    await refreshOrganizations();
+    try {
+      await updateOrganization(org.id, { is_active: !org.is_active });
+      await refreshOrganizations();
+    } catch {
+      // Silently fail — state remains unchanged
+    }
   }
 
   if (organizations.length === 0 && !showCreateDialog) {

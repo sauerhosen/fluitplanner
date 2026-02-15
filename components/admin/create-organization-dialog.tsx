@@ -92,7 +92,7 @@ export function CreateOrganizationDialog({
       onOpenChange(false);
       onSaved();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "An error occurred");
+      setError(err instanceof Error ? err.message : t("errorOccurred"));
     } finally {
       setSaving(false);
     }
