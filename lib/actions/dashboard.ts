@@ -309,8 +309,8 @@ export async function getRecentActivity(): Promise<ActivityEvent[]> {
       participant_name: string;
       created_at: string;
       polls:
-        | { title: string; organization_id: string | null }[]
-        | { title: string; organization_id: string | null }
+        | { title: string; organization_id: string }[]
+        | { title: string; organization_id: string }
         | null;
     }) => {
       const poll = Array.isArray(r.polls) ? r.polls[0] : r.polls;
