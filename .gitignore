@@ -34,6 +34,7 @@ pnpm-debug.log*
 coverage/
 test-results/
 playwright-report/
+.playwright-mcp/
 e2e/.auth/
 
 # typescript
@@ -74,3 +75,4 @@ __pycache__/
 # project-specific
 AREAS/
 _resources/
+

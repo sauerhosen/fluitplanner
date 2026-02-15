@@ -51,6 +51,7 @@ CI (GitHub Actions) runs lint, format check, type check, tests, and build on eve
 - **TailwindCSS v4** with CSS-first configuration (no `tailwind.config.ts`). All theme config is in `app/globals.css` via `@theme inline`. Dark mode uses `@custom-variant dark` with class strategy.
 - **shadcn/ui** (new-york style, RSC-enabled) — add components via `npx shadcn@latest add <component>`. Components use `data-slot` attributes (not `forwardRef`).
 - **next-themes** for dark/light mode switching
+- **next-intl** for i18n (English + Dutch), cookie-based locale without URL routing
 
 ## Key Patterns
 
@@ -59,6 +60,15 @@ CI (GitHub Actions) runs lint, format check, type check, tests, and build on eve
 - **Server**: `import { createClient } from "@/lib/supabase/server"` — always `await createClient()` fresh per request (never store in a global due to Fluid Compute)
 - **Client**: `import { createClient } from "@/lib/supabase/client"` — browser client
 - **Proxy** (`proxy.ts`): refreshes auth sessions, redirects unauthenticated users to `/auth/login` (except `/` and `/auth/*` routes)
+
+### i18n (next-intl)
+
+- Uses "without i18n routing" — locale stored in a cookie, no `[locale]` URL segment
+- Messages: `messages/en.json` and `messages/nl.json` — flat namespace keys (e.g., `"nav"`, `"dashboard"`, `"polls"`)
+- Server components: `const t = await getTranslations("namespace")`
+- Client components: `const t = useTranslations("namespace")`
+- `LocaleDetector` component auto-detects browser language on first visit
+- `LanguageSwitcher` toggle in nav and footer
 
 ### Path Aliases
 

@@ -15,6 +15,7 @@ Availability polls use 2-hour time slots, not exact match times. Slots start at 
 - **Next.js** (App Router) deployed on **Vercel**
 - **Supabase** for database and auth
 - **TailwindCSS** + **shadcn/ui** for UI
+- **next-intl** for i18n (English + Dutch)
 - **Vitest** + **React Testing Library** for unit/component tests
 - **Playwright** for E2E tests
 
