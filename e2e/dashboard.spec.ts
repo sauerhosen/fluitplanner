@@ -12,7 +12,7 @@ test.describe("Dashboard", () => {
     // Should show stat cards
     await expect(page.getByText("Upcoming matches")).toBeVisible();
     await expect(page.getByText("Open polls")).toBeVisible();
-    await expect(page.getByText("Unassigned")).toBeVisible();
+    await expect(page.getByText("Unassigned").first()).toBeVisible();
     await expect(page.getByText("Active umpires")).toBeVisible();
 
     // Should show action items section

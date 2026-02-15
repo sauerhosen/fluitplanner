@@ -120,6 +120,7 @@ export function AssignmentGrid({
 
       const isAssigned = assignmentSet.has(key);
       const count = assignmentCounts.get(matchId) ?? 0;
+      const match = matches.find((m) => m.id === matchId);
 
       if (!isAssigned && count >= 2) {
         toast.warning(t("matchAlreadyHasTwo"));
@@ -141,6 +142,10 @@ export function AssignmentGrid({
             match_id: matchId,
             umpire_id: umpireId,
             created_at: new Date().toISOString(),
+            organization_id:
+              match?.organization_id ??
+              initialAssignments[0]?.organization_id ??
+              "",
           },
         ]);
       }
@@ -165,6 +170,10 @@ export function AssignmentGrid({
                   match_id: matchId,
                   umpire_id: umpireId,
                   created_at: new Date().toISOString(),
+                  organization_id:
+                    match?.organization_id ??
+                    initialAssignments[0]?.organization_id ??
+                    "",
                 },
               ]
             : (prev) =>
@@ -177,7 +186,16 @@ export function AssignmentGrid({
         setSaving(null);
       }
     },
-    [saving, assignmentSet, assignmentCounts, pollId, setAssignments, t],
+    [
+      saving,
+      assignmentSet,
+      assignmentCounts,
+      pollId,
+      setAssignments,
+      t,
+      matches,
+      initialAssignments,
+    ],
   );
 
   const sortedMatches = useMemo(

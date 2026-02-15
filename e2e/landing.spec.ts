@@ -1,6 +1,11 @@
 import { test, expect } from "@playwright/test";
 
-test.use({ storageState: { cookies: [], origins: [] } });
+test.use({
+  storageState: {
+    cookies: [],
+    origins: [],
+  },
+});
 
 test.describe("Landing page", () => {
   test("shows branding and auth buttons", async ({ page }) => {

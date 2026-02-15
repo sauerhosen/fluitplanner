@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/service";
 import { type EmailOtpType } from "@supabase/supabase-js";
 import { redirect } from "next/navigation";
 import { type NextRequest } from "next/server";
@@ -17,6 +18,34 @@ export async function GET(request: NextRequest) {
       token_hash,
     });
     if (!error) {
+      // Auto-join organization if user was invited
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      const invitedToOrg = user?.app_metadata?.invited_to_org;
+
+      if (user && invitedToOrg) {
+        const serviceClient = createServiceClient();
+
+        const { error: upsertError } = await serviceClient
+          .from("organization_members")
+          .upsert(
+            {
+              organization_id: invitedToOrg,
+              user_id: user.id,
+              role: "planner",
+            },
+            { onConflict: "organization_id,user_id" },
+          );
+
+        // Only clear metadata if upsert succeeded
+        if (!upsertError) {
+          await serviceClient.auth.admin.updateUserById(user.id, {
+            app_metadata: { invited_to_org: null },
+          });
+        }
+      }
+
       // redirect user to specified redirect URL or root of app
       redirect(next);
     } else {

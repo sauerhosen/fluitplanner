@@ -72,13 +72,23 @@ async function globalSetup(config: FullConfig) {
   const context = await browser.newContext();
   const page = await context.newPage();
 
+  // Set tenant cookie before navigating so middleware can resolve the org
+  await context.addCookies([
+    {
+      name: "x-tenant",
+      value: "default",
+      domain: "localhost",
+      path: "/",
+    },
+  ]);
+
   await page.goto(`${baseURL}/auth/login`);
   await page.getByLabel("Email").fill(testEmail);
   await page.getByLabel("Password").fill(testPassword);
   await page.getByRole("button", { name: "Login" }).click();
   await page.waitForURL(/\/protected/, { timeout: 10000 });
 
-  // Save authenticated state
+  // Save authenticated state (includes x-tenant cookie)
   await context.storageState({ path: "e2e/.auth/state.json" });
   await browser.close();
 }

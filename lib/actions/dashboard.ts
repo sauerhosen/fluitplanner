@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { requireTenantId } from "@/lib/tenant";
 import { format, addDays } from "date-fns";
 
 /* ------------------------------------------------------------------ */
@@ -44,7 +45,8 @@ async function requireAuth() {
 /* ------------------------------------------------------------------ */
 
 export async function getDashboardStats(): Promise<DashboardStats> {
-  const { supabase, user } = await requireAuth();
+  const { supabase } = await requireAuth();
+  const tenantId = await requireTenantId();
 
   const today = format(new Date(), "yyyy-MM-dd");
   const twoWeeksLater = format(addDays(new Date(), 14), "yyyy-MM-dd");
@@ -53,7 +55,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
   const { count: upcomingMatches, error: matchError } = await supabase
     .from("matches")
     .select("id", { count: "exact", head: true })
-    .eq("created_by", user.id)
+    .eq("organization_id", tenantId)
     .gte("date", today)
     .lte("date", twoWeeksLater);
 
@@ -64,7 +66,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     .from("polls")
     .select("id", { count: "exact", head: true })
     .eq("status", "open")
-    .eq("created_by", user.id);
+    .eq("organization_id", tenantId);
 
   if (pollError) throw new Error(pollError.message);
 
@@ -72,8 +74,9 @@ export async function getDashboardStats(): Promise<DashboardStats> {
   // Get all matches in open polls
   const { data: pollMatches, error: pmError } = await supabase
     .from("poll_matches")
-    .select("poll_id, match_id, polls!inner(id, status)")
-    .eq("polls.status", "open");
+    .select("poll_id, match_id, polls!inner(id, status, organization_id)")
+    .eq("polls.status", "open")
+    .eq("polls.organization_id", tenantId);
 
   if (pmError) throw new Error(pmError.message);
 
@@ -113,10 +116,11 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     ).length;
   }
 
-  // 4. Active umpires (distinct umpire_ids from availability_responses)
+  // 4. Active umpires (distinct umpire_ids from availability_responses, scoped via polls)
   const { data: umpireResponses, error: umpError } = await supabase
     .from("availability_responses")
-    .select("umpire_id")
+    .select("umpire_id, polls!inner(organization_id)")
+    .eq("polls.organization_id", tenantId)
     .not("umpire_id", "is", null);
 
   if (umpError) throw new Error(umpError.message);
@@ -138,7 +142,8 @@ export async function getDashboardStats(): Promise<DashboardStats> {
 /* ------------------------------------------------------------------ */
 
 export async function getActionItems(): Promise<ActionItem[]> {
-  const { supabase, user } = await requireAuth();
+  const { supabase } = await requireAuth();
+  const tenantId = await requireTenantId();
   const items: ActionItem[] = [];
 
   const today = format(new Date(), "yyyy-MM-dd");
@@ -149,7 +154,7 @@ export async function getActionItems(): Promise<ActionItem[]> {
     .from("polls")
     .select("id, title")
     .eq("status", "open")
-    .eq("created_by", user.id);
+    .eq("organization_id", tenantId);
 
   if (pollError) throw new Error(pollError.message);
 
@@ -225,8 +230,9 @@ export async function getActionItems(): Promise<ActionItem[]> {
     }
 
     const { count: totalUmpires, error: umpError } = await supabase
-      .from("umpires")
-      .select("id", { count: "exact", head: true });
+      .from("organization_umpires")
+      .select("umpire_id", { count: "exact", head: true })
+      .eq("organization_id", tenantId);
 
     if (umpError) throw new Error(umpError.message);
 
@@ -252,7 +258,7 @@ export async function getActionItems(): Promise<ActionItem[]> {
   const { data: upcomingMatches, error: mError } = await supabase
     .from("matches")
     .select("id, home_team, away_team, date")
-    .eq("created_by", user.id)
+    .eq("organization_id", tenantId)
     .gte("date", today)
     .lte("date", oneWeekLater);
 
@@ -288,12 +294,14 @@ export async function getActionItems(): Promise<ActionItem[]> {
 /* ------------------------------------------------------------------ */
 
 export async function getRecentActivity(): Promise<ActivityEvent[]> {
-  const { supabase, user } = await requireAuth();
+  const { supabase } = await requireAuth();
+  const tenantId = await requireTenantId();
 
-  // 1. Recent responses
+  // 1. Recent responses (scoped via polls belonging to this org)
   const { data: responses, error: respError } = await supabase
     .from("availability_responses")
-    .select("participant_name, created_at, polls(title)")
+    .select("participant_name, created_at, polls!inner(title, organization_id)")
+    .eq("polls.organization_id", tenantId)
     .order("created_at", { ascending: false })
     .limit(10);
 
@@ -303,7 +311,10 @@ export async function getRecentActivity(): Promise<ActivityEvent[]> {
     (r: {
       participant_name: string;
       created_at: string;
-      polls: { title: string }[] | { title: string } | null;
+      polls:
+        | { title: string; organization_id: string }[]
+        | { title: string; organization_id: string }
+        | null;
     }) => {
       const poll = Array.isArray(r.polls) ? r.polls[0] : r.polls;
       return {
@@ -314,10 +325,11 @@ export async function getRecentActivity(): Promise<ActivityEvent[]> {
     },
   );
 
-  // 2. Recent assignments
+  // 2. Recent assignments (scoped to this org)
   const { data: assignments, error: assignError } = await supabase
     .from("assignments")
     .select("created_at, umpires(name), matches(home_team, away_team)")
+    .eq("organization_id", tenantId)
     .order("created_at", { ascending: false })
     .limit(10);
 
@@ -346,7 +358,7 @@ export async function getRecentActivity(): Promise<ActivityEvent[]> {
   const { data: matches, error: matchError } = await supabase
     .from("matches")
     .select("home_team, away_team, created_at")
-    .eq("created_by", user.id)
+    .eq("organization_id", tenantId)
     .order("created_at", { ascending: false })
     .limit(10);
 

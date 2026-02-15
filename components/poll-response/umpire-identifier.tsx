@@ -10,12 +10,14 @@ import { useTranslations } from "next-intl";
 import type { Umpire } from "@/lib/types/domain";
 
 type Props = {
+  pollId: string;
   pollToken: string;
   onIdentified: (umpire: Umpire) => void;
   onNeedsVerification: (email: string, maskedEmail: string) => void;
 };
 
 export function UmpireIdentifier({
+  pollId,
   pollToken,
   onIdentified,
   onNeedsVerification,
@@ -58,7 +60,7 @@ export function UmpireIdentifier({
     setError(null);
     setLoading(true);
     try {
-      const umpire = await findOrCreateUmpire(email, name);
+      const umpire = await findOrCreateUmpire(email, name, pollId);
       if (umpire) {
         onIdentified(umpire);
       } else {

@@ -14,6 +14,7 @@ function makeMatch(overrides: Partial<Match> & { id: string }): Match {
     required_level: 1,
     created_by: "user-1",
     created_at: "2026-01-01T00:00:00Z",
+    organization_id: "test-org-id",
     ...overrides,
   };
 }
@@ -28,6 +29,7 @@ function makeAssignment(
     id: "a-" + overrides.match_id + "-" + overrides.umpire_id,
     poll_id: "poll-1",
     created_at: "2026-01-01T00:00:00Z",
+    organization_id: "test-org-id",
     ...overrides,
   };
 }

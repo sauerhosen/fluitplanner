@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { requireTenantId } from "@/lib/tenant";
 import type { Assignment, Umpire } from "@/lib/types/domain";
 import { revalidatePath } from "next/cache";
 
@@ -17,11 +18,13 @@ export async function getAssignmentsForPoll(
   pollId: string,
 ): Promise<Assignment[]> {
   const { supabase } = await requireAuth();
+  const tenantId = await requireTenantId();
 
   const { data, error } = await supabase
     .from("assignments")
     .select("*")
-    .eq("poll_id", pollId);
+    .eq("poll_id", pollId)
+    .eq("organization_id", tenantId);
 
   if (error) throw new Error(error.message);
   return data ?? [];
@@ -34,9 +37,16 @@ export async function createAssignment(
 ): Promise<Assignment> {
   const { supabase } = await requireAuth();
 
+  const tenantId = await requireTenantId();
+
   const { data, error } = await supabase
     .from("assignments")
-    .insert({ poll_id: pollId, match_id: matchId, umpire_id: umpireId })
+    .insert({
+      poll_id: pollId,
+      match_id: matchId,
+      umpire_id: umpireId,
+      organization_id: tenantId,
+    })
     .select()
     .single();
 
@@ -51,13 +61,15 @@ export async function deleteAssignment(
   umpireId: string,
 ): Promise<void> {
   const { supabase } = await requireAuth();
+  const tenantId = await requireTenantId();
 
   const { error } = await supabase
     .from("assignments")
     .delete()
     .eq("poll_id", pollId)
     .eq("match_id", matchId)
-    .eq("umpire_id", umpireId);
+    .eq("umpire_id", umpireId)
+    .eq("organization_id", tenantId);
 
   if (error) throw new Error(error.message);
   revalidatePath(`/protected/polls/${pollId}`);

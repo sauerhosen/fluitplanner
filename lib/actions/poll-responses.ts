@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { requireTenantId } from "@/lib/tenant";
 import { revalidatePath } from "next/cache";
 
 /**
@@ -33,17 +34,18 @@ export async function updatePollResponse(
   umpireId: string,
   response: "yes" | "if_need_be" | "no" | null,
 ): Promise<{ error?: string }> {
-  const { supabase, user } = await requireAuth();
+  const { supabase } = await requireAuth();
 
-  // Verify ownership
+  // Verify ownership via organization
+  const tenantId = await requireTenantId();
   const { data: poll, error: pollError } = await supabase
     .from("polls")
-    .select("id, created_by")
+    .select("id, organization_id")
     .eq("id", pollId)
+    .eq("organization_id", tenantId)
     .single();
 
   if (pollError || !poll) return { error: "Poll not found" };
-  if (poll.created_by !== user.id) return { error: "Not authorized" };
 
   if (response === null) {
     // Delete the response

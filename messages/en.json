@@ -19,6 +19,8 @@
     "polls": "Polls",
     "umpires": "Umpires",
     "settings": "Settings",
+    "organizations": "Organizations",
+    "users": "Users",
     "privacy": "Privacy"
   },
   "auth": {
@@ -308,6 +310,9 @@
     "defaultMessage": "An unexpected error occurred.",
     "tryAgain": "Try again"
   },
+  "organization": {
+    "switchOrganization": "Switch organization"
+  },
   "theme": {
     "light": "Light",
     "dark": "Dark",
@@ -339,6 +344,48 @@
     "changesTitle": "Changes to this policy",
     "changesText": "We may update this privacy policy from time to time. Changes will be published on this page. We encourage you to review this page periodically.",
     "contactText": "For privacy-related questions, contact us at:"
+  },
+  "admin": {
+    "organizations": "Organizations",
+    "createOrganization": "Create Organization",
+    "editOrganization": "Edit Organization",
+    "name": "Name",
+    "slug": "Slug",
+    "slugHelp": "Used as subdomain (e.g. hic.fluiten.org)",
+    "active": "Active",
+    "inactive": "Inactive",
+    "disable": "Disable",
+    "enable": "Enable",
+    "noOrganizations": "No organizations yet. Create one to get started.",
+    "invitePlanner": "Invite Planner",
+    "email": "Email address",
+    "save": "Save",
+    "cancel": "Cancel",
+    "users": "Users",
+    "noUsers": "No users found.",
+    "emailHeader": "Email",
+    "membershipsHeader": "Memberships",
+    "createdHeader": "Created",
+    "masterAdmin": "Master Admin",
+    "planner": "Planner",
+    "viewer": "Viewer",
+    "removeFromOrg": "Remove from {org}",
+    "confirmRemoveFromOrg": "Remove this user from {org}?",
+    "inviteToOrg": "Invite to organization",
+    "selectOrganization": "Select organization",
+    "inviting": "Inviting...",
+    "invite": "Invite",
+    "confirmDisable": "Are you sure you want to disable this organization?",
+    "status": "Status",
+    "invalidSlug": "Invalid slug: must be lowercase alphanumeric with hyphens, at least 2 characters",
+    "saving": "Saving...",
+    "errorOccurred": "An error occurred. Please try again."
+  },
+  "noAccess": {
+    "title": "No Access",
+    "description": "You don't have access to this organization. Contact the organization admin if you believe this is a mistake.",
+    "goHome": "Go Home",
+    "signIn": "Sign In with Different Account"
   },
   "email": {
     "verificationSubject": "Your Fluitplanner verification code",

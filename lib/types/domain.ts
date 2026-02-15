@@ -10,6 +10,7 @@ export type Match = {
   required_level: 1 | 2 | 3;
   created_by: string;
   created_at: string;
+  organization_id: string;
 };
 
 export type Poll = {
@@ -19,6 +20,7 @@ export type Poll = {
   status: "open" | "closed";
   created_by: string;
   created_at: string;
+  organization_id: string;
 };
 
 export type PollSlot = {
@@ -45,6 +47,7 @@ export type ManagedTeam = {
   required_level: 1 | 2 | 3;
   created_by: string;
   created_at: string;
+  organization_id: string;
 };
 
 export type Umpire = {
@@ -55,6 +58,38 @@ export type Umpire = {
   level: 1 | 2 | 3;
   created_at: string;
   updated_at: string;
+};
+
+export type Organization = {
+  id: string;
+  name: string;
+  slug: string;
+  is_active: boolean;
+  created_at: string;
+  created_by: string;
+};
+
+export type OrganizationMember = {
+  id: string;
+  organization_id: string;
+  user_id: string;
+  role: "planner" | "viewer";
+  created_at: string;
+};
+
+export type UserMembership = {
+  organization_id: string;
+  organization_name: string;
+  organization_slug: string;
+  role: "planner" | "viewer";
+};
+
+export type UserWithMemberships = {
+  id: string;
+  email: string;
+  created_at: string;
+  is_master_admin: boolean;
+  memberships: UserMembership[];
 };
 
 export type TimeSlot = {
@@ -68,4 +103,5 @@ export type Assignment = {
   match_id: string;
   umpire_id: string;
   created_at: string;
+  organization_id: string;
 };

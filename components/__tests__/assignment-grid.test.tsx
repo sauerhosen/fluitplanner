@@ -37,6 +37,7 @@ const mockMatches: Match[] = [
     required_level: 2,
     created_by: "user-1",
     created_at: "2026-01-01T00:00:00Z",
+    organization_id: "test-org-id",
   },
   {
     id: "m2",
@@ -50,6 +51,7 @@ const mockMatches: Match[] = [
     required_level: 1,
     created_by: "user-1",
     created_at: "2026-01-01T00:00:00Z",
+    organization_id: "test-org-id",
   },
 ];
 
@@ -174,6 +176,7 @@ describe("AssignmentGrid", () => {
         match_id: "m1",
         umpire_id: "u1",
         created_at: "2026-01-01T00:00:00Z",
+        organization_id: "test-org-id",
       },
     ];
 
@@ -191,6 +194,7 @@ describe("AssignmentGrid", () => {
       match_id: "m1",
       umpire_id: "u1",
       created_at: "2026-01-01T00:00:00Z",
+      organization_id: "test-org-id",
     });
 
     render(<AssignmentGrid {...defaultProps} />);
@@ -213,6 +217,7 @@ describe("AssignmentGrid", () => {
         match_id: "m1",
         umpire_id: "u1",
         created_at: "2026-01-01T00:00:00Z",
+        organization_id: "test-org-id",
       },
     ];
 

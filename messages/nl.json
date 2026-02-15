@@ -19,6 +19,8 @@
     "polls": "Peilingen",
     "umpires": "Scheidsrechters",
     "settings": "Instellingen",
+    "organizations": "Organisaties",
+    "users": "Gebruikers",
     "privacy": "Privacy"
   },
   "auth": {
@@ -308,6 +310,9 @@
     "defaultMessage": "Er is een onverwachte fout opgetreden.",
     "tryAgain": "Opnieuw proberen"
   },
+  "organization": {
+    "switchOrganization": "Organisatie wisselen"
+  },
   "theme": {
     "light": "Licht",
     "dark": "Donker",
@@ -339,6 +344,48 @@
     "changesTitle": "Wijzigingen in dit beleid",
     "changesText": "We kunnen dit privacybeleid van tijd tot tijd bijwerken. Wijzigingen worden op deze pagina gepubliceerd. We raden je aan deze pagina regelmatig te bekijken.",
     "contactText": "Voor privacygerelateerde vragen kun je contact opnemen via:"
+  },
+  "admin": {
+    "organizations": "Organisaties",
+    "createOrganization": "Organisatie aanmaken",
+    "editOrganization": "Organisatie bewerken",
+    "name": "Naam",
+    "slug": "Slug",
+    "slugHelp": "Gebruikt als subdomein (bijv. hic.fluiten.org)",
+    "active": "Actief",
+    "inactive": "Inactief",
+    "disable": "Uitschakelen",
+    "enable": "Inschakelen",
+    "noOrganizations": "Nog geen organisaties. Maak er een aan om te beginnen.",
+    "invitePlanner": "Planner uitnodigen",
+    "email": "E-mailadres",
+    "save": "Opslaan",
+    "cancel": "Annuleren",
+    "users": "Gebruikers",
+    "noUsers": "Geen gebruikers gevonden.",
+    "emailHeader": "E-mail",
+    "membershipsHeader": "Lidmaatschappen",
+    "createdHeader": "Aangemaakt",
+    "masterAdmin": "Master Admin",
+    "planner": "Planner",
+    "viewer": "Viewer",
+    "removeFromOrg": "Verwijderen uit {org}",
+    "confirmRemoveFromOrg": "Deze gebruiker verwijderen uit {org}?",
+    "inviteToOrg": "Uitnodigen voor organisatie",
+    "selectOrganization": "Selecteer organisatie",
+    "inviting": "Uitnodigen...",
+    "invite": "Uitnodigen",
+    "confirmDisable": "Weet je zeker dat je deze organisatie wilt uitschakelen?",
+    "status": "Status",
+    "invalidSlug": "Ongeldige slug: moet kleine letters, cijfers en streepjes bevatten, minimaal 2 tekens",
+    "saving": "Opslaan...",
+    "errorOccurred": "Er is een fout opgetreden. Probeer het opnieuw."
+  },
+  "noAccess": {
+    "title": "Geen toegang",
+    "description": "Je hebt geen toegang tot deze organisatie. Neem contact op met de organisatiebeheerder als je denkt dat dit een fout is.",
+    "goHome": "Naar Home",
+    "signIn": "Inloggen met ander account"
   },
   "email": {
     "verificationSubject": "Je Fluitplanner verificatiecode",

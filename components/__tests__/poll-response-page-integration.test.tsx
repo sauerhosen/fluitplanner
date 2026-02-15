@@ -36,6 +36,7 @@ const openPoll: Poll = {
   status: "open",
   created_by: "user-1",
   created_at: "2026-02-01T00:00:00Z",
+  organization_id: "test-org-id",
 };
 
 const closedPoll: Poll = {

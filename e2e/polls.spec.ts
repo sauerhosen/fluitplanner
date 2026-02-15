@@ -31,7 +31,7 @@ test.describe("Polls page", () => {
     await checkboxes.first().click();
 
     // Verify slot preview appears
-    await expect(page.getByText(/time slot/i)).toBeVisible();
+    await expect(page.getByText(/time slot/i).first()).toBeVisible();
 
     // Create poll
     await page.getByRole("button", { name: "Create Poll" }).click();

@@ -41,6 +41,7 @@ describe("UmpireIdentifier", () => {
   });
 
   const defaultProps = () => ({
+    pollId: "poll-1",
     pollToken: "test-token",
     onIdentified,
     onNeedsVerification,
@@ -123,7 +124,11 @@ describe("UmpireIdentifier", () => {
     await waitFor(() => {
       expect(onIdentified).toHaveBeenCalled();
     });
-    expect(mockFindOrCreate).toHaveBeenCalledWith("new@example.com", "Piet");
+    expect(mockFindOrCreate).toHaveBeenCalledWith(
+      "new@example.com",
+      "Piet",
+      "poll-1",
+    );
   });
 
   it("shows error when lookup fails", async () => {

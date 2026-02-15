@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { requireTenantId } from "@/lib/tenant";
 import type { Match } from "@/lib/types/domain";
 import type { ParsedMatch } from "@/lib/parsers/types";
 
@@ -16,6 +17,8 @@ export async function upsertMatches(
   let inserted = 0;
   let updated = 0;
 
+  const tenantId = await requireTenantId();
+
   for (const match of matches) {
     const row = {
       date: match.date,
@@ -27,6 +30,7 @@ export async function upsertMatches(
       competition: match.competition,
       required_level: match.required_level,
       created_by: user.id,
+      organization_id: tenantId,
     };
 
     const { data: existing } = await supabase
@@ -35,7 +39,7 @@ export async function upsertMatches(
       .eq("date", match.date)
       .eq("home_team", match.home_team)
       .eq("away_team", match.away_team)
-      .eq("created_by", user.id)
+      .eq("organization_id", tenantId)
       .maybeSingle();
 
     if (existing) {
@@ -70,9 +74,11 @@ export type MatchFilters = {
 
 export async function getMatches(filters?: MatchFilters): Promise<Match[]> {
   const supabase = await createClient();
+  const tenantId = await requireTenantId();
   let query = supabase
     .from("matches")
     .select("*")
+    .eq("organization_id", tenantId)
     .order("date", { ascending: true })
     .order("start_time", { ascending: true });
 
@@ -86,9 +92,12 @@ export async function getMatches(filters?: MatchFilters): Promise<Match[]> {
     query = query.eq("required_level", filters.requiredLevel);
   }
   if (filters?.search) {
-    query = query.or(
-      `home_team.ilike.%${filters.search}%,away_team.ilike.%${filters.search}%`,
-    );
+    const sanitized = filters.search.replace(/[%_,().]/g, "");
+    if (sanitized) {
+      query = query.or(
+        `home_team.ilike.%${sanitized}%,away_team.ilike.%${sanitized}%`,
+      );
+    }
   }
 
   const { data, error } = await query;
@@ -97,17 +106,18 @@ export async function getMatches(filters?: MatchFilters): Promise<Match[]> {
 }
 
 export async function createMatch(
-  match: Omit<Match, "id" | "created_by" | "created_at">,
+  match: Omit<Match, "id" | "created_by" | "created_at" | "organization_id">,
 ): Promise<Match> {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) throw new Error("Not authenticated");
+  const tenantId = await requireTenantId();
 
   const { data, error } = await supabase
     .from("matches")
-    .insert({ ...match, created_by: user.id })
+    .insert({ ...match, created_by: user.id, organization_id: tenantId })
     .select()
     .single();
 
@@ -117,13 +127,22 @@ export async function createMatch(
 
 export async function updateMatch(
   id: string,
-  updates: Partial<Omit<Match, "id" | "created_by" | "created_at">>,
+  updates: Partial<
+    Omit<Match, "id" | "created_by" | "created_at" | "organization_id">
+  >,
 ): Promise<Match> {
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+  const tenantId = await requireTenantId();
+
   const { data, error } = await supabase
     .from("matches")
     .update(updates)
     .eq("id", id)
+    .eq("organization_id", tenantId)
     .select()
     .single();
 
@@ -133,6 +152,16 @@ export async function updateMatch(
 
 export async function deleteMatch(id: string): Promise<void> {
   const supabase = await createClient();
-  const { error } = await supabase.from("matches").delete().eq("id", id);
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+  const tenantId = await requireTenantId();
+
+  const { error } = await supabase
+    .from("matches")
+    .delete()
+    .eq("id", id)
+    .eq("organization_id", tenantId);
   if (error) throw new Error(error.message);
 }
