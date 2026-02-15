@@ -114,7 +114,14 @@
     "errorCount": "{count, plural, one {# error} other {# errors}}",
     "importing": "Importing...",
     "import": "Import",
-    "importComplete": "Import complete: {inserted} new, {updated} updated."
+    "importComplete": "Import complete: {inserted} new, {updated} updated.",
+    "dateRange": "Date range",
+    "presetThisWeek": "This week",
+    "presetNextTwoWeeks": "Next 2 weeks",
+    "presetThisMonth": "This month",
+    "presetNextTwoMonths": "Next 2 months",
+    "presetPastMonth": "Past month",
+    "presetAll": "All matches"
   },
   "polls": {
     "pageTitle": "Polls",
