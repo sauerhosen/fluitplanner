@@ -80,6 +80,8 @@ export async function updateSession(request: NextRequest) {
         sameSite: "lax",
         secure: process.env.NODE_ENV === "production",
       });
+      // Allow admin pages to be accessible in fallback mode (dev/preview)
+      request.headers.set("x-is-fallback-mode", "true");
     }
 
     if (slug) {

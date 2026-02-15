@@ -29,8 +29,12 @@ export async function getTenantSlug(): Promise<string | null> {
 
 /**
  * Check if the current request is for the root domain (master admin).
+ * Also returns true in fallback mode (dev/preview) so admin pages are accessible.
  */
 export async function isRootDomain(): Promise<boolean> {
   const h = await headers();
-  return h.get("x-is-root-domain") === "true";
+  return (
+    h.get("x-is-root-domain") === "true" ||
+    h.get("x-is-fallback-mode") === "true"
+  );
 }
