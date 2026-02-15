@@ -178,6 +178,71 @@ describe("findOrCreateUmpire", () => {
     const result = await findOrCreateUmpire("Piet@Example.com", "Piet");
     expect(result).toEqual(newUmpire);
   });
+
+  it("links umpire to organization when pollId is provided", async () => {
+    const umpire = {
+      id: "ump-1",
+      auth_user_id: null,
+      name: "Jan",
+      email: "jan@example.com",
+      level: 1,
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+    };
+
+    // First call: lookup umpire → found
+    mockSingle.mockResolvedValueOnce({ data: umpire, error: null });
+    // Second call: linkUmpireToOrg → polls lookup returns org id
+    mockSingle.mockResolvedValueOnce({
+      data: { organization_id: "org-123" },
+      error: null,
+    });
+    // Third call: upsert to organization_umpires
+    mockUpsert.mockResolvedValueOnce({ error: null });
+
+    const { findOrCreateUmpire } = await import("@/lib/actions/public-polls");
+    const result = await findOrCreateUmpire(
+      "jan@example.com",
+      undefined,
+      "poll-1",
+    );
+    expect(result).toEqual(umpire);
+
+    // Verify polls lookup and org_umpires upsert were called
+    expect(mockFrom).toHaveBeenCalledWith("polls");
+    expect(mockFrom).toHaveBeenCalledWith("organization_umpires");
+  });
+
+  it("skips org linking when poll has no organization_id", async () => {
+    const umpire = {
+      id: "ump-1",
+      auth_user_id: null,
+      name: "Jan",
+      email: "jan@example.com",
+      level: 1,
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+    };
+
+    // Lookup umpire → found
+    mockSingle.mockResolvedValueOnce({ data: umpire, error: null });
+    // linkUmpireToOrg → polls lookup returns null org
+    mockSingle.mockResolvedValueOnce({
+      data: { organization_id: null },
+      error: null,
+    });
+
+    const { findOrCreateUmpire } = await import("@/lib/actions/public-polls");
+    const result = await findOrCreateUmpire(
+      "jan@example.com",
+      undefined,
+      "poll-1",
+    );
+    expect(result).toEqual(umpire);
+
+    // org_umpires upsert should NOT have been called
+    expect(mockFrom).not.toHaveBeenCalledWith("organization_umpires");
+  });
 });
 
 /* ================================================================== */

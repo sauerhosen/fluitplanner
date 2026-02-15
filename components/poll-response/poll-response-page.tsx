@@ -192,6 +192,7 @@ export function PollResponsePage({
           <p className="text-muted-foreground mt-1">{t("enterEmailPrompt")}</p>
         </div>
         <UmpireIdentifier
+          pollId={poll.id}
           pollToken={pollToken}
           onIdentified={handleIdentified}
           onNeedsVerification={handleNeedsVerification}

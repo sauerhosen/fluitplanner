@@ -62,6 +62,7 @@ export async function getPollByToken(
 export async function findOrCreateUmpire(
   email: string,
   name?: string,
+  pollId?: string,
 ): Promise<Umpire | null> {
   const supabase = await createClient();
   const normalizedEmail = email.trim().toLowerCase();
@@ -72,7 +73,11 @@ export async function findOrCreateUmpire(
     .eq("email", normalizedEmail)
     .single();
 
-  if (!error && existing) return existing;
+  if (!error && existing) {
+    // Link existing umpire to the poll's organization if not already linked
+    if (pollId) await linkUmpireToOrg(supabase, existing.id, pollId);
+    return existing;
+  }
 
   // Not found — need a name to create
   if (!name) return null;
@@ -84,7 +89,31 @@ export async function findOrCreateUmpire(
     .single();
 
   if (insertError || !created) return null;
+
+  // Link new umpire to the poll's organization
+  if (pollId) await linkUmpireToOrg(supabase, created.id, pollId);
   return created;
+}
+
+async function linkUmpireToOrg(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  umpireId: string,
+  pollId: string,
+): Promise<void> {
+  const { data: poll } = await supabase
+    .from("polls")
+    .select("organization_id")
+    .eq("id", pollId)
+    .single();
+
+  if (!poll?.organization_id) return;
+
+  await supabase
+    .from("organization_umpires")
+    .upsert(
+      { organization_id: poll.organization_id, umpire_id: umpireId },
+      { onConflict: "organization_id,umpire_id" },
+    );
 }
 
 /* ------------------------------------------------------------------ */
