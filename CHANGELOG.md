@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.10.0](https://github.com/sauerhosen/fluitplanner/compare/v1.9.0...v1.10.0) (2026-02-15)
+
+
+### Features
+
+* matches page date range filter and advanced import ([#49](https://github.com/sauerhosen/fluitplanner/issues/49)) ([884f44e](https://github.com/sauerhosen/fluitplanner/commit/884f44efcccb196624a90376de5bb2244a46f210))
+
 ## [1.9.0](https://github.com/sauerhosen/fluitplanner/compare/v1.8.0...v1.9.0) (2026-02-15)
 
 
