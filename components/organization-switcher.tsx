@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { Building2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
@@ -24,7 +23,6 @@ type Props = {
 
 export function OrganizationSwitcher({ currentSlug }: Props) {
   const t = useTranslations("organization");
-  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [orgs, setOrgs] = useState<UserOrganization[]>([]);
 
@@ -41,7 +39,7 @@ export function OrganizationSwitcher({ currentSlug }: Props) {
     if (slug === currentSlug) return;
     startTransition(async () => {
       await switchOrganization(slug);
-      router.refresh();
+      window.location.reload();
     });
   }
 
