@@ -56,6 +56,38 @@ export async function updateSession(request: NextRequest) {
   if (resolution.type === "root") {
     // Set on request headers so server components can read via headers()
     request.headers.set("x-is-root-domain", "true");
+
+    // Still resolve tenant for root domain users so dashboard/actions work
+    // Root domain users need a tenant context for data-scoped queries
+    if (user) {
+      let slug = request.cookies.get("x-tenant")?.value ?? null;
+      if (!slug) {
+        const resolvedSlug = await resolveSlugFromMembership(
+          supabase,
+          user.sub,
+        );
+        if (resolvedSlug) {
+          slug = resolvedSlug;
+          supabaseResponse.cookies.set("x-tenant", resolvedSlug, {
+            path: "/",
+            httpOnly: true,
+            sameSite: "lax",
+            secure: process.env.NODE_ENV === "production",
+          });
+        }
+      }
+      if (slug) {
+        const { data: org } = await supabase
+          .from("organizations")
+          .select("id, is_active")
+          .eq("slug", slug)
+          .single();
+        if (org?.is_active) {
+          request.headers.set("x-organization-id", org.id);
+          request.headers.set("x-organization-slug", slug);
+        }
+      }
+    }
   } else {
     let slug: string | null = null;
 
