@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.11.0](https://github.com/sauerhosen/fluitplanner/compare/v1.10.0...v1.11.0) (2026-02-15)
+
+
+### Features
+
+* add date range filter to polls detail screen ([#51](https://github.com/sauerhosen/fluitplanner/issues/51)) ([2bbeda9](https://github.com/sauerhosen/fluitplanner/commit/2bbeda9d9c22754950ca6cf5cff2407e51ac439f))
+
 ## [1.10.0](https://github.com/sauerhosen/fluitplanner/compare/v1.9.0...v1.10.0) (2026-02-15)
 
 
