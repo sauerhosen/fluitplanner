@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.1](https://github.com/sauerhosen/fluitplanner/compare/v2.0.0...v2.0.1) (2026-02-15)
+
+
+### Bug Fixes
+
+* resolve tenant context for root domain users ([#55](https://github.com/sauerhosen/fluitplanner/issues/55)) ([f60c673](https://github.com/sauerhosen/fluitplanner/commit/f60c673733b12e84143f74fcbca293009da30474))
+
 ## [2.0.0](https://github.com/sauerhosen/fluitplanner/compare/v1.11.0...v2.0.0) (2026-02-15)
 
 
