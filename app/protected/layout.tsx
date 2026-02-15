@@ -6,13 +6,17 @@ import Link from "next/link";
 import appIcon from "@/app/icon.png";
 import { Suspense } from "react";
 import { getTranslations } from "next-intl/server";
+import { isRootDomain } from "@/lib/tenant";
 
 export default async function ProtectedLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const t = await getTranslations("nav");
+  const [t, isRoot] = await Promise.all([
+    getTranslations("nav"),
+    isRootDomain(),
+  ]);
 
   return (
     <main className="min-h-screen flex flex-col items-center">
@@ -37,6 +41,14 @@ export default async function ProtectedLayout({
                 <Link href="/protected/umpires" className="hover:underline">
                   {t("umpires")}
                 </Link>
+                {isRoot && (
+                  <Link
+                    href="/protected/organizations"
+                    className="hover:underline hidden sm:inline"
+                  >
+                    {t("organizations")}
+                  </Link>
+                )}
                 <Link
                   href="/protected/settings"
                   className="hover:underline hidden sm:inline"

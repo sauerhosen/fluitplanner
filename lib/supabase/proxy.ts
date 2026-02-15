@@ -94,12 +94,36 @@ export async function updateSession(request: NextRequest) {
     }
   }
 
+  // Organization membership check
+  const orgId = supabaseResponse.headers.get("x-organization-id");
+  if (user && orgId) {
+    const { data: membership } = await supabase
+      .from("organization_members")
+      .select("id")
+      .eq("organization_id", orgId)
+      .eq("user_id", user.sub)
+      .single();
+
+    if (
+      !membership &&
+      !request.nextUrl.pathname.startsWith("/auth") &&
+      !request.nextUrl.pathname.startsWith("/poll") &&
+      !request.nextUrl.pathname.startsWith("/no-access") &&
+      request.nextUrl.pathname !== "/"
+    ) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/no-access";
+      return NextResponse.redirect(url);
+    }
+  }
+
   if (
     request.nextUrl.pathname !== "/" &&
     !user &&
     !request.nextUrl.pathname.startsWith("/login") &&
     !request.nextUrl.pathname.startsWith("/auth") &&
     !request.nextUrl.pathname.startsWith("/poll") &&
+    !request.nextUrl.pathname.startsWith("/no-access") &&
     !request.nextUrl.pathname.startsWith("/privacy")
   ) {
     // no user, potentially respond by redirecting the user to the login page

@@ -19,6 +19,7 @@
     "polls": "Polls",
     "umpires": "Umpires",
     "settings": "Settings",
+    "organizations": "Organizations",
     "privacy": "Privacy"
   },
   "auth": {
@@ -339,6 +340,31 @@
     "changesTitle": "Changes to this policy",
     "changesText": "We may update this privacy policy from time to time. Changes will be published on this page. We encourage you to review this page periodically.",
     "contactText": "For privacy-related questions, contact us at:"
+  },
+  "admin": {
+    "organizations": "Organizations",
+    "createOrganization": "Create Organization",
+    "editOrganization": "Edit Organization",
+    "name": "Name",
+    "slug": "Slug",
+    "slugHelp": "Used as subdomain (e.g. hic.fluiten.org)",
+    "active": "Active",
+    "inactive": "Inactive",
+    "disable": "Disable",
+    "enable": "Enable",
+    "noOrganizations": "No organizations yet. Create one to get started.",
+    "invitePlanner": "Invite Planner",
+    "email": "Email address",
+    "save": "Save",
+    "cancel": "Cancel",
+    "users": "Users",
+    "confirmDisable": "Are you sure you want to disable this organization?"
+  },
+  "noAccess": {
+    "title": "No Access",
+    "description": "You don't have access to this organization. Contact the organization admin if you believe this is a mistake.",
+    "goHome": "Go Home",
+    "signIn": "Sign In with Different Account"
   },
   "email": {
     "verificationSubject": "Your Fluitplanner verification code",

@@ -19,6 +19,7 @@
     "polls": "Peilingen",
     "umpires": "Scheidsrechters",
     "settings": "Instellingen",
+    "organizations": "Organisaties",
     "privacy": "Privacy"
   },
   "auth": {
@@ -339,6 +340,31 @@
     "changesTitle": "Wijzigingen in dit beleid",
     "changesText": "We kunnen dit privacybeleid van tijd tot tijd bijwerken. Wijzigingen worden op deze pagina gepubliceerd. We raden je aan deze pagina regelmatig te bekijken.",
     "contactText": "Voor privacygerelateerde vragen kun je contact opnemen via:"
+  },
+  "admin": {
+    "organizations": "Organisaties",
+    "createOrganization": "Organisatie aanmaken",
+    "editOrganization": "Organisatie bewerken",
+    "name": "Naam",
+    "slug": "Slug",
+    "slugHelp": "Gebruikt als subdomein (bijv. hic.fluiten.org)",
+    "active": "Actief",
+    "inactive": "Inactief",
+    "disable": "Uitschakelen",
+    "enable": "Inschakelen",
+    "noOrganizations": "Nog geen organisaties. Maak er een aan om te beginnen.",
+    "invitePlanner": "Planner uitnodigen",
+    "email": "E-mailadres",
+    "save": "Opslaan",
+    "cancel": "Annuleren",
+    "users": "Gebruikers",
+    "confirmDisable": "Weet je zeker dat je deze organisatie wilt uitschakelen?"
+  },
+  "noAccess": {
+    "title": "Geen toegang",
+    "description": "Je hebt geen toegang tot deze organisatie. Neem contact op met de organisatiebeheerder als je denkt dat dit een fout is.",
+    "goHome": "Naar Home",
+    "signIn": "Inloggen met ander account"
   },
   "email": {
     "verificationSubject": "Je Fluitplanner verificatiecode",
