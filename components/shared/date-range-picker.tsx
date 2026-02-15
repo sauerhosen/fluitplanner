@@ -27,7 +27,7 @@ type Props = {
 };
 
 export function DateRangePicker({ value, onChange }: Props) {
-  const t = useTranslations("matches");
+  const t = useTranslations("common");
   const format = useFormatter();
   const [open, setOpen] = useState(false);
 
