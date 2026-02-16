@@ -109,8 +109,9 @@ export async function getMatches(
   } else if (filters?.pollId) {
     const { data: pmRows, error: pmError } = await supabase
       .from("poll_matches")
-      .select("match_id")
-      .eq("poll_id", filters.pollId);
+      .select("match_id, polls!inner(organization_id)")
+      .eq("poll_id", filters.pollId)
+      .eq("polls.organization_id", tenantId);
     if (pmError) throw new Error(pmError.message);
     pollIncludeIds = (pmRows ?? []).map(
       (r: { match_id: string }) => r.match_id,
