@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.4.0](https://github.com/sauerhosen/fluitplanner/compare/v2.3.0...v2.4.0) (2026-02-16)
+
+
+### Features
+
+* Add poll management actions to match selection toolbar ([#64](https://github.com/sauerhosen/fluitplanner/issues/64)) ([185143b](https://github.com/sauerhosen/fluitplanner/commit/185143bb10b10fb6e4ba10ec5e8a4df2d7c4bb2c))
+
 ## [2.3.0](https://github.com/sauerhosen/fluitplanner/compare/v2.2.0...v2.3.0) (2026-02-16)
 
 
