@@ -39,9 +39,13 @@ export function useSelection<T>(items: T[], getId: (item: T) => string) {
       const next = new Set(prev);
       const allSelected = groupIds.every((id) => next.has(id));
       if (allSelected) {
-        groupIds.forEach((id) => { next.delete(id); });
+        groupIds.forEach((id) => {
+          next.delete(id);
+        });
       } else {
-        groupIds.forEach((id) => { next.add(id); });
+        groupIds.forEach((id) => {
+          next.add(id);
+        });
       }
       return next;
     });
