@@ -556,6 +556,8 @@ export async function addMatchesToPoll(
   matchIds: string[],
 ): Promise<void> {
   if (matchIds.length === 0) throw new Error("No matches provided");
+  if (matchIds.length > 500)
+    throw new Error("Cannot add more than 500 matches at once");
 
   const { supabase } = await requireAuth();
   const tenantId = await requireTenantId();

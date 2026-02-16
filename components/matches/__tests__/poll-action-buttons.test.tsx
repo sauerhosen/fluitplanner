@@ -282,10 +282,10 @@ describe("PollActionButtons", () => {
       });
 
       await user.click(screen.getByText("Remove from poll"));
-      // Click the confirm button in the dialog (has same text as trigger)
-      const buttons = screen.getAllByText("Remove from poll");
-      // The last one is the confirmation action button
-      await user.click(buttons[buttons.length - 1]);
+      const dialog = screen.getByRole("alertdialog");
+      await user.click(
+        within(dialog).getByRole("button", { name: "Remove from poll" }),
+      );
 
       await waitFor(() => {
         expect(mockRemoveMatchesFromPolls).toHaveBeenCalledWith(["m1"], false);
@@ -299,12 +299,14 @@ describe("PollActionButtons", () => {
       renderButtons({ selectedIds: new Set(["m1"]) });
 
       await user.click(screen.getByText("Remove from poll"));
+      const dialog = screen.getByRole("alertdialog");
       await user.click(
         screen.getByLabelText("Keep polls with no remaining matches"),
       );
 
-      const buttons = screen.getAllByText("Remove from poll");
-      await user.click(buttons[buttons.length - 1]);
+      await user.click(
+        within(dialog).getByRole("button", { name: "Remove from poll" }),
+      );
 
       await waitFor(() => {
         expect(mockRemoveMatchesFromPolls).toHaveBeenCalledWith(["m1"], true);
@@ -317,8 +319,10 @@ describe("PollActionButtons", () => {
       renderButtons({ selectedIds: new Set(["m1"]) });
 
       await user.click(screen.getByText("Remove from poll"));
-      const buttons = screen.getAllByText("Remove from poll");
-      await user.click(buttons[buttons.length - 1]);
+      const dialog = screen.getByRole("alertdialog");
+      await user.click(
+        within(dialog).getByRole("button", { name: "Remove from poll" }),
+      );
 
       await waitFor(() => {
         expect(toast.error).toHaveBeenCalledWith(
