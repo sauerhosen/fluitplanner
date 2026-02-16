@@ -130,11 +130,7 @@ export async function getMatches(
     query = query.in("id", pollIncludeIds);
   }
   if (pollExcludeIds && pollExcludeIds.length > 0) {
-    query = query.not(
-      "id",
-      "in",
-      `(${pollExcludeIds.map((id) => `"${id}"`).join(",")})`,
-    );
+    query = query.not("id", "in", `(${pollExcludeIds.join(",")})`);
   }
 
   if (filters?.dateFrom) {
@@ -166,8 +162,9 @@ export async function getMatches(
   if (matchIds.length > 0) {
     const { data: pmRows, error: pmError } = await supabase
       .from("poll_matches")
-      .select("match_id, polls(id, title)")
-      .in("match_id", matchIds);
+      .select("match_id, polls!inner(id, title)")
+      .in("match_id", matchIds)
+      .eq("polls.organization_id", tenantId);
     if (pmError) throw new Error(pmError.message);
 
     for (const pm of pmRows ?? []) {
