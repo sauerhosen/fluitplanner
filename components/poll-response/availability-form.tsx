@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { SlotRow } from "@/components/poll-response/slot-row";
+import { StickyDirtyBar } from "@/components/poll-response/sticky-dirty-bar";
 import { submitResponses } from "@/lib/actions/public-polls";
 import { useTranslations, useFormatter } from "next-intl";
 import type { PollSlot, AvailabilityResponse } from "@/lib/types/domain";
@@ -63,18 +63,46 @@ export function AvailabilityForm({
   const [responses, setResponses] =
     useState<Record<string, ResponseValue | null>>(initialState);
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [showSavedInBar, setShowSavedInBar] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [savedBaseline, setSavedBaseline] =
+    useState<Record<string, ResponseValue | null>>(initialState);
+  const savedTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  const isDirty = useMemo(() => {
+    return Object.keys(responses).some(
+      (key) => responses[key] !== savedBaseline[key],
+    );
+  }, [responses, savedBaseline]);
+
+  // Warn on page leave with unsaved changes
+  useEffect(() => {
+    function handleBeforeUnload(e: BeforeUnloadEvent) {
+      if (isDirty) {
+        e.preventDefault();
+      }
+    }
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [isDirty]);
+
+  // Clean up saved timer on unmount
+  useEffect(() => {
+    return () => {
+      if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+    };
+  }, []);
 
   function handleChange(slotId: string, value: ResponseValue | null) {
     setResponses((prev) => ({ ...prev, [slotId]: value }));
-    setSaved(false);
+    setError(null);
   }
 
   const hasSelections = Object.values(responses).some((v) => v !== null);
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleSubmit(e?: React.FormEvent) {
+    if (e) e.preventDefault();
     setSaving(true);
     setError(null);
     const toSubmit = Object.entries(responses)
@@ -82,7 +110,10 @@ export function AvailabilityForm({
       .map(([slotId, response]) => ({ slotId, response: response! }));
     try {
       await submitResponses(pollId, umpireId, umpireName, toSubmit);
-      setSaved(true);
+      setSavedBaseline({ ...responses });
+      setShowSavedInBar(true);
+      if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+      savedTimerRef.current = setTimeout(() => setShowSavedInBar(false), 2000);
     } catch (err) {
       setError(err instanceof Error ? err.message : t("failedToSave"));
     } finally {
@@ -91,6 +122,7 @@ export function AvailabilityForm({
   }
 
   const dateGroups = groupSlotsByDate(slots);
+  const barVisible = isDirty || saving || showSavedInBar || error !== null;
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -112,25 +144,15 @@ export function AvailabilityForm({
           </div>
         </div>
       ))}
-      {error && (
-        <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
-      )}
-      {saved && (
-        <p className="text-sm text-green-600 dark:text-green-400">
-          {t("savedSuccess")}
-        </p>
-      )}
-      <Button
-        type="submit"
+      <div className="h-16" />
+      <StickyDirtyBar
+        visible={barVisible}
+        saving={saving}
+        saved={showSavedInBar && !isDirty}
+        error={error}
         disabled={!hasSelections || saving}
-        className="w-full"
-      >
-        {saving
-          ? t("savingButton")
-          : saved
-            ? t("saveChangesButton")
-            : t("saveAvailabilityButton")}
-      </Button>
+        onSave={() => handleSubmit()}
+      />
     </form>
   );
 }

@@ -236,6 +236,8 @@
     "saveChangesButton": "Save changes",
     "saveAvailabilityButton": "Save availability",
     "failedToSave": "Failed to save. Please try again.",
+    "unsavedChanges": "You have unsaved changes",
+    "retryButton": "Retry",
     "yes": "Yes",
     "ifNeedBe": "If need be",
     "no": "No",

@@ -49,7 +49,7 @@ describe("AvailabilityForm", () => {
 
   it("save button is disabled when no selections made", () => {
     render(<AvailabilityForm {...defaultProps} />);
-    const saveBtn = screen.getByRole("button", { name: "Save availability" });
+    const saveBtn = screen.getByRole("button", { name: "Save changes" });
     expect(saveBtn).toBeDisabled();
   });
 
@@ -57,7 +57,7 @@ describe("AvailabilityForm", () => {
     render(<AvailabilityForm {...defaultProps} />);
     const yesButtons = screen.getAllByRole("button", { name: "Yes" });
     fireEvent.click(yesButtons[0]);
-    const saveBtn = screen.getByRole("button", { name: "Save availability" });
+    const saveBtn = screen.getByRole("button", { name: "Save changes" });
     expect(saveBtn).not.toBeDisabled();
   });
 
@@ -74,7 +74,7 @@ describe("AvailabilityForm", () => {
     fireEvent.click(noButtons[1]);
 
     // Submit
-    fireEvent.click(screen.getByRole("button", { name: "Save availability" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
 
     await waitFor(() => {
       expect(mockSubmit).toHaveBeenCalledWith("poll-1", "ump-1", "Jan", [
@@ -89,7 +89,7 @@ describe("AvailabilityForm", () => {
     render(<AvailabilityForm {...defaultProps} />);
 
     fireEvent.click(screen.getAllByRole("button", { name: "Yes" })[0]);
-    fireEvent.click(screen.getByRole("button", { name: "Save availability" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
 
     await waitFor(() => {
       expect(
@@ -103,14 +103,14 @@ describe("AvailabilityForm", () => {
     render(<AvailabilityForm {...defaultProps} />);
 
     fireEvent.click(screen.getAllByRole("button", { name: "Yes" })[0]);
-    fireEvent.click(screen.getByRole("button", { name: "Save availability" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
 
     await waitFor(() => {
       expect(screen.getByText("Poll is closed")).toBeTruthy();
     });
   });
 
-  it("pre-fills from existing responses", () => {
+  it("pre-fills from existing responses and bar is hidden when clean", () => {
     const existing: AvailabilityResponse[] = [
       {
         id: "resp-1",
@@ -126,20 +126,77 @@ describe("AvailabilityForm", () => {
 
     render(<AvailabilityForm {...defaultProps} existingResponses={existing} />);
 
-    // Save button should be enabled since there's a pre-filled response
-    const saveBtn = screen.getByRole("button", { name: /save/i });
-    expect(saveBtn).not.toBeDisabled();
+    // Bar should be hidden when responses match baseline
+    const bar = screen.getByRole("status");
+    expect(bar.className).toContain("translate-y-full");
   });
 
-  it("changes button text to Save changes after successful save", async () => {
-    mockSubmit.mockResolvedValue(undefined);
+  it("bar is hidden initially with no selections", () => {
+    render(<AvailabilityForm {...defaultProps} />);
+    const bar = screen.getByRole("status");
+    expect(bar.className).toContain("translate-y-full");
+  });
+
+  it("bar appears when user makes a change", () => {
+    render(<AvailabilityForm {...defaultProps} />);
+    const bar = screen.getByRole("status");
+    expect(bar.className).toContain("translate-y-full");
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Yes" })[0]);
+
+    expect(bar.className).not.toContain("translate-y-full");
+    expect(screen.getByText("You have unsaved changes")).toBeTruthy();
+  });
+
+  it("bar hides when user reverts change back to baseline", () => {
+    render(<AvailabilityForm {...defaultProps} />);
+    const yesButtons = screen.getAllByRole("button", { name: "Yes" });
+
+    // Select (dirty)
+    fireEvent.click(yesButtons[0]);
+    const bar = screen.getByRole("status");
+    expect(bar.className).not.toContain("translate-y-full");
+
+    // Deselect (back to baseline)
+    fireEvent.click(yesButtons[0]);
+    expect(bar.className).toContain("translate-y-full");
+  });
+
+  it("returning user: bar appears when changing an existing response", () => {
+    const existing: AvailabilityResponse[] = [
+      {
+        id: "resp-1",
+        poll_id: "poll-1",
+        slot_id: "slot-1",
+        participant_name: "Jan",
+        response: "yes",
+        umpire_id: "ump-1",
+        created_at: "2026-02-01T00:00:00Z",
+        updated_at: "2026-02-01T00:00:00Z",
+      },
+    ];
+
+    render(<AvailabilityForm {...defaultProps} existingResponses={existing} />);
+    const bar = screen.getByRole("status");
+
+    // Initially clean
+    expect(bar.className).toContain("translate-y-full");
+
+    // Change slot-1 from yes to no
+    fireEvent.click(screen.getAllByRole("button", { name: "No" })[0]);
+    expect(bar.className).not.toContain("translate-y-full");
+  });
+
+  it("shows retry button when save fails", async () => {
+    mockSubmit.mockRejectedValue(new Error("Poll is closed"));
     render(<AvailabilityForm {...defaultProps} />);
 
     fireEvent.click(screen.getAllByRole("button", { name: "Yes" })[0]);
-    fireEvent.click(screen.getByRole("button", { name: "Save availability" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: "Save changes" })).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Retry" })).toBeTruthy();
+      expect(screen.getByText("Poll is closed")).toBeTruthy();
     });
   });
 });
