@@ -45,6 +45,26 @@ async function requireAuth() {
 }
 
 /* ------------------------------------------------------------------ */
+/*  getPollOptions (lightweight, for filter dropdowns)                  */
+/* ------------------------------------------------------------------ */
+
+export async function getPollOptions(): Promise<
+  { id: string; title: string | null }[]
+> {
+  const { supabase } = await requireAuth();
+  const tenantId = await requireTenantId();
+
+  const { data, error } = await supabase
+    .from("polls")
+    .select("id, title")
+    .eq("organization_id", tenantId)
+    .order("created_at", { ascending: false });
+
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
+/* ------------------------------------------------------------------ */
 /*  getPolls                                                           */
 /* ------------------------------------------------------------------ */
 

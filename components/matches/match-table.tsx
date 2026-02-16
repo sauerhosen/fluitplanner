@@ -1,8 +1,9 @@
 "use client";
 
 import { Fragment, useState } from "react";
-import type { Match } from "@/lib/types/domain";
+import type { MatchWithPoll } from "@/lib/actions/matches";
 import { deleteMatch, deleteMatches } from "@/lib/actions/matches";
+import Link from "next/link";
 import {
   Table,
   TableBody,
@@ -39,8 +40,8 @@ const LEVEL_VARIANTS: Record<number, "default" | "secondary" | "destructive"> =
     3: "destructive",
   };
 
-function groupByDate(matches: Match[]): Map<string, Match[]> {
-  const groups = new Map<string, Match[]>();
+function groupByDate(matches: MatchWithPoll[]): Map<string, MatchWithPoll[]> {
+  const groups = new Map<string, MatchWithPoll[]>();
   for (const match of matches) {
     const group = groups.get(match.date) ?? [];
     group.push(match);
@@ -54,8 +55,8 @@ export function MatchTable({
   onEdit,
   onDeleted,
 }: {
-  matches: Match[];
-  onEdit: (match: Match) => void;
+  matches: MatchWithPoll[];
+  onEdit: (match: MatchWithPoll) => void;
   onDeleted: () => void;
 }) {
   const [collapsedDates, setCollapsedDates] = useState<Set<string>>(new Set());
@@ -160,6 +161,7 @@ export function MatchTable({
               <TableHead>{t("fieldHeader")}</TableHead>
               <TableHead>{t("venueHeader")}</TableHead>
               <TableHead className="w-32">{t("levelHeader")}</TableHead>
+              <TableHead>{t("pollHeader")}</TableHead>
               <TableHead className="w-12"></TableHead>
             </TableRow>
           </TableHeader>
@@ -193,7 +195,7 @@ export function MatchTable({
                         })}
                       />
                     </TableCell>
-                    <TableCell colSpan={7} className="font-semibold">
+                    <TableCell colSpan={8} className="font-semibold">
                       <div className="flex items-center gap-2">
                         {collapsed ? (
                           <ChevronRight className="h-4 w-4" />
@@ -235,6 +237,18 @@ export function MatchTable({
                             {match.required_level} —{" "}
                             {LEVEL_LABELS[match.required_level]}
                           </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {match.poll ? (
+                            <Link
+                              href={`/protected/polls/${match.poll.id}`}
+                              className="text-sm text-primary hover:underline"
+                            >
+                              {match.poll.title ?? match.poll.id}
+                            </Link>
+                          ) : (
+                            "—"
+                          )}
                         </TableCell>
                         <TableCell>
                           <DropdownMenu>
