@@ -21,12 +21,14 @@ interface SelectionToolbarProps {
   selectedCount: number;
   onDelete: () => Promise<void>;
   onClearSelection: () => void;
+  children?: React.ReactNode;
 }
 
 export function SelectionToolbar({
   selectedCount,
   onDelete,
   onClearSelection,
+  children,
 }: SelectionToolbarProps) {
   const [deleting, setDeleting] = useState(false);
   const tCommon = useTranslations("common");
@@ -71,6 +73,7 @@ export function SelectionToolbar({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      {children}
       <Button variant="ghost" size="sm" onClick={onClearSelection}>
         {tCommon("clearSelection")}
       </Button>

@@ -127,4 +127,17 @@ describe("SelectionToolbar", () => {
     await user.click(screen.getByText("Clear selection"));
     expect(onClearSelection).toHaveBeenCalledOnce();
   });
+
+  it("renders children when provided", () => {
+    render(
+      <SelectionToolbar
+        selectedCount={2}
+        onDelete={vi.fn()}
+        onClearSelection={vi.fn()}
+      >
+        <button>Extra Action</button>
+      </SelectionToolbar>,
+    );
+    expect(screen.getByText("Extra Action")).toBeInTheDocument();
+  });
 });

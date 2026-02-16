@@ -7,6 +7,7 @@ import { getMatches } from "@/lib/actions/matches";
 import { UploadZone } from "./upload-zone";
 import { MatchTable } from "./match-table";
 import { MatchFormDialog } from "./match-form";
+import { PollActionButtons } from "./poll-action-buttons";
 import { DateRangePicker } from "@/components/shared/date-range-picker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,7 +30,7 @@ export function MatchesPageClient({
 }: {
   initialMatches: MatchWithPoll[];
   managedTeams: ManagedTeam[];
-  polls: { id: string; title: string | null }[];
+  polls: { id: string; title: string | null; status: string }[];
 }) {
   const [matches, setMatches] = useState(initialMatches);
   const [search, setSearch] = useState("");
@@ -156,6 +157,15 @@ export function MatchesPageClient({
         matches={matches}
         onEdit={(match) => setEditingMatch(match)}
         onDeleted={refreshMatches}
+        toolbarActions={(selectedIds, clearSelection) => (
+          <PollActionButtons
+            selectedIds={selectedIds}
+            matches={matches}
+            polls={polls}
+            onComplete={refreshMatches}
+            clearSelection={clearSelection}
+          />
+        )}
       />
 
       {/* Add dialog */}

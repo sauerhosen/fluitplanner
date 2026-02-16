@@ -49,14 +49,14 @@ async function requireAuth() {
 /* ------------------------------------------------------------------ */
 
 export async function getPollOptions(): Promise<
-  { id: string; title: string | null }[]
+  { id: string; title: string | null; status: string }[]
 > {
   const { supabase } = await requireAuth();
   const tenantId = await requireTenantId();
 
   const { data, error } = await supabase
     .from("polls")
-    .select("id, title")
+    .select("id, title, status")
     .eq("organization_id", tenantId)
     .order("created_at", { ascending: false });
 
@@ -544,5 +544,118 @@ export async function deletePolls(pollIds: string[]): Promise<void> {
     .in("id", pollIds)
     .eq("organization_id", tenantId);
   if (error) throw new Error(error.message);
+  revalidatePath("/protected/polls");
+}
+
+/* ------------------------------------------------------------------ */
+/*  addMatchesToPoll                                                    */
+/* ------------------------------------------------------------------ */
+
+export async function addMatchesToPoll(
+  pollId: string,
+  matchIds: string[],
+): Promise<void> {
+  if (matchIds.length === 0) throw new Error("No matches provided");
+
+  const { supabase } = await requireAuth();
+  const tenantId = await requireTenantId();
+
+  // Verify poll belongs to tenant and is open
+  const { data: poll, error: pollErr } = await supabase
+    .from("polls")
+    .select("id, status")
+    .eq("id", pollId)
+    .eq("organization_id", tenantId)
+    .single();
+
+  if (pollErr || !poll) throw new Error("Poll not found");
+  if (poll.status !== "open") throw new Error("Poll is closed");
+
+  // Get existing match IDs for this poll
+  const { data: existingPm, error: pmErr } = await supabase
+    .from("poll_matches")
+    .select("match_id")
+    .eq("poll_id", pollId);
+
+  if (pmErr) throw new Error(pmErr.message);
+
+  const existingMatchIds = (existingPm ?? []).map(
+    (pm: { match_id: string }) => pm.match_id,
+  );
+  const mergedIds = [...new Set([...existingMatchIds, ...matchIds])];
+
+  // Delegate to updatePollMatches which handles slot recalculation
+  await updatePollMatches(pollId, mergedIds);
+
+  revalidatePath("/protected/matches");
+}
+
+/* ------------------------------------------------------------------ */
+/*  removeMatchesFromPolls                                              */
+/* ------------------------------------------------------------------ */
+
+export async function removeMatchesFromPolls(
+  matchIds: string[],
+  keepEmptyPolls = false,
+): Promise<void> {
+  if (matchIds.length === 0) return;
+  if (matchIds.length > 500)
+    throw new Error("Cannot remove more than 500 items at once");
+
+  const { supabase } = await requireAuth();
+  const tenantId = await requireTenantId();
+
+  // Find which polls are affected (scoped to tenant)
+  const { data: affectedPm, error: pmErr } = await supabase
+    .from("poll_matches")
+    .select("poll_id, match_id, polls!inner(organization_id)")
+    .in("match_id", matchIds)
+    .eq("polls.organization_id", tenantId);
+
+  if (pmErr) throw new Error(pmErr.message);
+  if (!affectedPm || affectedPm.length === 0) return;
+
+  // Group removed match IDs by poll
+  const matchIdsToRemove = new Set(matchIds);
+  const affectedPollIds = [
+    ...new Set(affectedPm.map((pm: { poll_id: string }) => pm.poll_id)),
+  ];
+
+  for (const pollId of affectedPollIds) {
+    // Get all current matches for this poll
+    const { data: currentPm, error: curErr } = await supabase
+      .from("poll_matches")
+      .select("match_id")
+      .eq("poll_id", pollId);
+
+    if (curErr) throw new Error(curErr.message);
+
+    const remainingIds = (currentPm ?? [])
+      .map((pm: { match_id: string }) => pm.match_id)
+      .filter((id: string) => !matchIdsToRemove.has(id));
+
+    if (remainingIds.length === 0 && !keepEmptyPolls) {
+      // Delete poll entirely (cascade removes poll_matches, poll_slots)
+      await deletePoll(pollId);
+    } else if (remainingIds.length === 0 && keepEmptyPolls) {
+      // Remove all poll_matches and poll_slots but keep the poll
+      const { error: delPmErr } = await supabase
+        .from("poll_matches")
+        .delete()
+        .eq("poll_id", pollId);
+      if (delPmErr) throw new Error(delPmErr.message);
+
+      const { error: delSlotErr } = await supabase
+        .from("poll_slots")
+        .delete()
+        .eq("poll_id", pollId);
+      if (delSlotErr) throw new Error(delSlotErr.message);
+    } else {
+      // Update poll with remaining matches (recalculates slots)
+      await updatePollMatches(pollId, remainingIds);
+    }
+  }
+
+  revalidatePath("/protected/matches");
   revalidatePath("/protected/polls");
 }
