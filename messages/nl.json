@@ -236,6 +236,8 @@
     "saveChangesButton": "Wijzigingen opslaan",
     "saveAvailabilityButton": "Beschikbaarheid opslaan",
     "failedToSave": "Opslaan mislukt. Probeer het opnieuw.",
+    "unsavedChanges": "Je hebt niet-opgeslagen wijzigingen",
+    "retryButton": "Opnieuw proberen",
     "yes": "Ja",
     "ifNeedBe": "Indien nodig",
     "no": "Nee",
