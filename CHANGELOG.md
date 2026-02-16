@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.3.0](https://github.com/sauerhosen/fluitplanner/compare/v2.2.0...v2.3.0) (2026-02-16)
+
+
+### Features
+
+* Add poll filtering and display to matches page ([#62](https://github.com/sauerhosen/fluitplanner/issues/62)) ([70b3057](https://github.com/sauerhosen/fluitplanner/commit/70b3057aa1f3c8ee426d2a6cc9a00f29b1d09e81))
+
 ## [2.2.0](https://github.com/sauerhosen/fluitplanner/compare/v2.1.0...v2.2.0) (2026-02-16)
 
 
