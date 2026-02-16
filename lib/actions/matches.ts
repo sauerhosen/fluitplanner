@@ -80,17 +80,61 @@ export type MatchFilters = {
   requiredLevel?: 1 | 2 | 3;
   dateFrom?: string;
   dateTo?: string;
+  pollId?: string; // specific poll ID, or "none" for matches not in any poll
 };
 
-export async function getMatches(filters?: MatchFilters): Promise<Match[]> {
+export type MatchWithPoll = Match & {
+  poll: { id: string; title: string | null } | null;
+};
+
+export async function getMatches(
+  filters?: MatchFilters,
+): Promise<MatchWithPoll[]> {
   const supabase = await createClient();
   const tenantId = await requireTenantId();
+
+  // Pre-fetch match IDs for poll filter
+  let pollIncludeIds: string[] | undefined;
+  let pollExcludeIds: string[] | undefined;
+
+  if (filters?.pollId === "none") {
+    const { data: pmRows, error: pmError } = await supabase
+      .from("poll_matches")
+      .select("match_id, polls!inner(organization_id)")
+      .eq("polls.organization_id", tenantId);
+    if (pmError) throw new Error(pmError.message);
+    pollExcludeIds = (pmRows ?? []).map(
+      (r: { match_id: string }) => r.match_id,
+    );
+  } else if (filters?.pollId) {
+    const { data: pmRows, error: pmError } = await supabase
+      .from("poll_matches")
+      .select("match_id")
+      .eq("poll_id", filters.pollId);
+    if (pmError) throw new Error(pmError.message);
+    pollIncludeIds = (pmRows ?? []).map(
+      (r: { match_id: string }) => r.match_id,
+    );
+    if (pollIncludeIds.length === 0) return [];
+  }
+
   let query = supabase
     .from("matches")
     .select("*")
     .eq("organization_id", tenantId)
     .order("date", { ascending: true })
     .order("start_time", { ascending: true });
+
+  if (pollIncludeIds) {
+    query = query.in("id", pollIncludeIds);
+  }
+  if (pollExcludeIds && pollExcludeIds.length > 0) {
+    query = query.not(
+      "id",
+      "in",
+      `(${pollExcludeIds.map((id) => `"${id}"`).join(",")})`,
+    );
+  }
 
   if (filters?.dateFrom) {
     query = query.gte("date", filters.dateFrom);
@@ -112,7 +156,34 @@ export async function getMatches(filters?: MatchFilters): Promise<Match[]> {
 
   const { data, error } = await query;
   if (error) throw new Error(error.message);
-  return data ?? [];
+  const matches: Match[] = data ?? [];
+
+  // Fetch poll info for returned matches
+  const matchIds = matches.map((m) => m.id);
+  const pollMap = new Map<string, { id: string; title: string | null }>();
+
+  if (matchIds.length > 0) {
+    const { data: pmRows, error: pmError } = await supabase
+      .from("poll_matches")
+      .select("match_id, polls(id, title)")
+      .in("match_id", matchIds);
+    if (pmError) throw new Error(pmError.message);
+
+    for (const pm of pmRows ?? []) {
+      const poll = pm.polls as unknown as {
+        id: string;
+        title: string | null;
+      } | null;
+      if (poll && !pollMap.has(pm.match_id)) {
+        pollMap.set(pm.match_id, { id: poll.id, title: poll.title });
+      }
+    }
+  }
+
+  return matches.map((m) => ({
+    ...m,
+    poll: pollMap.get(m.id) ?? null,
+  }));
 }
 
 export async function createMatch(

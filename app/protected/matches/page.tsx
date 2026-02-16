@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { TableSkeleton } from "@/components/skeletons";
 import { getMatches } from "@/lib/actions/matches";
 import { getManagedTeams } from "@/lib/actions/managed-teams";
+import { getPollOptions } from "@/lib/actions/polls";
 import { MatchesPageClient } from "@/components/matches/matches-page-client";
 import { getTranslations } from "next-intl/server";
 import { addMonths, format } from "date-fns";
@@ -10,16 +11,21 @@ async function MatchesLoader() {
   const today = new Date();
   const twoMonthsAhead = addMonths(today, 2);
 
-  const [matches, managedTeams] = await Promise.all([
+  const [matches, managedTeams, polls] = await Promise.all([
     getMatches({
       dateFrom: format(today, "yyyy-MM-dd"),
       dateTo: format(twoMonthsAhead, "yyyy-MM-dd"),
     }),
     getManagedTeams(),
+    getPollOptions(),
   ]);
 
   return (
-    <MatchesPageClient initialMatches={matches} managedTeams={managedTeams} />
+    <MatchesPageClient
+      initialMatches={matches}
+      managedTeams={managedTeams}
+      polls={polls}
+    />
   );
 }
 

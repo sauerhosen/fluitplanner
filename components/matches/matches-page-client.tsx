@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useCallback, useMemo } from "react";
-import type { Match, ManagedTeam } from "@/lib/types/domain";
-import type { MatchFilters } from "@/lib/actions/matches";
+import type { ManagedTeam } from "@/lib/types/domain";
+import type { MatchFilters, MatchWithPoll } from "@/lib/actions/matches";
 import { getMatches } from "@/lib/actions/matches";
 import { UploadZone } from "./upload-zone";
 import { MatchTable } from "./match-table";
@@ -25,14 +25,17 @@ import type { DateRange } from "react-day-picker";
 export function MatchesPageClient({
   initialMatches,
   managedTeams,
+  polls,
 }: {
-  initialMatches: Match[];
+  initialMatches: MatchWithPoll[];
   managedTeams: ManagedTeam[];
+  polls: { id: string; title: string | null }[];
 }) {
   const [matches, setMatches] = useState(initialMatches);
   const [search, setSearch] = useState("");
   const [levelFilter, setLevelFilter] = useState<string>("all");
-  const [editingMatch, setEditingMatch] = useState<Match | null>(null);
+  const [pollFilter, setPollFilter] = useState<string>("all");
+  const [editingMatch, setEditingMatch] = useState<MatchWithPoll | null>(null);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const t = useTranslations("matches");
 
@@ -48,6 +51,7 @@ export function MatchesPageClient({
     s: string,
     level: string,
     range: DateRange | undefined,
+    poll: string,
   ): MatchFilters {
     const filters: MatchFilters = {};
     if (range?.from) {
@@ -56,29 +60,46 @@ export function MatchesPageClient({
     }
     if (s) filters.search = s;
     if (level !== "all") filters.requiredLevel = Number(level) as 1 | 2 | 3;
+    if (poll !== "all") filters.pollId = poll;
     return filters;
   }
 
   const refreshMatches = useCallback(async () => {
-    const data = await getMatches(buildFilters(search, levelFilter, dateRange));
+    const data = await getMatches(
+      buildFilters(search, levelFilter, dateRange, pollFilter),
+    );
     setMatches(data);
-  }, [search, levelFilter, dateRange]);
+  }, [search, levelFilter, dateRange, pollFilter]);
 
   async function handleSearchChange(value: string) {
     setSearch(value);
-    const data = await getMatches(buildFilters(value, levelFilter, dateRange));
+    const data = await getMatches(
+      buildFilters(value, levelFilter, dateRange, pollFilter),
+    );
     setMatches(data);
   }
 
   async function handleLevelChange(value: string) {
     setLevelFilter(value);
-    const data = await getMatches(buildFilters(search, value, dateRange));
+    const data = await getMatches(
+      buildFilters(search, value, dateRange, pollFilter),
+    );
     setMatches(data);
   }
 
   async function handleDateRangeChange(range: DateRange | undefined) {
     setDateRange(range);
-    const data = await getMatches(buildFilters(search, levelFilter, range));
+    const data = await getMatches(
+      buildFilters(search, levelFilter, range, pollFilter),
+    );
+    setMatches(data);
+  }
+
+  async function handlePollChange(value: string) {
+    setPollFilter(value);
+    const data = await getMatches(
+      buildFilters(search, levelFilter, dateRange, value),
+    );
     setMatches(data);
   }
 
@@ -106,6 +127,20 @@ export function MatchesPageClient({
             <SelectItem value="1">{t("levelAny")}</SelectItem>
             <SelectItem value="2">{t("levelExperienced")}</SelectItem>
             <SelectItem value="3">{t("levelTop")}</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={pollFilter} onValueChange={handlePollChange}>
+          <SelectTrigger className="w-48">
+            <SelectValue placeholder={t("filterByPoll")} />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">{t("allPolls")}</SelectItem>
+            <SelectItem value="none">{t("noPoll")}</SelectItem>
+            {polls.map((poll) => (
+              <SelectItem key={poll.id} value={poll.id}>
+                {poll.title ?? poll.id}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
         <DateRangePicker value={dateRange} onChange={handleDateRangeChange} />
