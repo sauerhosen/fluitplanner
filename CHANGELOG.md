@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.0](https://github.com/sauerhosen/fluitplanner/compare/v2.0.1...v2.1.0) (2026-02-16)
+
+
+### Features
+
+* Add sticky dirty bar for unsaved changes in availability form ([#58](https://github.com/sauerhosen/fluitplanner/issues/58)) ([bfeb648](https://github.com/sauerhosen/fluitplanner/commit/bfeb648c9dacff909722f5df79684058fcfc05e9))
+
 ## [2.0.1](https://github.com/sauerhosen/fluitplanner/compare/v2.0.0...v2.0.1) (2026-02-15)
 
 
