@@ -265,7 +265,9 @@
     "resendCodeCountdown": "Code opnieuw versturen ({seconds}s)",
     "resendCode": "Code opnieuw versturen",
     "couldNotResendCode": "Code opnieuw versturen mislukt. Probeer het later opnieuw.",
-    "useDifferentEmail": "Ander e-mailadres gebruiken"
+    "useDifferentEmail": "Ander e-mailadres gebruiken",
+    "pastDatesToggle": "{count, plural, one {# afgelopen datum} other {# afgelopen datums}}",
+    "allDatesInPast": "Alle datums in deze peiling zijn verstreken. Je eerdere reacties staan hieronder."
   },
   "umpires": {
     "pageTitle": "Scheidsrechters",

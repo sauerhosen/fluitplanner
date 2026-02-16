@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { useTranslations, useFormatter } from "next-intl";
 
 type ResponseValue = "yes" | "if_need_be" | "no";
@@ -10,6 +11,7 @@ type Props = {
   endTime: string;
   value: ResponseValue | null;
   onChange: (value: ResponseValue | null) => void;
+  disabled?: boolean;
 };
 
 type ButtonConfig = {
@@ -37,7 +39,13 @@ const BUTTONS: ButtonConfig[] = [
   },
 ];
 
-export function SlotRow({ startTime, endTime, value, onChange }: Props) {
+export function SlotRow({
+  startTime,
+  endTime,
+  value,
+  onChange,
+  disabled,
+}: Props) {
   const t = useTranslations("pollResponse");
   const format = useFormatter();
 
@@ -50,7 +58,12 @@ export function SlotRow({ startTime, endTime, value, onChange }: Props) {
   }
 
   return (
-    <div className="flex items-center justify-between border-b py-3 last:border-b-0">
+    <div
+      className={cn(
+        "flex items-center justify-between border-b py-3 last:border-b-0",
+        disabled && "opacity-60",
+      )}
+    >
       <div className="text-sm">
         {formatTime(startTime)} &ndash; {formatTime(endTime)}
       </div>
@@ -63,6 +76,7 @@ export function SlotRow({ startTime, endTime, value, onChange }: Props) {
             size="sm"
             className={value === btn.value ? btn.activeClass : ""}
             onClick={() => onChange(value === btn.value ? null : btn.value)}
+            disabled={disabled}
           >
             {t(btn.labelKey)}
           </Button>

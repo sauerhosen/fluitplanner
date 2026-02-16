@@ -48,8 +48,8 @@ const slots: PollSlot[] = [
   {
     id: "slot-1",
     poll_id: "poll-1",
-    start_time: "2026-02-15T10:00:00Z",
-    end_time: "2026-02-15T12:00:00Z",
+    start_time: "2030-02-15T10:00:00Z",
+    end_time: "2030-02-15T12:00:00Z",
   },
 ];
 
