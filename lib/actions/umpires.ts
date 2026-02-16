@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireTenantId } from "@/lib/tenant";
 import type { Umpire } from "@/lib/types/domain";
@@ -147,4 +148,21 @@ export async function deleteUmpire(id: string): Promise<void> {
     .eq("umpire_id", id);
 
   if (error) throw new Error(error.message);
+}
+
+export async function deleteUmpires(ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+  if (ids.length > 500)
+    throw new Error("Cannot delete more than 500 items at once");
+  const { supabase } = await requireAuth();
+  const tenantId = await requireTenantId();
+
+  const { error } = await supabase
+    .from("organization_umpires")
+    .delete()
+    .eq("organization_id", tenantId)
+    .in("umpire_id", ids);
+
+  if (error) throw new Error(error.message);
+  revalidatePath("/protected/umpires");
 }

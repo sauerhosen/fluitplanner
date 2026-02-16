@@ -510,3 +510,19 @@ export async function deletePoll(pollId: string): Promise<void> {
   if (error) throw new Error(error.message);
   revalidatePath("/protected/polls");
 }
+
+export async function deletePolls(pollIds: string[]): Promise<void> {
+  if (pollIds.length === 0) return;
+  if (pollIds.length > 500)
+    throw new Error("Cannot delete more than 500 items at once");
+  const { supabase } = await requireAuth();
+  const tenantId = await requireTenantId();
+
+  const { error } = await supabase
+    .from("polls")
+    .delete()
+    .in("id", pollIds)
+    .eq("organization_id", tenantId);
+  if (error) throw new Error(error.message);
+  revalidatePath("/protected/polls");
+}

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { Umpire } from "@/lib/types/domain";
-import { deleteUmpire } from "@/lib/actions/umpires";
+import { deleteUmpire, deleteUmpires } from "@/lib/actions/umpires";
 import {
   Table,
   TableBody,
@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,6 +22,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { MoreHorizontal, Pencil, Trash2, Check, X, Inbox } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { useSelection } from "@/hooks/use-selection";
+import { SelectionToolbar } from "@/components/shared/selection-toolbar";
 
 const LEVEL_LABEL_KEYS: Record<
   number,
@@ -50,6 +53,14 @@ export function UmpireTable({
   const t = useTranslations("umpires");
   const tCommon = useTranslations("common");
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const {
+    selectedIds,
+    toggleSelection,
+    toggleAll,
+    clearSelection,
+    allChecked,
+    someChecked,
+  } = useSelection(umpires, (u) => u.id);
 
   async function handleDelete(id: string) {
     setDeletingId(id);
@@ -59,6 +70,12 @@ export function UmpireTable({
     } finally {
       setDeletingId(null);
     }
+  }
+
+  async function handleBulkDelete() {
+    await deleteUmpires([...selectedIds]);
+    clearSelection();
+    onDeleted();
   }
 
   if (umpires.length === 0) {
@@ -71,62 +88,89 @@ export function UmpireTable({
   }
 
   return (
-    <div className="overflow-x-auto">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>{t("nameHeader")}</TableHead>
-            <TableHead>{t("emailHeader")}</TableHead>
-            <TableHead className="w-32">{t("levelHeader")}</TableHead>
-            <TableHead className="w-20">{t("verifiedHeader")}</TableHead>
-            <TableHead className="w-12"></TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {umpires.map((umpire) => (
-            <TableRow key={umpire.id}>
-              <TableCell className="font-medium">{umpire.name}</TableCell>
-              <TableCell>{umpire.email}</TableCell>
-              <TableCell>
-                <Badge variant={LEVEL_VARIANTS[umpire.level]}>
-                  {t(LEVEL_LABEL_KEYS[umpire.level])}
-                </Badge>
-              </TableCell>
-              <TableCell>
-                {umpire.auth_user_id ? (
-                  <Check className="h-4 w-4 text-green-600 dark:text-green-400" />
-                ) : (
-                  <X className="h-4 w-4 text-muted-foreground" />
-                )}
-              </TableCell>
-              <TableCell>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                      <MoreHorizontal className="h-4 w-4" />
-                      <span className="sr-only">{t("moreActions")}</span>
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => onEdit(umpire)}>
-                      <Pencil className="mr-2 h-4 w-4" />
-                      {t("edit")}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => handleDelete(umpire.id)}
-                      disabled={deletingId === umpire.id}
-                      className="text-destructive"
-                    >
-                      <Trash2 className="mr-2 h-4 w-4" />
-                      {tCommon("delete")}
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </TableCell>
+    <div className="flex flex-col gap-3">
+      <SelectionToolbar
+        selectedCount={selectedIds.size}
+        onDelete={handleBulkDelete}
+        onClearSelection={clearSelection}
+      />
+      <div className="overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-10">
+                <Checkbox
+                  checked={
+                    allChecked ? true : someChecked ? "indeterminate" : false
+                  }
+                  onCheckedChange={toggleAll}
+                  aria-label={tCommon("selectAll")}
+                />
+              </TableHead>
+              <TableHead>{t("nameHeader")}</TableHead>
+              <TableHead>{t("emailHeader")}</TableHead>
+              <TableHead className="w-32">{t("levelHeader")}</TableHead>
+              <TableHead className="w-20">{t("verifiedHeader")}</TableHead>
+              <TableHead className="w-12"></TableHead>
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+          </TableHeader>
+          <TableBody>
+            {umpires.map((umpire) => (
+              <TableRow
+                key={umpire.id}
+                data-selected={selectedIds.has(umpire.id) || undefined}
+                className="data-[selected]:bg-primary/5"
+              >
+                <TableCell>
+                  <Checkbox
+                    checked={selectedIds.has(umpire.id)}
+                    onCheckedChange={() => toggleSelection(umpire.id)}
+                    aria-label={umpire.name}
+                  />
+                </TableCell>
+                <TableCell className="font-medium">{umpire.name}</TableCell>
+                <TableCell>{umpire.email}</TableCell>
+                <TableCell>
+                  <Badge variant={LEVEL_VARIANTS[umpire.level]}>
+                    {t(LEVEL_LABEL_KEYS[umpire.level])}
+                  </Badge>
+                </TableCell>
+                <TableCell>
+                  {umpire.auth_user_id ? (
+                    <Check className="h-4 w-4 text-green-600 dark:text-green-400" />
+                  ) : (
+                    <X className="h-4 w-4 text-muted-foreground" />
+                  )}
+                </TableCell>
+                <TableCell>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <MoreHorizontal className="h-4 w-4" />
+                        <span className="sr-only">{t("moreActions")}</span>
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => onEdit(umpire)}>
+                        <Pencil className="mr-2 h-4 w-4" />
+                        {t("edit")}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => handleDelete(umpire.id)}
+                        disabled={deletingId === umpire.id}
+                        className="text-destructive"
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        {tCommon("delete")}
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
     </div>
   );
 }

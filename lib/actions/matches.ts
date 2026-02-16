@@ -1,9 +1,19 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireTenantId } from "@/lib/tenant";
 import type { Match } from "@/lib/types/domain";
 import type { ParsedMatch } from "@/lib/parsers/types";
+
+async function requireAuth() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+  return { supabase, user };
+}
 
 export async function upsertMatches(
   matches: ParsedMatch[],
@@ -164,4 +174,20 @@ export async function deleteMatch(id: string): Promise<void> {
     .eq("id", id)
     .eq("organization_id", tenantId);
   if (error) throw new Error(error.message);
+}
+
+export async function deleteMatches(ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+  if (ids.length > 500)
+    throw new Error("Cannot delete more than 500 items at once");
+  const { supabase } = await requireAuth();
+  const tenantId = await requireTenantId();
+
+  const { error } = await supabase
+    .from("matches")
+    .delete()
+    .in("id", ids)
+    .eq("organization_id", tenantId);
+  if (error) throw new Error(error.message);
+  revalidatePath("/protected/matches");
 }
