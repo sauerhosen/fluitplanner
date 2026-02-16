@@ -27,7 +27,7 @@ import { getMatches } from "@/lib/actions/matches";
 const mockGetMatches = vi.mocked(getMatches);
 
 const managedTeams: ManagedTeam[] = [];
-const polls: { id: string; title: string | null }[] = [];
+const polls: { id: string; title: string | null; status: string }[] = [];
 
 describe("MatchesPageClient", () => {
   beforeEach(() => {
@@ -67,7 +67,7 @@ describe("MatchesPageClient", () => {
       <MatchesPageClient
         initialMatches={[]}
         managedTeams={managedTeams}
-        polls={[{ id: "poll-1", title: "Weekend Feb 15" }]}
+        polls={[{ id: "poll-1", title: "Weekend Feb 15", status: "open" }]}
       />,
     );
     expect(screen.getByText("All polls")).toBeInTheDocument();

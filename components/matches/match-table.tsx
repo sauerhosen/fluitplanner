@@ -54,10 +54,15 @@ export function MatchTable({
   matches,
   onEdit,
   onDeleted,
+  toolbarActions,
 }: {
   matches: MatchWithPoll[];
   onEdit: (match: MatchWithPoll) => void;
   onDeleted: () => void;
+  toolbarActions?: (
+    selectedIds: Set<string>,
+    clearSelection: () => void,
+  ) => React.ReactNode;
 }) {
   const [collapsedDates, setCollapsedDates] = useState<Set<string>>(new Set());
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -141,7 +146,9 @@ export function MatchTable({
         selectedCount={selectedIds.size}
         onDelete={handleBulkDelete}
         onClearSelection={clearSelection}
-      />
+      >
+        {toolbarActions?.(selectedIds, clearSelection)}
+      </SelectionToolbar>
       <div className="overflow-x-auto">
         <Table>
           <TableHeader>

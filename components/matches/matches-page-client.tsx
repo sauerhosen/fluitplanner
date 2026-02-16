@@ -4,9 +4,11 @@ import { useState, useCallback, useMemo } from "react";
 import type { ManagedTeam } from "@/lib/types/domain";
 import type { MatchFilters, MatchWithPoll } from "@/lib/actions/matches";
 import { getMatches } from "@/lib/actions/matches";
+import { getPollOptions } from "@/lib/actions/polls";
 import { UploadZone } from "./upload-zone";
 import { MatchTable } from "./match-table";
 import { MatchFormDialog } from "./match-form";
+import { PollActionButtons } from "./poll-action-buttons";
 import { DateRangePicker } from "@/components/shared/date-range-picker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,9 +31,10 @@ export function MatchesPageClient({
 }: {
   initialMatches: MatchWithPoll[];
   managedTeams: ManagedTeam[];
-  polls: { id: string; title: string | null }[];
+  polls: { id: string; title: string | null; status: string }[];
 }) {
   const [matches, setMatches] = useState(initialMatches);
+  const [currentPolls, setCurrentPolls] = useState(polls);
   const [search, setSearch] = useState("");
   const [levelFilter, setLevelFilter] = useState<string>("all");
   const [pollFilter, setPollFilter] = useState<string>("all");
@@ -65,10 +68,12 @@ export function MatchesPageClient({
   }
 
   const refreshMatches = useCallback(async () => {
-    const data = await getMatches(
-      buildFilters(search, levelFilter, dateRange, pollFilter),
-    );
-    setMatches(data);
+    const [matchData, pollData] = await Promise.all([
+      getMatches(buildFilters(search, levelFilter, dateRange, pollFilter)),
+      getPollOptions(),
+    ]);
+    setMatches(matchData);
+    setCurrentPolls(pollData);
   }, [search, levelFilter, dateRange, pollFilter]);
 
   async function handleSearchChange(value: string) {
@@ -136,7 +141,7 @@ export function MatchesPageClient({
           <SelectContent>
             <SelectItem value="all">{t("allPolls")}</SelectItem>
             <SelectItem value="none">{t("noPoll")}</SelectItem>
-            {polls.map((poll) => (
+            {currentPolls.map((poll) => (
               <SelectItem key={poll.id} value={poll.id}>
                 {poll.title ?? poll.id}
               </SelectItem>
@@ -156,6 +161,15 @@ export function MatchesPageClient({
         matches={matches}
         onEdit={(match) => setEditingMatch(match)}
         onDeleted={refreshMatches}
+        toolbarActions={(selectedIds, clearSelection) => (
+          <PollActionButtons
+            selectedIds={selectedIds}
+            matches={matches}
+            polls={currentPolls}
+            onComplete={refreshMatches}
+            clearSelection={clearSelection}
+          />
+        )}
       />
 
       {/* Add dialog */}
