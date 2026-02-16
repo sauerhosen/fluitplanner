@@ -112,6 +112,7 @@ export function AvailabilityForm({
       await submitResponses(pollId, umpireId, umpireName, toSubmit);
       setSavedBaseline({ ...responses });
       setShowSavedInBar(true);
+      if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
       savedTimerRef.current = setTimeout(() => setShowSavedInBar(false), 2000);
     } catch (err) {
       setError(err instanceof Error ? err.message : t("failedToSave"));
@@ -143,7 +144,7 @@ export function AvailabilityForm({
           </div>
         </div>
       ))}
-      {barVisible && <div className="h-16" />}
+      <div className="h-16" />
       <StickyDirtyBar
         visible={barVisible}
         saving={saving}
