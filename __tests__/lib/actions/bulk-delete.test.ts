@@ -73,11 +73,27 @@ describe("deleteMatches", () => {
     mockEq.mockReturnValue({ error: { message: "DB error" } });
     await expect(deleteMatches(["m1"])).rejects.toThrow("DB error");
   });
+
+  it("rejects more than 500 items", async () => {
+    const ids = Array.from({ length: 501 }, (_, i) => `m${i}`);
+    await expect(deleteMatches(ids)).rejects.toThrow(
+      "Cannot delete more than 500 items at once",
+    );
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
 });
 
 describe("deletePolls", () => {
   it("returns early for empty array", async () => {
     await deletePolls([]);
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+
+  it("rejects more than 500 items", async () => {
+    const ids = Array.from({ length: 501 }, (_, i) => `p${i}`);
+    await expect(deletePolls(ids)).rejects.toThrow(
+      "Cannot delete more than 500 items at once",
+    );
     expect(mockFrom).not.toHaveBeenCalled();
   });
 
@@ -112,5 +128,13 @@ describe("deleteUmpires", () => {
   it("calls revalidatePath", async () => {
     await deleteUmpires(["u1"]);
     expect(revalidatePath).toHaveBeenCalledWith("/protected/umpires");
+  });
+
+  it("rejects more than 500 items", async () => {
+    const ids = Array.from({ length: 501 }, (_, i) => `u${i}`);
+    await expect(deleteUmpires(ids)).rejects.toThrow(
+      "Cannot delete more than 500 items at once",
+    );
+    expect(mockFrom).not.toHaveBeenCalled();
   });
 });

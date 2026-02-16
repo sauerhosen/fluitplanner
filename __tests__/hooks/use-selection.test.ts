@@ -103,4 +103,45 @@ describe("useSelection", () => {
     expect(result.current.allChecked).toBe(false);
     expect(result.current.someChecked).toBe(false);
   });
+
+  it("cleans up stale selections when items change", () => {
+    const { result, rerender } = renderHook(
+      ({ items }) => useSelection(items, getId),
+      { initialProps: { items } },
+    );
+
+    act(() => result.current.toggleAll());
+    expect(result.current.selectedIds.size).toBe(3);
+
+    // Remove item "b" from the list
+    rerender({ items: [items[0], items[2]] });
+    expect(result.current.selectedIds.size).toBe(2);
+    expect(result.current.selectedIds.has("b")).toBe(false);
+    expect(result.current.selectedIds.has("a")).toBe(true);
+    expect(result.current.selectedIds.has("c")).toBe(true);
+  });
+
+  it("toggleAll checks by ID membership not count", () => {
+    const { result, rerender } = renderHook(
+      ({ items }) => useSelection(items, getId),
+      { initialProps: { items } },
+    );
+
+    // Select a and b (2 items)
+    act(() => result.current.toggleSelection("a"));
+    act(() => result.current.toggleSelection("b"));
+
+    // Change items to only have 2 items — count matches but IDs differ
+    const newItems = [
+      { id: "b", name: "Beta" },
+      { id: "c", name: "Charlie" },
+    ];
+    rerender({ items: newItems });
+
+    // After cleanup: only "b" remains selected (1 of 2), so toggleAll should select all
+    act(() => result.current.toggleAll());
+    expect(result.current.selectedIds.size).toBe(2);
+    expect(result.current.selectedIds.has("b")).toBe(true);
+    expect(result.current.selectedIds.has("c")).toBe(true);
+  });
 });

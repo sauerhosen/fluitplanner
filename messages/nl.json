@@ -13,6 +13,7 @@
     "presetPastMonth": "Afgelopen maand",
     "presetAll": "Alles",
     "selectAll": "Alles selecteren",
+    "selectDateGroup": "Alles selecteren voor {date}",
     "selectedCount": "{count, plural, one {# item} other {# items}} geselecteerd",
     "bulkDeleteConfirm": "{count, plural, one {# item} other {# items}} verwijderen? Dit kan niet ongedaan worden gemaakt.",
     "deleteSelected": "Selectie verwijderen",

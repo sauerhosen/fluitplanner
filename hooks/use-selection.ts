@@ -1,9 +1,19 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 
 export function useSelection<T>(items: T[], getId: (item: T) => string) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  // Clean up stale selections when items change
+  useEffect(() => {
+    const validIds = new Set(items.map(getId));
+    setSelectedIds((prev) => {
+      const cleaned = new Set([...prev].filter((id) => validIds.has(id)));
+      if (cleaned.size !== prev.size) return cleaned;
+      return prev;
+    });
+  }, [items, getId]);
 
   const toggleSelection = useCallback((id: string) => {
     setSelectedIds((prev) => {
@@ -16,8 +26,11 @@ export function useSelection<T>(items: T[], getId: (item: T) => string) {
 
   const toggleAll = useCallback(() => {
     setSelectedIds((prev) => {
-      if (prev.size === items.length) return new Set();
-      return new Set(items.map(getId));
+      const allIds = items.map(getId);
+      const allSelected =
+        allIds.length > 0 && allIds.every((id) => prev.has(id));
+      if (allSelected) return new Set();
+      return new Set(allIds);
     });
   }, [items, getId]);
 

@@ -188,7 +188,9 @@ export function MatchTable({
                               : false
                         }
                         onCheckedChange={() => toggleGroup(dateMatchIds)}
-                        aria-label={tCommon("selectAll")}
+                        aria-label={tCommon("selectDateGroup", {
+                          date: formatDate(date),
+                        })}
                       />
                     </TableCell>
                     <TableCell colSpan={7} className="font-semibold">

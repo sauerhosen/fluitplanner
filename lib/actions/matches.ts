@@ -178,6 +178,8 @@ export async function deleteMatch(id: string): Promise<void> {
 
 export async function deleteMatches(ids: string[]): Promise<void> {
   if (ids.length === 0) return;
+  if (ids.length > 500)
+    throw new Error("Cannot delete more than 500 items at once");
   const { supabase } = await requireAuth();
   const tenantId = await requireTenantId();
 
