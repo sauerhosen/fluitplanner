@@ -1,4 +1,5 @@
 import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { render } from "@/__tests__/helpers/render";
 import { describe, it, expect, vi } from "vitest";
 import { PollTable } from "@/components/polls/poll-table";
@@ -6,6 +7,7 @@ import type { PollWithMeta } from "@/lib/actions/polls";
 
 vi.mock("@/lib/actions/polls", () => ({
   deletePoll: vi.fn(),
+  deletePolls: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -57,5 +59,46 @@ describe("PollTable", () => {
   it("shows empty state when no polls", () => {
     render(<PollTable polls={[]} onDeleted={vi.fn()} />);
     expect(screen.getByText(/no polls yet/i)).toBeInTheDocument();
+  });
+
+  it("renders checkboxes for each row", () => {
+    render(<PollTable polls={mockPolls} onDeleted={vi.fn()} />);
+    const checkboxes = screen.getAllByRole("checkbox");
+    // 1 header checkbox + 2 row checkboxes
+    expect(checkboxes).toHaveLength(3);
+  });
+
+  it("clicking a row checkbox toggles selection", async () => {
+    const user = userEvent.setup();
+    render(<PollTable polls={mockPolls} onDeleted={vi.fn()} />);
+
+    const checkbox = screen.getByRole("checkbox", { name: "Weekend Feb 15" });
+    await user.click(checkbox);
+
+    expect(screen.getByText("1 item selected")).toBeInTheDocument();
+  });
+
+  it("header checkbox selects all", async () => {
+    const user = userEvent.setup();
+    render(<PollTable polls={mockPolls} onDeleted={vi.fn()} />);
+
+    const headerCheckbox = screen.getByRole("checkbox", {
+      name: "Select all",
+    });
+    await user.click(headerCheckbox);
+
+    expect(screen.getByText("2 items selected")).toBeInTheDocument();
+  });
+
+  it("selection toolbar appears when items are selected", async () => {
+    const user = userEvent.setup();
+    render(<PollTable polls={mockPolls} onDeleted={vi.fn()} />);
+
+    expect(screen.queryByText("Delete selected")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("checkbox", { name: "Weekend Feb 15" }));
+
+    expect(screen.getByText("Delete selected")).toBeInTheDocument();
+    expect(screen.getByText("Clear selection")).toBeInTheDocument();
   });
 });

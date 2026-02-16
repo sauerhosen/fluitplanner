@@ -22,6 +22,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { MoreHorizontal, Pencil, Trash2, Check, X, Inbox } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { useSelection } from "@/hooks/use-selection";
+import { SelectionToolbar } from "@/components/shared/selection-toolbar";
 
 const LEVEL_LABEL_KEYS: Record<
   number,
@@ -51,8 +53,14 @@ export function UmpireTable({
   const t = useTranslations("umpires");
   const tCommon = useTranslations("common");
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const {
+    selectedIds,
+    toggleSelection,
+    toggleAll,
+    clearSelection,
+    allChecked,
+    someChecked,
+  } = useSelection(umpires, (u) => u.id);
 
   async function handleDelete(id: string) {
     setDeletingId(id);
@@ -64,34 +72,10 @@ export function UmpireTable({
     }
   }
 
-  function toggleSelection(id: string) {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }
-
-  function toggleAll() {
-    if (selectedIds.size === umpires.length) {
-      setSelectedIds(new Set());
-    } else {
-      setSelectedIds(new Set(umpires.map((u) => u.id)));
-    }
-  }
-
   async function handleBulkDelete() {
-    if (!confirm(tCommon("bulkDeleteConfirm", { count: selectedIds.size })))
-      return;
-    setBulkDeleting(true);
-    try {
-      await deleteUmpires([...selectedIds]);
-      setSelectedIds(new Set());
-      onDeleted();
-    } finally {
-      setBulkDeleting(false);
-    }
+    await deleteUmpires([...selectedIds]);
+    clearSelection();
+    onDeleted();
   }
 
   if (umpires.length === 0) {
@@ -103,34 +87,13 @@ export function UmpireTable({
     );
   }
 
-  const allChecked = selectedIds.size === umpires.length;
-  const someChecked = selectedIds.size > 0 && !allChecked;
-
   return (
     <div className="flex flex-col gap-3">
-      {selectedIds.size > 0 && (
-        <div className="flex items-center gap-3 rounded-md border bg-muted/50 px-4 py-2">
-          <span className="text-sm font-medium">
-            {tCommon("selectedCount", { count: selectedIds.size })}
-          </span>
-          <Button
-            variant="destructive"
-            size="sm"
-            onClick={handleBulkDelete}
-            disabled={bulkDeleting}
-          >
-            <Trash2 className="mr-2 h-4 w-4" />
-            {bulkDeleting ? tCommon("deleting") : tCommon("deleteSelected")}
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setSelectedIds(new Set())}
-          >
-            {tCommon("clearSelection")}
-          </Button>
-        </div>
-      )}
+      <SelectionToolbar
+        selectedCount={selectedIds.size}
+        onDelete={handleBulkDelete}
+        onClearSelection={clearSelection}
+      />
       <div className="overflow-x-auto">
         <Table>
           <TableHeader>

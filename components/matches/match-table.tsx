@@ -29,6 +29,8 @@ import {
   Inbox,
 } from "lucide-react";
 import { useTranslations, useFormatter } from "next-intl";
+import { useSelection } from "@/hooks/use-selection";
+import { SelectionToolbar } from "@/components/shared/selection-toolbar";
 
 const LEVEL_VARIANTS: Record<number, "default" | "secondary" | "destructive"> =
   {
@@ -58,12 +60,21 @@ export function MatchTable({
 }) {
   const [collapsedDates, setCollapsedDates] = useState<Set<string>>(new Set());
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [bulkDeleting, setBulkDeleting] = useState(false);
   const groups = groupByDate(matches);
   const t = useTranslations("matches");
   const tCommon = useTranslations("common");
   const format = useFormatter();
+  const {
+    selectedIds,
+    toggleSelection,
+    toggleAll,
+    toggleGroup,
+    clearSelection,
+    allChecked,
+    someChecked,
+    isGroupAllSelected,
+    isGroupSomeSelected,
+  } = useSelection(matches, (m) => m.id);
 
   function formatTime(startTime: string | null): string {
     if (!startTime) return "—";
@@ -108,34 +119,10 @@ export function MatchTable({
     }
   }
 
-  function toggleSelection(id: string) {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }
-
-  function toggleAll() {
-    if (selectedIds.size === matches.length) {
-      setSelectedIds(new Set());
-    } else {
-      setSelectedIds(new Set(matches.map((m) => m.id)));
-    }
-  }
-
   async function handleBulkDelete() {
-    if (!confirm(tCommon("bulkDeleteConfirm", { count: selectedIds.size })))
-      return;
-    setBulkDeleting(true);
-    try {
-      await deleteMatches([...selectedIds]);
-      setSelectedIds(new Set());
-      onDeleted();
-    } finally {
-      setBulkDeleting(false);
-    }
+    await deleteMatches([...selectedIds]);
+    clearSelection();
+    onDeleted();
   }
 
   if (matches.length === 0) {
@@ -147,34 +134,13 @@ export function MatchTable({
     );
   }
 
-  const allChecked = selectedIds.size === matches.length;
-  const someChecked = selectedIds.size > 0 && !allChecked;
-
   return (
     <div className="flex flex-col gap-3">
-      {selectedIds.size > 0 && (
-        <div className="flex items-center gap-3 rounded-md border bg-muted/50 px-4 py-2">
-          <span className="text-sm font-medium">
-            {tCommon("selectedCount", { count: selectedIds.size })}
-          </span>
-          <Button
-            variant="destructive"
-            size="sm"
-            onClick={handleBulkDelete}
-            disabled={bulkDeleting}
-          >
-            <Trash2 className="mr-2 h-4 w-4" />
-            {bulkDeleting ? tCommon("deleting") : tCommon("deleteSelected")}
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setSelectedIds(new Set())}
-          >
-            {tCommon("clearSelection")}
-          </Button>
-        </div>
-      )}
+      <SelectionToolbar
+        selectedCount={selectedIds.size}
+        onDelete={handleBulkDelete}
+        onClearSelection={clearSelection}
+      />
       <div className="overflow-x-auto">
         <Table>
           <TableHeader>
@@ -201,25 +167,6 @@ export function MatchTable({
             {[...groups.entries()].map(([date, dateMatches]) => {
               const collapsed = collapsedDates.has(date);
               const dateMatchIds = dateMatches.map((m) => m.id);
-              const allDateSelected = dateMatchIds.every((id) =>
-                selectedIds.has(id),
-              );
-              const someDateSelected =
-                dateMatchIds.some((id) => selectedIds.has(id)) &&
-                !allDateSelected;
-
-              function toggleDateSelection(e: React.MouseEvent) {
-                e.stopPropagation();
-                setSelectedIds((prev) => {
-                  const next = new Set(prev);
-                  if (allDateSelected) {
-                    dateMatchIds.forEach((id) => next.delete(id));
-                  } else {
-                    dateMatchIds.forEach((id) => next.add(id));
-                  }
-                  return next;
-                });
-              }
 
               return (
                 <Fragment key={date}>
@@ -229,18 +176,18 @@ export function MatchTable({
                     onClick={() => toggleDate(date)}
                   >
                     <TableCell
-                      onClick={toggleDateSelection}
-                      className="cursor-pointer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="cursor-default"
                     >
                       <Checkbox
                         checked={
-                          allDateSelected
+                          isGroupAllSelected(dateMatchIds)
                             ? true
-                            : someDateSelected
+                            : isGroupSomeSelected(dateMatchIds)
                               ? "indeterminate"
                               : false
                         }
-                        onCheckedChange={() => {}}
+                        onCheckedChange={() => toggleGroup(dateMatchIds)}
                         aria-label={tCommon("selectAll")}
                       />
                     </TableCell>

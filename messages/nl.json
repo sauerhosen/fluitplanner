@@ -17,7 +17,8 @@
     "bulkDeleteConfirm": "{count, plural, one {# item} other {# items}} verwijderen? Dit kan niet ongedaan worden gemaakt.",
     "deleteSelected": "Selectie verwijderen",
     "deleting": "Verwijderen\u2026",
-    "clearSelection": "Selectie wissen"
+    "clearSelection": "Selectie wissen",
+    "bulkDeleteError": "Items verwijderen mislukt. Probeer het opnieuw."
   },
   "nav": {
     "dashboard": "Dashboard",

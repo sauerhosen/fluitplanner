@@ -17,7 +17,8 @@
     "bulkDeleteConfirm": "Delete {count, plural, one {# item} other {# items}}? This cannot be undone.",
     "deleteSelected": "Delete selected",
     "deleting": "Deleting\u2026",
-    "clearSelection": "Clear selection"
+    "clearSelection": "Clear selection",
+    "bulkDeleteError": "Failed to delete items. Please try again."
   },
   "nav": {
     "dashboard": "Dashboard",

@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireTenantId } from "@/lib/tenant";
 import type { Umpire } from "@/lib/types/domain";
@@ -161,4 +162,5 @@ export async function deleteUmpires(ids: string[]): Promise<void> {
     .in("umpire_id", ids);
 
   if (error) throw new Error(error.message);
+  revalidatePath("/protected/umpires");
 }

@@ -24,6 +24,8 @@ import {
 import { MoreHorizontal, Eye, Trash2, Inbox } from "lucide-react";
 import { SharePollButton } from "./share-poll-button";
 import { useTranslations, useFormatter } from "next-intl";
+import { useSelection } from "@/hooks/use-selection";
+import { SelectionToolbar } from "@/components/shared/selection-toolbar";
 
 export function PollTable({
   polls,
@@ -34,11 +36,17 @@ export function PollTable({
 }) {
   const router = useRouter();
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [bulkDeleting, setBulkDeleting] = useState(false);
   const t = useTranslations("polls");
   const tCommon = useTranslations("common");
   const format = useFormatter();
+  const {
+    selectedIds,
+    toggleSelection,
+    toggleAll,
+    clearSelection,
+    allChecked,
+    someChecked,
+  } = useSelection(polls, (p) => p.id);
 
   function formatDateRange(min: string | null, max: string | null): string {
     if (!min) return "\u2014";
@@ -62,34 +70,10 @@ export function PollTable({
     }
   }
 
-  function toggleSelection(id: string) {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }
-
-  function toggleAll() {
-    if (selectedIds.size === polls.length) {
-      setSelectedIds(new Set());
-    } else {
-      setSelectedIds(new Set(polls.map((p) => p.id)));
-    }
-  }
-
   async function handleBulkDelete() {
-    if (!confirm(tCommon("bulkDeleteConfirm", { count: selectedIds.size })))
-      return;
-    setBulkDeleting(true);
-    try {
-      await deletePolls([...selectedIds]);
-      setSelectedIds(new Set());
-      onDeleted();
-    } finally {
-      setBulkDeleting(false);
-    }
+    await deletePolls([...selectedIds]);
+    clearSelection();
+    onDeleted();
   }
 
   if (polls.length === 0) {
@@ -101,34 +85,13 @@ export function PollTable({
     );
   }
 
-  const allChecked = selectedIds.size === polls.length;
-  const someChecked = selectedIds.size > 0 && !allChecked;
-
   return (
     <div className="flex flex-col gap-3">
-      {selectedIds.size > 0 && (
-        <div className="flex items-center gap-3 rounded-md border bg-muted/50 px-4 py-2">
-          <span className="text-sm font-medium">
-            {tCommon("selectedCount", { count: selectedIds.size })}
-          </span>
-          <Button
-            variant="destructive"
-            size="sm"
-            onClick={handleBulkDelete}
-            disabled={bulkDeleting}
-          >
-            <Trash2 className="mr-2 h-4 w-4" />
-            {bulkDeleting ? tCommon("deleting") : tCommon("deleteSelected")}
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setSelectedIds(new Set())}
-          >
-            {tCommon("clearSelection")}
-          </Button>
-        </div>
-      )}
+      <SelectionToolbar
+        selectedCount={selectedIds.size}
+        onDelete={handleBulkDelete}
+        onClearSelection={clearSelection}
+      />
       <div className="overflow-x-auto">
         <Table>
           <TableHeader>
