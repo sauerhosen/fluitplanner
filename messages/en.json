@@ -265,7 +265,9 @@
     "resendCodeCountdown": "Resend code ({seconds}s)",
     "resendCode": "Resend code",
     "couldNotResendCode": "Could not resend code. Please try again later.",
-    "useDifferentEmail": "Use a different email"
+    "useDifferentEmail": "Use a different email",
+    "pastDatesToggle": "{count, plural, one {# past date} other {# past dates}}",
+    "allDatesInPast": "All dates in this poll have passed. Your previous responses are shown below."
   },
   "umpires": {
     "pageTitle": "Umpires",

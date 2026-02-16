@@ -5,8 +5,8 @@ import { SlotRow } from "@/components/poll-response/slot-row";
 
 describe("SlotRow", () => {
   const defaultProps = {
-    startTime: "2026-02-15T10:45:00Z",
-    endTime: "2026-02-15T12:45:00Z",
+    startTime: "2030-02-15T10:45:00Z",
+    endTime: "2030-02-15T12:45:00Z",
     value: null as "yes" | "if_need_be" | "no" | null,
     onChange: vi.fn(),
   };
