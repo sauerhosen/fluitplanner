@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.0](https://github.com/sauerhosen/fluitplanner/compare/v2.1.0...v2.2.0) (2026-02-16)
+
+
+### Features
+
+* hide past dates on umpire poll with collapsible read-only view ([#60](https://github.com/sauerhosen/fluitplanner/issues/60)) ([47412e5](https://github.com/sauerhosen/fluitplanner/commit/47412e5e7c86885042e74e64fa17a2fa1f657900))
+
 ## [2.1.0](https://github.com/sauerhosen/fluitplanner/compare/v2.0.1...v2.1.0) (2026-02-16)
 
 
