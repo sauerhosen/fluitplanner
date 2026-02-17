@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import { parseCSV } from "@/lib/parsers/csv";
 import { parsePaste } from "@/lib/parsers/paste";
 import { mapKNHBRows, extractHomeTeams } from "@/lib/parsers/knhb-mapper";
@@ -33,6 +33,7 @@ export function UploadZone({
   } | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [importMode, setImportMode] = useState<"quick" | "advanced">("quick");
+  const [fileRows, setFileRows] = useState<RawRow[] | null>(null);
   const [rawRows, setRawRows] = useState<RawRow[] | null>(null);
   const [allHomeTeams, setAllHomeTeams] = useState<string[]>([]);
   const [nonManagedSelected, setNonManagedSelected] = useState<string[]>([]);
@@ -42,35 +43,44 @@ export function UploadZone({
 
   const managedTeamNames = managedTeams.map((mt) => mt.name);
 
-  const processRows = useCallback(
-    (rows: RawRow[]) => {
-      if (importMode === "advanced") {
-        const teams = extractHomeTeams(rows);
-        setRawRows(rows);
-        setAllHomeTeams(teams);
-        setParseResult(null);
-        setImportResult(null);
-      } else {
-        const result = mapKNHBRows(rows, { managedTeams });
-        setParseResult(result);
-        setImportResult(null);
-      }
-    },
-    [managedTeams, importMode],
-  );
+  function applyMode(rows: RawRow[], mode: "quick" | "advanced") {
+    if (mode === "advanced") {
+      const teams = extractHomeTeams(rows);
+      setRawRows(rows);
+      setAllHomeTeams(teams);
+      setParseResult(null);
+      setImportResult(null);
+    } else {
+      const result = mapKNHBRows(rows, { managedTeams });
+      setParseResult(result);
+      setImportResult(null);
+      setRawRows(null);
+      setAllHomeTeams([]);
+    }
+  }
+
+  function handleModeChange(mode: "quick" | "advanced") {
+    setImportMode(mode);
+    if (fileRows) {
+      applyMode(fileRows, mode);
+    }
+  }
 
   async function handleFile(file: File) {
     try {
+      let rows: RawRow[];
       if (file.name.endsWith(".xlsx")) {
         const { parseExcel } = await import("@/lib/parsers/excel");
         const buffer = await file.arrayBuffer();
-        const rows = await parseExcel(buffer);
-        processRows(rows);
+        rows = await parseExcel(buffer);
       } else if (file.name.endsWith(".csv")) {
         const text = await file.text();
-        const rows = parseCSV(text);
-        processRows(rows);
+        rows = parseCSV(text);
+      } else {
+        return;
       }
+      setFileRows(rows);
+      applyMode(rows, importMode);
     } catch {
       toast.error(t("parseError"));
     }
@@ -92,7 +102,8 @@ export function UploadZone({
   function handlePaste() {
     if (!pasteText.trim()) return;
     const rows = parsePaste(pasteText);
-    processRows(rows);
+    setFileRows(rows);
+    applyMode(rows, importMode);
     setShowPaste(false);
     setPasteText("");
   }
@@ -110,6 +121,7 @@ export function UploadZone({
   }
 
   function handleTeamSelectorCancel() {
+    setFileRows(null);
     setRawRows(null);
     setAllHomeTeams([]);
   }
@@ -121,6 +133,7 @@ export function UploadZone({
       const result = await upsertMatches(parseResult.matches);
       setImportResult(result);
       setParseResult(null);
+      setFileRows(null);
 
       if (importMode === "advanced" && nonManagedSelected.length > 0) {
         setShowAddToManaged(true);
@@ -133,6 +146,7 @@ export function UploadZone({
   }
 
   function handleReset() {
+    setFileRows(null);
     setParseResult(null);
     setImportResult(null);
     setRawRows(null);
@@ -152,7 +166,7 @@ export function UploadZone({
       {/* Import mode toggle */}
       <RadioGroup
         value={importMode}
-        onValueChange={(v) => setImportMode(v as "quick" | "advanced")}
+        onValueChange={(v) => handleModeChange(v as "quick" | "advanced")}
         className="flex gap-4"
       >
         <label className="flex items-center gap-2 cursor-pointer">
