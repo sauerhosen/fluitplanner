@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.5.0](https://github.com/sauerhosen/fluitplanner/compare/v2.4.0...v2.5.0) (2026-02-17)
+
+
+### Features
+
+* Make match import zone collapsible with shadcn Collapsible ([#67](https://github.com/sauerhosen/fluitplanner/issues/67)) ([918992e](https://github.com/sauerhosen/fluitplanner/commit/918992e25687b4f7b497b45ee7a1bb2735daa6b8))
+
 ## [2.4.0](https://github.com/sauerhosen/fluitplanner/compare/v2.3.0...v2.4.0) (2026-02-16)
 
 
