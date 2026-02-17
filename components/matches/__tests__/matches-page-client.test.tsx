@@ -1,4 +1,5 @@
 import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { render } from "@/__tests__/helpers/render";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { MatchesPageClient } from "../matches-page-client";
@@ -71,5 +72,48 @@ describe("MatchesPageClient", () => {
       />,
     );
     expect(screen.getByText("All polls")).toBeInTheDocument();
+  });
+
+  it("hides the upload zone by default", () => {
+    render(
+      <MatchesPageClient
+        initialMatches={[]}
+        managedTeams={managedTeams}
+        polls={polls}
+      />,
+    );
+    expect(screen.queryByTestId("upload-zone")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /import matches/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows the upload zone when the import toggle is clicked", async () => {
+    const user = userEvent.setup();
+    render(
+      <MatchesPageClient
+        initialMatches={[]}
+        managedTeams={managedTeams}
+        polls={polls}
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: /import matches/i }));
+    expect(screen.getByTestId("upload-zone")).toBeInTheDocument();
+  });
+
+  it("hides the upload zone when the import toggle is clicked again", async () => {
+    const user = userEvent.setup();
+    render(
+      <MatchesPageClient
+        initialMatches={[]}
+        managedTeams={managedTeams}
+        polls={polls}
+      />,
+    );
+    const toggle = screen.getByRole("button", { name: /import matches/i });
+    await user.click(toggle);
+    expect(screen.getByTestId("upload-zone")).toBeInTheDocument();
+    await user.click(toggle);
+    expect(screen.queryByTestId("upload-zone")).not.toBeInTheDocument();
   });
 });

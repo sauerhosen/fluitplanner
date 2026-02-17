@@ -141,6 +141,7 @@
     "importModeAdvanced": "Advanced import",
     "importModeQuickDesc": "Import matches for managed teams only",
     "importModeAdvancedDesc": "Select which teams to import",
+    "importMatches": "Import matches",
     "teamSelectorTitle": "Select teams to import",
     "teamSelectorManaged": "Managed",
     "teamSelectorSelectAll": "Select all",

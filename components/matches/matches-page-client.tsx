@@ -19,7 +19,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus } from "lucide-react";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import { ChevronRight, Plus } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { addMonths, format } from "date-fns";
 import type { DateRange } from "react-day-picker";
@@ -40,6 +45,7 @@ export function MatchesPageClient({
   const [pollFilter, setPollFilter] = useState<string>("all");
   const [editingMatch, setEditingMatch] = useState<MatchWithPoll | null>(null);
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const t = useTranslations("matches");
 
   const defaultDateRange = useMemo<DateRange>(() => {
@@ -110,10 +116,21 @@ export function MatchesPageClient({
 
   return (
     <div className="flex flex-col gap-6">
-      <UploadZone
-        managedTeams={managedTeams}
-        onImportComplete={refreshMatches}
-      />
+      {/* Collapsible import section */}
+      <Collapsible open={importOpen} onOpenChange={setImportOpen}>
+        <CollapsibleTrigger className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
+          <ChevronRight
+            className={`h-4 w-4 transition-transform ${importOpen ? "rotate-90" : ""}`}
+          />
+          {t("importMatches")}
+        </CollapsibleTrigger>
+        <CollapsibleContent className="mt-3">
+          <UploadZone
+            managedTeams={managedTeams}
+            onImportComplete={refreshMatches}
+          />
+        </CollapsibleContent>
+      </Collapsible>
 
       {/* Filters + Add button */}
       <div className="flex items-center gap-4">
