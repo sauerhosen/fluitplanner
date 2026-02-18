@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { parseCSV } from "@/lib/parsers/csv";
 import { parsePaste } from "@/lib/parsers/paste";
 import { mapKNHBRows, extractHomeTeams } from "@/lib/parsers/knhb-mapper";
@@ -33,6 +33,8 @@ export function UploadZone({
   } | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [importMode, setImportMode] = useState<"quick" | "advanced">("quick");
+  const importModeRef = useRef(importMode);
+  importModeRef.current = importMode;
   const [fileRows, setFileRows] = useState<RawRow[] | null>(null);
   const [rawRows, setRawRows] = useState<RawRow[] | null>(null);
   const [allHomeTeams, setAllHomeTeams] = useState<string[]>([]);
@@ -80,7 +82,7 @@ export function UploadZone({
         return;
       }
       setFileRows(rows);
-      applyMode(rows, importMode);
+      applyMode(rows, importModeRef.current);
     } catch {
       toast.error(t("parseError"));
     }
