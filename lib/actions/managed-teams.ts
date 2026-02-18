@@ -39,7 +39,10 @@ export async function createManagedTeam(
     .select()
     .single();
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    if (error.code === "23505") throw new Error("DUPLICATE_TEAM_NAME");
+    throw new Error(error.message);
+  }
   return data;
 }
 
@@ -58,7 +61,10 @@ export async function updateManagedTeam(
     .select()
     .single();
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    if (error.code === "23505") throw new Error("DUPLICATE_TEAM_NAME");
+    throw new Error(error.message);
+  }
   return data;
 }
 
@@ -98,6 +104,9 @@ export async function batchCreateManagedTeams(
     .insert(rows)
     .select();
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    if (error.code === "23505") throw new Error("DUPLICATE_TEAM_NAME");
+    throw new Error(error.message);
+  }
   return data ?? [];
 }

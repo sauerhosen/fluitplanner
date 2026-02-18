@@ -356,7 +356,10 @@
     "levelTop": "3 — Top",
     "levelLabelAny": "Any",
     "levelLabelExperienced": "Experienced",
-    "levelLabelTop": "Top"
+    "levelLabelTop": "Top",
+    "addTeam": "Add team",
+    "duplicateTeamName": "A team with this name already exists",
+    "teamError": "Something went wrong. Please try again."
   },
   "landing": {
     "title": "Fluitplanner",
