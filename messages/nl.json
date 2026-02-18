@@ -356,7 +356,10 @@
     "levelTop": "3 — Top",
     "levelLabelAny": "Iedereen",
     "levelLabelExperienced": "Ervaren",
-    "levelLabelTop": "Top"
+    "levelLabelTop": "Top",
+    "addTeam": "Team toevoegen",
+    "duplicateTeamName": "Er bestaat al een team met deze naam",
+    "teamError": "Er is iets misgegaan. Probeer het opnieuw."
   },
   "landing": {
     "title": "Fluitplanner",

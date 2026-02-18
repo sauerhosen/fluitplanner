@@ -57,10 +57,12 @@ export function ManagedTeamsList({
   const [editName, setEditName] = useState("");
   const [editLevel, setEditLevel] = useState<"1" | "2" | "3">("1");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function handleAdd() {
     if (!newName.trim()) return;
     setLoading(true);
+    setError(null);
     try {
       const team = await createManagedTeam(
         newName.trim(),
@@ -71,6 +73,12 @@ export function ManagedTeamsList({
       );
       setNewName("");
       setNewLevel("1");
+    } catch (err) {
+      if (err instanceof Error && err.message === "DUPLICATE_TEAM_NAME") {
+        setError(t("duplicateTeamName"));
+      } else {
+        setError(t("teamError"));
+      }
     } finally {
       setLoading(false);
     }
@@ -79,6 +87,7 @@ export function ManagedTeamsList({
   async function handleUpdate(id: string) {
     if (!editName.trim()) return;
     setLoading(true);
+    setError(null);
     try {
       const updated = await updateManagedTeam(
         id,
@@ -91,6 +100,12 @@ export function ManagedTeamsList({
           .sort((a, b) => a.name.localeCompare(b.name)),
       );
       setEditingId(null);
+    } catch (err) {
+      if (err instanceof Error && err.message === "DUPLICATE_TEAM_NAME") {
+        setError(t("duplicateTeamName"));
+      } else {
+        setError(t("teamError"));
+      }
     } finally {
       setLoading(false);
     }
@@ -98,9 +113,12 @@ export function ManagedTeamsList({
 
   async function handleDelete(id: string) {
     setLoading(true);
+    setError(null);
     try {
       await deleteManagedTeam(id);
       setTeams((prev) => prev.filter((team) => team.id !== id));
+    } catch {
+      setError(t("teamError"));
     } finally {
       setLoading(false);
     }
@@ -237,6 +255,7 @@ export function ManagedTeamsList({
                 variant="ghost"
                 onClick={handleAdd}
                 disabled={loading || !newName.trim()}
+                aria-label={t("addTeam")}
               >
                 <Plus className="h-4 w-4" />
               </Button>
@@ -244,6 +263,7 @@ export function ManagedTeamsList({
           </TableRow>
         </TableBody>
       </Table>
+      {error && <p className="text-sm text-destructive">{error}</p>}
     </div>
   );
 }

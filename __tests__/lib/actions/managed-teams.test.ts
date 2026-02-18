@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const mockInsert = vi.fn();
+const mockUpdate = vi.fn();
 const mockSelect = vi.fn();
 const mockGetUser = vi.fn();
 
@@ -15,6 +16,7 @@ vi.mock("@/lib/supabase/server", () => ({
   createClient: vi.fn(async () => ({
     from: vi.fn(() => ({
       insert: mockInsert,
+      update: mockUpdate,
     })),
     auth: { getUser: mockGetUser },
   })),
@@ -86,5 +88,75 @@ describe("batchCreateManagedTeams", () => {
     await expect(
       batchCreateManagedTeams([{ name: "X", requiredLevel: 1 }]),
     ).rejects.toThrow("Not authenticated");
+  });
+
+  it("throws DUPLICATE_TEAM_NAME on unique constraint violation", async () => {
+    mockSelect.mockResolvedValue({
+      data: null,
+      error: {
+        message: "duplicate key value violates unique constraint",
+        code: "23505",
+      },
+    });
+
+    const { batchCreateManagedTeams } =
+      await import("@/lib/actions/managed-teams");
+    await expect(
+      batchCreateManagedTeams([{ name: "Dup", requiredLevel: 1 }]),
+    ).rejects.toThrow("DUPLICATE_TEAM_NAME");
+  });
+});
+
+describe("createManagedTeam", () => {
+  it("throws DUPLICATE_TEAM_NAME on unique constraint violation", async () => {
+    const mockSingle = vi.fn().mockResolvedValue({
+      data: null,
+      error: {
+        message: "duplicate key value violates unique constraint",
+        code: "23505",
+      },
+    });
+    const mockChainSelect = vi.fn().mockReturnValue({ single: mockSingle });
+    mockInsert.mockReturnValue({ select: mockChainSelect });
+
+    const { createManagedTeam } = await import("@/lib/actions/managed-teams");
+    await expect(createManagedTeam("DuplicateTeam", 1)).rejects.toThrow(
+      "DUPLICATE_TEAM_NAME",
+    );
+  });
+
+  it("throws original error message for non-duplicate errors", async () => {
+    const mockSingle = vi.fn().mockResolvedValue({
+      data: null,
+      error: { message: "some other error", code: "42P01" },
+    });
+    const mockChainSelect = vi.fn().mockReturnValue({ single: mockSingle });
+    mockInsert.mockReturnValue({ select: mockChainSelect });
+
+    const { createManagedTeam } = await import("@/lib/actions/managed-teams");
+    await expect(createManagedTeam("Team", 1)).rejects.toThrow(
+      "some other error",
+    );
+  });
+});
+
+describe("updateManagedTeam", () => {
+  it("throws DUPLICATE_TEAM_NAME on unique constraint violation", async () => {
+    const mockSingle = vi.fn().mockResolvedValue({
+      data: null,
+      error: {
+        message: "duplicate key value violates unique constraint",
+        code: "23505",
+      },
+    });
+    const mockChainSelect = vi.fn().mockReturnValue({ single: mockSingle });
+    const mockEq2 = vi.fn().mockReturnValue({ select: mockChainSelect });
+    const mockEq1 = vi.fn().mockReturnValue({ eq: mockEq2 });
+    mockUpdate.mockReturnValue({ eq: mockEq1 });
+
+    const { updateManagedTeam } = await import("@/lib/actions/managed-teams");
+    await expect(
+      updateManagedTeam("some-id", "DuplicateTeam", 1),
+    ).rejects.toThrow("DUPLICATE_TEAM_NAME");
   });
 });
