@@ -23,6 +23,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Pencil, Check, Trash2, ArrowRightLeft } from "lucide-react";
+import { ExportDropdown } from "./export-dropdown";
 import { useTranslations, useFormatter } from "next-intl";
 import { DateRangePicker } from "@/components/shared/date-range-picker";
 import type { DateRange } from "react-day-picker";
@@ -251,6 +252,15 @@ export function PollDetailClient({
           </TabsList>
           <div className="flex items-center gap-2">
             <DateRangePicker value={dateRange} onChange={setDateRange} />
+            <ExportDropdown
+              pollTitle={poll.title ?? ""}
+              slots={filteredSlots}
+              matches={filteredMatches}
+              responses={poll.responses}
+              assignments={poll.assignments}
+              umpires={umpires}
+              activeTab={activeTab}
+            />
             {activeTab === "assignments" && (
               <Button
                 variant="outline"
