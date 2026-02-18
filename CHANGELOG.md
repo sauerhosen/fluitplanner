@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.6.4](https://github.com/sauerhosen/fluitplanner/compare/v2.6.3...v2.6.4) (2026-02-18)
+
+
+### Bug Fixes
+
+* reduce poll slot offset from 30 to 20 minutes before match time ([#79](https://github.com/sauerhosen/fluitplanner/issues/79)) ([7ffd52c](https://github.com/sauerhosen/fluitplanner/commit/7ffd52c3e095ccfdc0bf0fd309ba6ced3f082f81))
+
 ## [2.6.3](https://github.com/sauerhosen/fluitplanner/compare/v2.6.2...v2.6.3) (2026-02-18)
 
 
