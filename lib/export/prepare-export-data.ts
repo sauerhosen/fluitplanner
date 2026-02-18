@@ -37,7 +37,8 @@ export type AssignmentExportRow = {
   venue: string;
   field: string;
   competition: string;
-  assignedUmpires: string[];
+  umpire1: string;
+  umpire2: string;
   assignmentCount: string;
 };
 
@@ -147,7 +148,8 @@ export function prepareAssignmentExport(
       venue: match.venue ?? "",
       field: match.field ?? "",
       competition: match.competition ?? "",
-      assignedUmpires,
+      umpire1: assignedUmpires[0] ?? "",
+      umpire2: assignedUmpires[1] ?? "",
       assignmentCount: `${assignedUmpires.length}/2`,
     };
   });

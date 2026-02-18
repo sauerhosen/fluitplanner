@@ -113,7 +113,8 @@ export function ExportDropdown({
     venue: t("exportVenue"),
     field: t("exportField"),
     competition: t("exportCompetition"),
-    umpires: t("exportUmpires"),
+    umpire1: t("exportUmpire1"),
+    umpire2: t("exportUmpire2"),
     count: t("exportCount"),
     noData: t("noDataToExport"),
   };

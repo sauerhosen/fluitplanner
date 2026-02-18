@@ -23,7 +23,8 @@ const columnLabels = {
   venue: "Venue",
   field: "Field",
   competition: "Competition",
-  umpires: "Umpires",
+  umpire1: "Umpire 1",
+  umpire2: "Umpire 2",
   count: "Count",
 };
 
@@ -143,7 +144,8 @@ describe("generateAssignmentMarkdown", () => {
           venue: "Stadium",
           field: "1",
           competition: "League",
-          assignedUmpires: ["Alice", "Bob"],
+          umpire1: "Alice",
+          umpire2: "Bob",
           assignmentCount: "2/2",
         },
       ],
@@ -152,10 +154,12 @@ describe("generateAssignmentMarkdown", () => {
     expect(md).toContain("| Date");
     expect(md).toContain("| Time");
     expect(md).toContain("| Home");
-    expect(md).toContain("| Umpires");
+    expect(md).toContain("| Umpire 1");
+    expect(md).toContain("| Umpire 2");
     // Data
     expect(md).toContain("Team A");
-    expect(md).toContain("Alice, Bob");
+    expect(md).toContain("Alice");
+    expect(md).toContain("Bob");
     expect(md).toContain("2/2");
   });
 
@@ -181,7 +185,8 @@ describe("generateAssignmentMarkdown", () => {
           venue: "",
           field: "",
           competition: "",
-          assignedUmpires: [],
+          umpire1: "",
+          umpire2: "",
           assignmentCount: "0/2",
         },
       ],

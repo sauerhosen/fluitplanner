@@ -160,7 +160,8 @@ export async function generateAssignmentXlsx(
     venue: string;
     field: string;
     competition: string;
-    umpires: string;
+    umpire1: string;
+    umpire2: string;
     count: string;
   },
 ): Promise<Blob> {
@@ -176,7 +177,8 @@ export async function generateAssignmentXlsx(
     columnLabels.venue,
     columnLabels.field,
     columnLabels.competition,
-    columnLabels.umpires,
+    columnLabels.umpire1,
+    columnLabels.umpire2,
     columnLabels.count,
   ];
 
@@ -210,7 +212,8 @@ export async function generateAssignmentXlsx(
       row.venue,
       row.field,
       row.competition,
-      row.assignedUmpires.join(", "),
+      row.umpire1,
+      row.umpire2,
       row.assignmentCount,
     ];
     for (let ci = 0; ci < values.length; ci++) {
@@ -228,7 +231,7 @@ export async function generateAssignmentXlsx(
   }
 
   // Auto-width columns
-  const colWidths = [12, 8, 20, 20, 16, 8, 16, 30, 8];
+  const colWidths = [12, 8, 20, 20, 16, 8, 16, 18, 18, 8];
   for (let i = 0; i < colWidths.length; i++) {
     sheet.getColumn(i + 1).width = colWidths[i];
   }

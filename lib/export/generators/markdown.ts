@@ -89,7 +89,8 @@ export function generateAssignmentMarkdown(
     venue: string;
     field: string;
     competition: string;
-    umpires: string;
+    umpire1: string;
+    umpire2: string;
     count: string;
   },
 ): string {
@@ -110,7 +111,8 @@ export function generateAssignmentMarkdown(
     escapeMdCell(columnLabels.venue),
     escapeMdCell(columnLabels.field),
     escapeMdCell(columnLabels.competition),
-    escapeMdCell(columnLabels.umpires),
+    escapeMdCell(columnLabels.umpire1),
+    escapeMdCell(columnLabels.umpire2),
     escapeMdCell(columnLabels.count),
   ];
 
@@ -122,7 +124,8 @@ export function generateAssignmentMarkdown(
     escapeMdCell(row.venue),
     escapeMdCell(row.field),
     escapeMdCell(row.competition),
-    escapeMdCell(row.assignedUmpires.join(", ")),
+    escapeMdCell(row.umpire1),
+    escapeMdCell(row.umpire2),
     escapeMdCell(row.assignmentCount),
   ]);
 

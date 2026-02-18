@@ -24,7 +24,8 @@ const columnLabels = {
   venue: "Venue",
   field: "Field",
   competition: "Competition",
-  umpires: "Umpires",
+  umpire1: "Umpire 1",
+  umpire2: "Umpire 2",
   count: "Count",
 };
 
@@ -100,7 +101,8 @@ describe("generateAssignmentXlsx", () => {
           venue: "Stadium",
           field: "1",
           competition: "League",
-          assignedUmpires: ["Alice"],
+          umpire1: "Alice",
+          umpire2: "",
           assignmentCount: "1/2",
         },
       ],
@@ -125,7 +127,8 @@ describe("generateAssignmentXlsx", () => {
           venue: "Stadium",
           field: "1",
           competition: "League",
-          assignedUmpires: ["Alice", "Bob"],
+          umpire1: "Alice",
+          umpire2: "Bob",
           assignmentCount: "2/2",
         },
       ],
@@ -142,10 +145,12 @@ describe("generateAssignmentXlsx", () => {
     expect(sheet.getCell(1, 1).value).toBe("Assignments");
     // Headers in row 2
     expect(sheet.getCell(2, 1).value).toBe("Date");
-    expect(sheet.getCell(2, 8).value).toBe("Umpires");
+    expect(sheet.getCell(2, 8).value).toBe("Umpire 1");
+    expect(sheet.getCell(2, 9).value).toBe("Umpire 2");
     // Data in row 3
     expect(sheet.getCell(3, 3).value).toBe("Team A");
-    expect(sheet.getCell(3, 8).value).toBe("Alice, Bob");
-    expect(sheet.getCell(3, 9).value).toBe("2/2");
+    expect(sheet.getCell(3, 8).value).toBe("Alice");
+    expect(sheet.getCell(3, 9).value).toBe("Bob");
+    expect(sheet.getCell(3, 10).value).toBe("2/2");
   });
 });

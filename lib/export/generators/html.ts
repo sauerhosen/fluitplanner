@@ -156,7 +156,8 @@ export function generateAssignmentHtml(
     venue: string;
     field: string;
     competition: string;
-    umpires: string;
+    umpire1: string;
+    umpire2: string;
     count: string;
     noData?: string;
   },
@@ -179,7 +180,8 @@ export function generateAssignmentHtml(
     columnLabels.venue,
     columnLabels.field,
     columnLabels.competition,
-    columnLabels.umpires,
+    columnLabels.umpire1,
+    columnLabels.umpire2,
     columnLabels.count,
   ];
 
@@ -202,7 +204,8 @@ export function generateAssignmentHtml(
 <td>${escapeHtml(row.venue)}</td>
 <td>${escapeHtml(row.field)}</td>
 <td>${escapeHtml(row.competition)}</td>
-<td>${escapeHtml(row.assignedUmpires.join(", "))}</td>
+<td>${escapeHtml(row.umpire1)}</td>
+<td>${escapeHtml(row.umpire2)}</td>
 <td style="background:${cc.bg};color:${cc.text}">${escapeHtml(row.assignmentCount)}</td>
 </tr>`;
     })

@@ -358,8 +358,9 @@ describe("prepareAssignmentExport", () => {
       fmtDate,
       fmtTime,
     );
-    // Umpire names sorted alphabetically
-    expect(result.rows[0].assignedUmpires).toEqual(["Alice", "Bob"]);
+    // Umpire names sorted alphabetically into separate columns
+    expect(result.rows[0].umpire1).toBe("Alice");
+    expect(result.rows[0].umpire2).toBe("Bob");
   });
 
   it("shows correct assignment count", () => {
@@ -396,7 +397,8 @@ describe("prepareAssignmentExport", () => {
       fmtTime,
     );
     expect(result.rows[0].assignmentCount).toBe("0/2");
-    expect(result.rows[0].assignedUmpires).toEqual([]);
+    expect(result.rows[0].umpire1).toBe("");
+    expect(result.rows[0].umpire2).toBe("");
   });
 
   it("uses empty string for unknown umpire IDs instead of raw ID", () => {
@@ -420,8 +422,8 @@ describe("prepareAssignmentExport", () => {
       fmtTime,
     );
     // Should not leak the raw UUID
-    expect(result.rows[0].assignedUmpires).toEqual([""]);
-    expect(result.rows[0].assignedUmpires[0]).not.toBe("unknown-uuid");
+    expect(result.rows[0].umpire1).toBe("");
+    expect(result.rows[0].umpire1).not.toBe("unknown-uuid");
   });
 
   it("uses empty string for null match fields", () => {

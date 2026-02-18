@@ -23,7 +23,8 @@ const columnLabels = {
   venue: "Venue",
   field: "Field",
   competition: "Competition",
-  umpires: "Umpires",
+  umpire1: "Umpire 1",
+  umpire2: "Umpire 2",
   count: "Count",
 };
 
@@ -183,7 +184,8 @@ describe("generateAssignmentHtml", () => {
           venue: "Stadium",
           field: "1",
           competition: "League",
-          assignedUmpires: ["Alice"],
+          umpire1: "Alice",
+          umpire2: "",
           assignmentCount: "1/2",
         },
       ],
@@ -195,7 +197,7 @@ describe("generateAssignmentHtml", () => {
     expect(html).toContain("1/2");
     // Column headers
     expect(html).toContain("Date");
-    expect(html).toContain("Umpires");
+    expect(html).toContain("Umpire 1");
   });
 
   it("colors count cells", () => {
@@ -210,7 +212,8 @@ describe("generateAssignmentHtml", () => {
           venue: "",
           field: "",
           competition: "",
-          assignedUmpires: ["Alice", "Bob"],
+          umpire1: "Alice",
+          umpire2: "Bob",
           assignmentCount: "2/2",
         },
       ],
