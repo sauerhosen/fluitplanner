@@ -10,6 +10,10 @@ const RESPONSE_SYMBOLS: Record<NonNullable<ResponseCell>, string> = {
   no: "\u2717",
 };
 
+function escapeMdCell(value: string): string {
+  return value.replace(/\|/g, "\\|");
+}
+
 function padCell(value: string, width: number): string {
   return value.padEnd(width);
 }
@@ -34,10 +38,10 @@ export function generateResponseMarkdown(
   // Build column headers: first col is empty (umpire name), then slot headers
   const colHeaders = [
     "",
-    ...data.headers.map((h) => `${h.date} ${h.timeRange}`),
+    ...data.headers.map((h) => escapeMdCell(`${h.date} ${h.timeRange}`)),
   ];
   const bodyRows = data.rows.map((row) => [
-    row.umpireName,
+    escapeMdCell(row.umpireName),
     ...row.cells.map((cell) => (cell ? RESPONSE_SYMBOLS[cell] : "-")),
   ]);
 
@@ -111,15 +115,15 @@ export function generateAssignmentMarkdown(
   ];
 
   const bodyRows = data.rows.map((row) => [
-    row.date,
-    row.time,
-    row.homeTeam,
-    row.awayTeam,
-    row.venue,
-    row.field,
-    row.competition,
-    row.assignedUmpires.join(", "),
-    row.assignmentCount,
+    escapeMdCell(row.date),
+    escapeMdCell(row.time),
+    escapeMdCell(row.homeTeam),
+    escapeMdCell(row.awayTeam),
+    escapeMdCell(row.venue),
+    escapeMdCell(row.field),
+    escapeMdCell(row.competition),
+    escapeMdCell(row.assignedUmpires.join(", ")),
+    escapeMdCell(row.assignmentCount),
   ]);
 
   // Calculate column widths

@@ -257,7 +257,10 @@
     "exportField": "Field",
     "exportCompetition": "Competition",
     "exportUmpires": "Umpires",
-    "exportCount": "Count"
+    "exportCount": "Count",
+    "exportError": "Export failed. Please try again.",
+    "copyFailed": "Failed to copy to clipboard.",
+    "noDataToExport": "No data to export."
   },
   "pollResponse": {
     "loadingPoll": "Loading poll...",

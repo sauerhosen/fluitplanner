@@ -41,6 +41,30 @@ describe("generateResponseHtml", () => {
     expect(html).toContain('<meta charset="utf-8">');
   });
 
+  it("uses provided locale for html lang attribute", () => {
+    const data: ResponseExportData = {
+      pollTitle: "Test",
+      headers: [],
+      rows: [],
+    };
+    const html = generateResponseHtml(data, labels, "nl");
+    expect(html).toContain('lang="nl"');
+  });
+
+  it("uses noData label for empty state", () => {
+    const data: ResponseExportData = {
+      pollTitle: "Test",
+      headers: [],
+      rows: [],
+    };
+    const html = generateResponseHtml(data, {
+      ...labels,
+      noData: "Geen gegevens",
+    });
+    expect(html).toContain("Geen gegevens");
+    expect(html).not.toContain("No responses.");
+  });
+
   it("contains poll title in h1 and title tag", () => {
     const data: ResponseExportData = {
       pollTitle: "Weekend Poll",
@@ -97,6 +121,28 @@ describe("generateResponseHtml", () => {
     const html = generateResponseHtml(data, labels);
     expect(html).not.toContain("<script>");
     expect(html).toContain("&lt;script&gt;");
+  });
+
+  it("produces valid thead/tbody structure", () => {
+    const data: ResponseExportData = {
+      pollTitle: "Test",
+      headers: [
+        { date: "Sat 15 Mar", timeRange: "10:00 - 12:00", slotId: "s1" },
+      ],
+      rows: [{ umpireName: "Alice", cells: ["yes"] }],
+    };
+    const html = generateResponseHtml(data, labels);
+    // thead should contain <tr> rows, not partial tags
+    const theadMatch = html.match(/<thead>([\s\S]*?)<\/thead>/);
+    expect(theadMatch).not.toBeNull();
+    const theadContent = theadMatch![1];
+    // Should have exactly 2 <tr> blocks in thead (date row + time row)
+    const trMatches = theadContent.match(/<tr>/g);
+    expect(trMatches).toHaveLength(2);
+    // tbody should contain data rows
+    const tbodyMatch = html.match(/<tbody>([\s\S]*?)<\/tbody>/);
+    expect(tbodyMatch).not.toBeNull();
+    expect(tbodyMatch![1]).toContain("Alice");
   });
 
   it("groups date headers with colSpan", () => {

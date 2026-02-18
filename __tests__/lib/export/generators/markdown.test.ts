@@ -94,6 +94,19 @@ describe("generateResponseMarkdown", () => {
     expect(dataRow).toContain("-"); // dash for null
   });
 
+  it("escapes pipe characters in umpire names", () => {
+    const data: ResponseExportData = {
+      pollTitle: "Test",
+      headers: [{ date: "Sat", timeRange: "10:00 - 12:00", slotId: "s1" }],
+      rows: [{ umpireName: "Alice | Bob", cells: ["yes"] }],
+    };
+    const md = generateResponseMarkdown(data, labels);
+    expect(md).toContain("Alice \\| Bob");
+    // Ensure it doesn't break the table structure (should still have 3 table lines)
+    const tableLines = md.split("\n").filter((l) => l.startsWith("|"));
+    expect(tableLines).toHaveLength(3);
+  });
+
   it("includes a legend line", () => {
     const data: ResponseExportData = {
       pollTitle: "Test",
@@ -154,5 +167,26 @@ describe("generateAssignmentMarkdown", () => {
     const md = generateAssignmentMarkdown(data, columnLabels);
     expect(md).toContain("# Empty");
     expect(md).not.toContain("|");
+  });
+
+  it("escapes pipe characters in team names", () => {
+    const data: AssignmentExportData = {
+      pollTitle: "Test",
+      rows: [
+        {
+          date: "15 Mar",
+          time: "14:00",
+          homeTeam: "Team A|B",
+          awayTeam: "Team C",
+          venue: "",
+          field: "",
+          competition: "",
+          assignedUmpires: [],
+          assignmentCount: "0/2",
+        },
+      ],
+    };
+    const md = generateAssignmentMarkdown(data, columnLabels);
+    expect(md).toContain("Team A\\|B");
   });
 });

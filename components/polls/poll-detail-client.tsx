@@ -186,9 +186,11 @@ export function PollDetailClient({
         if (idx >= 0) {
           return prev.map((r, i) => (i === idx ? { ...r, response } : r));
         }
-        // Find participant name from existing responses for this umpire
+        // Find participant name from existing responses or umpires list
         const name =
-          prev.find((r) => r.umpire_id === umpireId)?.participant_name ?? "";
+          prev.find((r) => r.umpire_id === umpireId)?.participant_name ??
+          umpires.find((u) => u.id === umpireId)?.name ??
+          "";
         return [
           ...prev,
           {
@@ -204,7 +206,7 @@ export function PollDetailClient({
         ];
       });
     },
-    [poll.id],
+    [poll.id, umpires],
   );
 
   const uniqueRespondentCount = [

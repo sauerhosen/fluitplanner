@@ -257,7 +257,10 @@
     "exportField": "Veld",
     "exportCompetition": "Competitie",
     "exportUmpires": "Scheidsrechters",
-    "exportCount": "Aantal"
+    "exportCount": "Aantal",
+    "exportError": "Exporteren mislukt. Probeer het opnieuw.",
+    "copyFailed": "Kopiëren naar klembord mislukt.",
+    "noDataToExport": "Geen gegevens om te exporteren."
   },
   "pollResponse": {
     "loadingPoll": "Peiling laden...",

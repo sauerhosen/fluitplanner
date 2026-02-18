@@ -130,7 +130,7 @@ export function prepareAssignmentExport(
   const assignmentsByMatch = new Map<string, string[]>();
   for (const a of assignments) {
     const names = assignmentsByMatch.get(a.match_id) ?? [];
-    const name = umpireNameMap.get(a.umpire_id) ?? a.umpire_id;
+    const name = umpireNameMap.get(a.umpire_id) ?? "";
     names.push(name);
     assignmentsByMatch.set(a.match_id, names);
   }

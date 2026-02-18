@@ -399,6 +399,31 @@ describe("prepareAssignmentExport", () => {
     expect(result.rows[0].assignedUmpires).toEqual([]);
   });
 
+  it("uses empty string for unknown umpire IDs instead of raw ID", () => {
+    const assignments: Assignment[] = [
+      {
+        id: "a1",
+        poll_id: "p1",
+        match_id: "m1",
+        umpire_id: "unknown-uuid",
+        created_at: "",
+        organization_id: "org1",
+      },
+    ];
+
+    const result = prepareAssignmentExport(
+      "Poll",
+      [baseMatch],
+      assignments,
+      [], // no umpires list
+      fmtDate,
+      fmtTime,
+    );
+    // Should not leak the raw UUID
+    expect(result.rows[0].assignedUmpires).toEqual([""]);
+    expect(result.rows[0].assignedUmpires[0]).not.toBe("unknown-uuid");
+  });
+
   it("uses empty string for null match fields", () => {
     const match: Match = {
       ...baseMatch,

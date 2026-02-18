@@ -26,9 +26,9 @@ const BASE_STYLE = `
   .legend span { display: inline-block; width: 18px; height: 18px; border-radius: 3px; vertical-align: middle; margin-right: 4px; }
 `.trim();
 
-function wrapHtml(title: string, body: string): string {
+function wrapHtml(title: string, body: string, locale = "en"): string {
   return `<!DOCTYPE html>
-<html lang="en">
+<html lang="${escapeHtml(locale)}">
 <head>
 <meta charset="utf-8">
 <title>${escapeHtml(title)}</title>
@@ -54,14 +54,21 @@ function escapeHtml(str: string): string {
 
 export function generateResponseHtml(
   data: ResponseExportData,
-  labels: { yes: string; ifNeedBe: string; no: string; noResponse: string },
+  labels: {
+    yes: string;
+    ifNeedBe: string;
+    no: string;
+    noResponse: string;
+    noData?: string;
+  },
+  locale = "en",
 ): string {
-  const rows: string[] = [];
-
   if (data.rows.length === 0) {
+    const emptyMsg = labels.noData ?? "No responses.";
     return wrapHtml(
       data.pollTitle,
-      `<h1>${escapeHtml(data.pollTitle)}</h1><p>No responses.</p>`,
+      `<h1>${escapeHtml(data.pollTitle)}</h1><p>${escapeHtml(emptyMsg)}</p>`,
+      locale,
     );
   }
 
@@ -76,26 +83,32 @@ export function generateResponseHtml(
     }
   }
 
+  // Build thead rows
+  const theadRows: string[] = [];
+
   // Date header row
-  rows.push("<tr>");
-  rows.push("<th></th>");
+  theadRows.push("<tr>");
+  theadRows.push("<th></th>");
   for (const group of dateGroups) {
-    rows.push(`<th colspan="${group.count}">${escapeHtml(group.date)}</th>`);
+    theadRows.push(
+      `<th colspan="${group.count}">${escapeHtml(group.date)}</th>`,
+    );
   }
-  rows.push("</tr>");
+  theadRows.push("</tr>");
 
   // Time range header row
-  rows.push("<tr>");
-  rows.push("<th></th>");
+  theadRows.push("<tr>");
+  theadRows.push("<th></th>");
   for (const h of data.headers) {
-    rows.push(`<th>${escapeHtml(h.timeRange)}</th>`);
+    theadRows.push(`<th>${escapeHtml(h.timeRange)}</th>`);
   }
-  rows.push("</tr>");
+  theadRows.push("</tr>");
 
-  // Data rows
+  // Build tbody rows
+  const tbodyRows: string[] = [];
   for (const row of data.rows) {
-    rows.push("<tr>");
-    rows.push(`<td>${escapeHtml(row.umpireName)}</td>`);
+    tbodyRows.push("<tr>");
+    tbodyRows.push(`<td>${escapeHtml(row.umpireName)}</td>`);
     for (const cell of row.cells) {
       const color = cell ? COLORS[cell] : NO_RESPONSE_COLOR;
       const label = cell
@@ -105,11 +118,11 @@ export function generateResponseHtml(
             ? labels.ifNeedBe
             : labels.no
         : labels.noResponse;
-      rows.push(
+      tbodyRows.push(
         `<td style="background:${color.bg};color:${color.text}">${escapeHtml(label)}</td>`,
       );
     }
-    rows.push("</tr>");
+    tbodyRows.push("</tr>");
   }
 
   const legend = `<div class="legend">
@@ -124,7 +137,8 @@ export function generateResponseHtml(
 
   return wrapHtml(
     data.pollTitle,
-    `<h1>${escapeHtml(data.pollTitle)}</h1>\n<table>\n<thead>\n${rows.slice(0, 2).join("\n")}\n</thead>\n<tbody>\n${rows.slice(2).join("\n")}\n</tbody>\n</table>\n${legend}`,
+    `<h1>${escapeHtml(data.pollTitle)}</h1>\n<table>\n<thead>\n${theadRows.join("\n")}\n</thead>\n<tbody>\n${tbodyRows.join("\n")}\n</tbody>\n</table>\n${legend}`,
+    locale,
   );
 }
 
@@ -144,12 +158,16 @@ export function generateAssignmentHtml(
     competition: string;
     umpires: string;
     count: string;
+    noData?: string;
   },
+  locale = "en",
 ): string {
   if (data.rows.length === 0) {
+    const emptyMsg = columnLabels.noData ?? "No assignments.";
     return wrapHtml(
       data.pollTitle,
-      `<h1>${escapeHtml(data.pollTitle)}</h1><p>No assignments.</p>`,
+      `<h1>${escapeHtml(data.pollTitle)}</h1><p>${escapeHtml(emptyMsg)}</p>`,
+      locale,
     );
   }
 
@@ -193,5 +211,6 @@ export function generateAssignmentHtml(
   return wrapHtml(
     data.pollTitle,
     `<h1>${escapeHtml(data.pollTitle)}</h1>\n<table>\n<thead>\n${headerRow}\n</thead>\n<tbody>\n${bodyRows}\n</tbody>\n</table>`,
+    locale,
   );
 }

@@ -19,7 +19,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useTranslations, useFormatter } from "next-intl";
+import { useTranslations, useFormatter, useLocale } from "next-intl";
 import { toast } from "sonner";
 import type {
   Match,
@@ -69,6 +69,7 @@ export function ExportDropdown({
 }: Props) {
   const t = useTranslations("polls");
   const format = useFormatter();
+  const locale = useLocale();
   const [copiedMd, setCopiedMd] = useState(false);
 
   const target: ExportTarget | null =
@@ -101,6 +102,7 @@ export function ExportDropdown({
     ifNeedBe: t("ifNeedBeLabel"),
     no: t("notAvailableLabel"),
     noResponse: t("noResponseLabel"),
+    noData: t("noDataToExport"),
   };
 
   const assignmentColumnLabels = {
@@ -113,6 +115,7 @@ export function ExportDropdown({
     competition: t("exportCompetition"),
     umpires: t("exportUmpires"),
     count: t("exportCount"),
+    noData: t("noDataToExport"),
   };
 
   const fileBase = sanitizeFilename(pollTitle);
@@ -140,52 +143,74 @@ export function ExportDropdown({
   }
 
   async function handleExportXlsx() {
-    const { generateResponseXlsx, generateAssignmentXlsx } =
-      await import("@/lib/export/generators/xlsx");
-    const blob =
-      target === "responses"
-        ? await generateResponseXlsx(getResponseData(), responseLabels)
-        : await generateAssignmentXlsx(
-            getAssignmentData(),
-            assignmentColumnLabels,
-          );
-    downloadBlob(blob, `${fileBase}-${suffix}.xlsx`);
+    try {
+      const { generateResponseXlsx, generateAssignmentXlsx } =
+        await import("@/lib/export/generators/xlsx");
+      const blob =
+        target === "responses"
+          ? await generateResponseXlsx(getResponseData(), responseLabels)
+          : await generateAssignmentXlsx(
+              getAssignmentData(),
+              assignmentColumnLabels,
+            );
+      downloadBlob(blob, `${fileBase}-${suffix}.xlsx`);
+    } catch {
+      toast.error(t("exportError"));
+    }
   }
 
   function handleExportHtml() {
-    const html =
-      target === "responses"
-        ? generateResponseHtml(getResponseData(), responseLabels)
-        : generateAssignmentHtml(getAssignmentData(), assignmentColumnLabels);
-    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
-    downloadBlob(blob, `${fileBase}-${suffix}.html`);
+    try {
+      const html =
+        target === "responses"
+          ? generateResponseHtml(getResponseData(), responseLabels, locale)
+          : generateAssignmentHtml(
+              getAssignmentData(),
+              assignmentColumnLabels,
+              locale,
+            );
+      const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+      downloadBlob(blob, `${fileBase}-${suffix}.html`);
+    } catch {
+      toast.error(t("exportError"));
+    }
   }
 
   function handleExportMarkdown() {
-    const md =
-      target === "responses"
-        ? generateResponseMarkdown(getResponseData(), responseLabels)
-        : generateAssignmentMarkdown(
-            getAssignmentData(),
-            assignmentColumnLabels,
-          );
-    const blob = new Blob([md], { type: "text/markdown;charset=utf-8" });
-    downloadBlob(blob, `${fileBase}-${suffix}.md`);
+    try {
+      const md =
+        target === "responses"
+          ? generateResponseMarkdown(getResponseData(), responseLabels)
+          : generateAssignmentMarkdown(
+              getAssignmentData(),
+              assignmentColumnLabels,
+            );
+      const blob = new Blob([md], { type: "text/markdown;charset=utf-8" });
+      downloadBlob(blob, `${fileBase}-${suffix}.md`);
+    } catch {
+      toast.error(t("exportError"));
+    }
   }
 
   async function handleCopyMarkdown() {
-    const md =
-      target === "responses"
-        ? generateResponseMarkdown(getResponseData(), responseLabels)
-        : generateAssignmentMarkdown(
-            getAssignmentData(),
-            assignmentColumnLabels,
-          );
-    const ok = await copyToClipboard(md);
-    if (ok) {
-      setCopiedMd(true);
-      toast.success(t("copied"));
-      setTimeout(() => setCopiedMd(false), 2000);
+    try {
+      const md =
+        target === "responses"
+          ? generateResponseMarkdown(getResponseData(), responseLabels)
+          : generateAssignmentMarkdown(
+              getAssignmentData(),
+              assignmentColumnLabels,
+            );
+      const ok = await copyToClipboard(md);
+      if (ok) {
+        setCopiedMd(true);
+        toast.success(t("copied"));
+        setTimeout(() => setCopiedMd(false), 2000);
+      } else {
+        toast.error(t("copyFailed"));
+      }
+    } catch {
+      toast.error(t("copyFailed"));
     }
   }
 
