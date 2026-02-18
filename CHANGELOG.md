@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.6.1](https://github.com/sauerhosen/fluitplanner/compare/v2.6.0...v2.6.1) (2026-02-18)
+
+
+### Bug Fixes
+
+* scope managed_teams unique constraint to organization ([#72](https://github.com/sauerhosen/fluitplanner/issues/72)) ([b3047f3](https://github.com/sauerhosen/fluitplanner/commit/b3047f3dbcb4762f1290783078a96a9fb17cf067))
+
 ## [2.6.0](https://github.com/sauerhosen/fluitplanner/compare/v2.5.0...v2.6.0) (2026-02-18)
 
 
