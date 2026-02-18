@@ -11,7 +11,7 @@ const RESPONSE_SYMBOLS: Record<NonNullable<ResponseCell>, string> = {
 };
 
 function escapeMdCell(value: string): string {
-  return value.replace(/\|/g, "\\|");
+  return value.replace(/\|/g, "\\|").replace(/[\r\n]+/g, " ");
 }
 
 function padCell(value: string, width: number): string {
