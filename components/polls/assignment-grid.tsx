@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useState, useMemo, useCallback } from "react";
+import { Fragment, useState, useMemo, useCallback, useEffect } from "react";
 import { Check, Ban, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +27,7 @@ type Props = {
   assignments: Assignment[];
   umpires: Umpire[];
   transposed?: boolean;
+  onAssignmentsChange?: (assignments: Assignment[]) => void;
 };
 
 const AVAILABILITY_COLORS: Record<string, string> = {
@@ -45,11 +46,16 @@ export function AssignmentGrid({
   assignments: initialAssignments,
   umpires,
   transposed = false,
+  onAssignmentsChange,
 }: Props) {
   const [assignments, setAssignments] = useState(initialAssignments);
   const [saving, setSaving] = useState<string | null>(null);
   const t = useTranslations("polls");
   const format = useFormatter();
+
+  useEffect(() => {
+    onAssignmentsChange?.(assignments);
+  }, [assignments, onAssignmentsChange]);
 
   const matchSlotMap = useMemo(
     () => mapMatchesToSlots(matches, slots),
