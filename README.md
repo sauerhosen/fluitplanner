@@ -8,7 +8,7 @@ Field hockey umpire availability and match assignment tool.
 2. **Umpires** receive a link and indicate availability (yes / if need be / no) for time slots
 3. **Planner** assigns two umpires per match based on availability
 
-Availability polls use 2-hour time slots, not exact match times. Slots start at least 30 minutes before the match, rounded to the nearest quarter hour.
+Availability polls use 2-hour time slots, not exact match times. Slots start at least 20 minutes before the match, rounded down to the nearest quarter hour.
 
 ## Tech stack
 
