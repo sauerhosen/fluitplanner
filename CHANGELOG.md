@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.6.0](https://github.com/sauerhosen/fluitplanner/compare/v2.5.0...v2.6.0) (2026-02-18)
+
+
+### Features
+
+* Add export functionality for polls (XLSX, HTML, Markdown) ([#70](https://github.com/sauerhosen/fluitplanner/issues/70)) ([02c4f7a](https://github.com/sauerhosen/fluitplanner/commit/02c4f7aad580d7367301059a633a8597d9686aba))
+
 ## [2.5.0](https://github.com/sauerhosen/fluitplanner/compare/v2.4.0...v2.5.0) (2026-02-17)
 
 
