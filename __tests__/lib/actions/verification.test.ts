@@ -114,7 +114,12 @@ describe("requestVerification", () => {
       data: { id: "ump-1", email: "jan@example.com", name: "Jan" },
       error: null,
     });
-    // 2. lockout check → active lockout
+    // 2. poll lookup → organization_id
+    mockSingle.mockResolvedValueOnce({
+      data: { organization_id: "org-1" },
+      error: null,
+    });
+    // 3. lockout check → active lockout
     mockSingle.mockResolvedValueOnce({
       data: { locked_until: future },
       error: null,
@@ -131,9 +136,14 @@ describe("requestVerification", () => {
       data: { id: "ump-1", email: "jan@example.com", name: "Jan" },
       error: null,
     });
-    // 2. lockout check → no active lockout
+    // 2. poll lookup → organization_id
+    mockSingle.mockResolvedValueOnce({
+      data: { organization_id: "org-1" },
+      error: null,
+    });
+    // 3. lockout check → no active lockout
     mockSingle.mockResolvedValueOnce({ data: null, error: null });
-    // 3. insert new code
+    // 4. insert new code
     mockSingle.mockResolvedValueOnce({ data: { id: "code-1" }, error: null });
 
     const { requestVerification } = await import("@/lib/actions/verification");

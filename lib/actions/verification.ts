@@ -81,7 +81,22 @@ export async function requestVerification(
     return { needsRegistration: true };
   }
 
-  // 2. Check if there's an active lockout for this email
+  // 2. Look up the poll to get organization_id
+  const { data: poll } = await serviceClient
+    .from("polls")
+    .select("organization_id")
+    .eq("token", pollToken)
+    .single();
+
+  if (!poll?.organization_id) {
+    console.error(
+      "[verification] Poll not found or missing organization_id for token:",
+      pollToken,
+    );
+    return { error: "send_failed" };
+  }
+
+  // 3. Check if there's an active lockout for this email
   const { data: existing } = await serviceClient
     .from("verification_codes")
     .select("locked_until")
@@ -93,18 +108,18 @@ export async function requestVerification(
     return { error: "locked", retryAfter: existing.locked_until };
   }
 
-  // 3. Generate code + magic token
+  // 4. Generate code + magic token
   const code = generateCode();
   const magicToken = nanoid(32);
   const expiresAt = new Date(Date.now() + CODE_EXPIRY_MINUTES * 60_000);
 
-  // 4. Delete any existing codes for this email (only one allowed)
+  // 5. Delete any existing codes for this email (only one allowed)
   await serviceClient
     .from("verification_codes")
     .delete()
     .eq("email", normalizedEmail);
 
-  // 5. Insert new verification code
+  // 6. Insert new verification code
   const { error: insertError } = await serviceClient
     .from("verification_codes")
     .insert({
@@ -112,6 +127,7 @@ export async function requestVerification(
       code_hash: hashCode(code),
       magic_token: magicToken,
       expires_at: expiresAt.toISOString(),
+      organization_id: poll.organization_id,
     })
     .select()
     .single();
@@ -121,7 +137,7 @@ export async function requestVerification(
     return { error: "send_failed" };
   }
 
-  // 6. Build magic link and send email
+  // 7. Build magic link and send email
   const baseUrl =
     process.env.NEXT_PUBLIC_SITE_URL ||
     process.env.NEXT_PUBLIC_VERCEL_URL ||
