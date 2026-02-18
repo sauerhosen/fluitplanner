@@ -103,15 +103,15 @@ export function generateAssignmentMarkdown(
   }
 
   const colHeaders = [
-    columnLabels.date,
-    columnLabels.time,
-    columnLabels.homeTeam,
-    columnLabels.awayTeam,
-    columnLabels.venue,
-    columnLabels.field,
-    columnLabels.competition,
-    columnLabels.umpires,
-    columnLabels.count,
+    escapeMdCell(columnLabels.date),
+    escapeMdCell(columnLabels.time),
+    escapeMdCell(columnLabels.homeTeam),
+    escapeMdCell(columnLabels.awayTeam),
+    escapeMdCell(columnLabels.venue),
+    escapeMdCell(columnLabels.field),
+    escapeMdCell(columnLabels.competition),
+    escapeMdCell(columnLabels.umpires),
+    escapeMdCell(columnLabels.count),
   ];
 
   const bodyRows = data.rows.map((row) => [
