@@ -2,7 +2,12 @@
 
 import { useState, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import type { Match, Umpire } from "@/lib/types/domain";
+import type {
+  Match,
+  Umpire,
+  Assignment,
+  AvailabilityResponse,
+} from "@/lib/types/domain";
 import type { PollDetail } from "@/lib/actions/polls";
 import {
   getPoll,
@@ -23,6 +28,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Pencil, Check, Trash2, ArrowRightLeft } from "lucide-react";
+import { ExportDropdown } from "./export-dropdown";
 import { useTranslations, useFormatter } from "next-intl";
 import { DateRangePicker } from "@/components/shared/date-range-picker";
 import type { DateRange } from "react-day-picker";
@@ -63,6 +69,12 @@ export function PollDetailClient({
   const [activeTab, setActiveTab] = useState("matches");
   const [transposed, setTransposed] = useState(false);
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
+  const [liveAssignments, setLiveAssignments] = useState<Assignment[]>(
+    initialPoll.assignments,
+  );
+  const [liveResponses, setLiveResponses] = useState<AvailabilityResponse[]>(
+    initialPoll.responses,
+  );
   const t = useTranslations("polls");
   const tCommon = useTranslations("common");
   const format = useFormatter();
@@ -109,6 +121,8 @@ export function PollDetailClient({
   const refreshPoll = useCallback(async () => {
     const updated = await getPoll(poll.id);
     setPoll(updated);
+    setLiveAssignments(updated.assignments);
+    setLiveResponses(updated.responses);
   }, [poll.id]);
 
   async function handleSaveTitle() {
@@ -155,6 +169,45 @@ export function PollDetailClient({
     await deletePoll(poll.id);
     router.push("/protected/polls");
   }
+
+  const handleResponseChange = useCallback(
+    (
+      slotId: string,
+      umpireId: string,
+      response: "yes" | "if_need_be" | "no" | null,
+    ) => {
+      setLiveResponses((prev) => {
+        const idx = prev.findIndex(
+          (r) => r.slot_id === slotId && r.umpire_id === umpireId,
+        );
+        if (response === null) {
+          return idx >= 0 ? prev.filter((_, i) => i !== idx) : prev;
+        }
+        if (idx >= 0) {
+          return prev.map((r, i) => (i === idx ? { ...r, response } : r));
+        }
+        // Find participant name from existing responses or umpires list
+        const name =
+          prev.find((r) => r.umpire_id === umpireId)?.participant_name ??
+          umpires.find((u) => u.id === umpireId)?.name ??
+          "";
+        return [
+          ...prev,
+          {
+            id: `live-${slotId}-${umpireId}`,
+            poll_id: poll.id,
+            slot_id: slotId,
+            participant_name: name,
+            response,
+            umpire_id: umpireId,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          },
+        ];
+      });
+    },
+    [poll.id, umpires],
+  );
 
   const uniqueRespondentCount = [
     ...new Set(poll.responses.map((r) => r.participant_name)),
@@ -251,6 +304,15 @@ export function PollDetailClient({
           </TabsList>
           <div className="flex items-center gap-2">
             <DateRangePicker value={dateRange} onChange={setDateRange} />
+            <ExportDropdown
+              pollTitle={poll.title ?? ""}
+              slots={filteredSlots}
+              matches={filteredMatches}
+              responses={liveResponses}
+              assignments={liveAssignments}
+              umpires={umpires}
+              activeTab={activeTab}
+            />
             {activeTab === "assignments" && (
               <Button
                 variant="outline"
@@ -408,6 +470,7 @@ export function PollDetailClient({
             pollId={poll.id}
             slots={filteredSlots}
             responses={poll.responses}
+            onResponseChange={handleResponseChange}
           />
         </TabsContent>
         <TabsContent value="assignments">
@@ -419,6 +482,7 @@ export function PollDetailClient({
             assignments={poll.assignments}
             umpires={umpires}
             transposed={transposed}
+            onAssignmentsChange={setLiveAssignments}
           />
         </TabsContent>
       </Tabs>

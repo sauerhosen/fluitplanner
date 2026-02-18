@@ -48,6 +48,11 @@ type Props = {
   pollId: string;
   slots: PollSlot[];
   responses: AvailabilityResponse[];
+  onResponseChange?: (
+    slotId: string,
+    umpireId: string,
+    response: ResponseValue | null,
+  ) => void;
 };
 
 /**
@@ -61,7 +66,12 @@ type Props = {
  * @param responses - Initial availability responses used to seed the per-slot-per-participant state
  * @returns A React element containing the availability table with clickable cells for cycling responses
  */
-export function ResponseSummary({ pollId, slots, responses }: Props) {
+export function ResponseSummary({
+  pollId,
+  slots,
+  responses,
+  onResponseChange,
+}: Props) {
   const t = useTranslations("polls");
   const format = useFormatter();
 
@@ -165,6 +175,7 @@ export function ResponseSummary({ pollId, slots, responses }: Props) {
       }
       return updated;
     });
+    onResponseChange?.(slotId, umpireId, next);
 
     const revert = () => {
       setResponseMap((prev) => {
@@ -176,6 +187,7 @@ export function ResponseSummary({ pollId, slots, responses }: Props) {
         }
         return reverted;
       });
+      onResponseChange?.(slotId, umpireId, current);
     };
 
     updatePollResponse(pollId, slotId, umpireId, next)
