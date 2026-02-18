@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { calculateSlot, groupMatchesIntoSlots } from "@/lib/domain/slots";
 
 describe("calculateSlot", () => {
-  it("subtracts 30 min and rounds down to quarter hour (match at 11:15)", () => {
+  it("subtracts 20 min and rounds down to quarter hour (match at 11:15)", () => {
     const match = new Date("2025-03-15T11:15:00Z");
     const slot = calculateSlot(match);
     expect(slot.start).toEqual(new Date("2025-03-15T10:45:00Z"));
@@ -12,8 +12,8 @@ describe("calculateSlot", () => {
   it("rounds down when not on quarter hour (match at 12:05)", () => {
     const match = new Date("2025-03-15T12:05:00Z");
     const slot = calculateSlot(match);
-    expect(slot.start).toEqual(new Date("2025-03-15T11:30:00Z"));
-    expect(slot.end).toEqual(new Date("2025-03-15T13:30:00Z"));
+    expect(slot.start).toEqual(new Date("2025-03-15T11:45:00Z"));
+    expect(slot.end).toEqual(new Date("2025-03-15T13:45:00Z"));
   });
 
   it("handles match exactly on the hour (14:00)", () => {
@@ -40,8 +40,8 @@ describe("calculateSlot", () => {
   it("rounds down 14 min past quarter hour (10:44)", () => {
     const match = new Date("2025-03-15T10:44:00Z");
     const slot = calculateSlot(match);
-    expect(slot.start).toEqual(new Date("2025-03-15T10:00:00Z"));
-    expect(slot.end).toEqual(new Date("2025-03-15T12:00:00Z"));
+    expect(slot.start).toEqual(new Date("2025-03-15T10:15:00Z"));
+    expect(slot.end).toEqual(new Date("2025-03-15T12:15:00Z"));
   });
 
   it("handles midnight boundary (match at 00:15)", () => {

@@ -9,7 +9,7 @@ High-level process:
 Build using red/green TDD.
 
 Availability poll is for 2 hour slots, not exact games. For example: game starts at 11:15am -> Slot 10:45-12:45.
-Slots start at least 30 minutes before match at (xx:00, xx:15, xx:30 or xx:45, and last 2 hours. E.g. match starting at 12:05 -> slot 11:30 to 13:30
+Slots start at least 20 minutes before match at (xx:00, xx:15, xx:30 or xx:45, and last 2 hours. E.g. match starting at 12:05 -> slot 11:45 to 13:45
 
 Frontend modern NodeJS, mobile responsive, deployed on Vercel
 Backend: Supabase for db, auth etc. Vercel

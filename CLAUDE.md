@@ -9,7 +9,7 @@ Fluitplanner: a field hockey umpire availability and match assignment app. Two i
 1. **Planner (admin)**: upload matches (excel/csv/paste), CRUD matches & umpires, assign umpires to matches, generate availability poll links
 2. **Umpire (user)**: mobile-responsive availability polls (yes/if need be/no) for time slots, similar to Rallly/Doodle
 
-Availability polls use 2-hour time slots (not exact match times). Slots start at least 30 min before match time, rounded to nearest quarter hour. Each match requires two umpires.
+Availability polls use 2-hour time slots (not exact match times). Slots start at least 20 min before match time, rounded down to nearest quarter hour. Each match requires two umpires.
 
 ## Git Workflow
 

@@ -2,11 +2,11 @@ import type { TimeSlot } from "@/lib/types/domain";
 
 export function calculateSlot(matchTime: Date): TimeSlot {
   const ms = matchTime.getTime();
-  const thirtyMinMs = 30 * 60 * 1000;
+  const twentyMinMs = 20 * 60 * 1000;
   const fifteenMinMs = 15 * 60 * 1000;
   const twoHoursMs = 2 * 60 * 60 * 1000;
 
-  const shifted = ms - thirtyMinMs;
+  const shifted = ms - twentyMinMs;
   const start = shifted - (shifted % fifteenMinMs);
   const end = start + twoHoursMs;
 
