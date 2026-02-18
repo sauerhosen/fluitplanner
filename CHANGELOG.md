@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.6.3](https://github.com/sauerhosen/fluitplanner/compare/v2.6.2...v2.6.3) (2026-02-18)
+
+
+### Bug Fixes
+
+* include organization_id when inserting verification codes ([#77](https://github.com/sauerhosen/fluitplanner/issues/77)) ([e935ca5](https://github.com/sauerhosen/fluitplanner/commit/e935ca5559fcb7739588ae4e8dc22de3a7a5ad32))
+
 ## [2.6.2](https://github.com/sauerhosen/fluitplanner/compare/v2.6.1...v2.6.2) (2026-02-18)
 
 
