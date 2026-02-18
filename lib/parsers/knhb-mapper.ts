@@ -21,9 +21,30 @@ function parseDutchDate(dateStr: string): string | null {
   return `${year}-${month}-${day}`;
 }
 
+function getAmsterdamOffset(dateISO: string, time: string): string {
+  // Build a Date that represents the given local time in Europe/Amsterdam,
+  // then derive the UTC offset so we can store it correctly in timestamptz.
+  const fmt = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Europe/Amsterdam",
+    timeZoneName: "shortOffset",
+  });
+  // Use a rough UTC guess to resolve the correct DST period
+  const rough = new Date(`${dateISO}T${time}:00Z`);
+  const parts = fmt.formatToParts(rough);
+  const tzPart = parts.find((p) => p.type === "timeZoneName")?.value ?? "";
+  // tzPart is like "GMT+1" or "GMT+2"; convert to "+01:00" / "+02:00"
+  const m = tzPart.match(/GMT([+-]\d+)/);
+  if (!m) return "+01:00"; // fallback CET
+  const hours = parseInt(m[1], 10);
+  const sign = hours >= 0 ? "+" : "-";
+  return `${sign}${String(Math.abs(hours)).padStart(2, "0")}:00`;
+}
+
 function parseTime(dateISO: string, timeStr: string): string | null {
   if (!timeStr || !timeStr.trim()) return null;
-  return `${dateISO}T${timeStr.trim()}:00`;
+  const time = timeStr.trim();
+  const offset = getAmsterdamOffset(dateISO, time);
+  return `${dateISO}T${time}:00${offset}`;
 }
 
 export function mapKNHBRows(

@@ -30,7 +30,7 @@ describe("mapKNHBRows", () => {
     expect(result.matches).toHaveLength(1);
     expect(result.matches[0]).toEqual({
       date: "2026-02-14",
-      start_time: "2026-02-14T09:30:00",
+      start_time: "2026-02-14T09:30:00+01:00",
       home_team: "Heren 01",
       away_team: "Opponent H1",
       venue: "Escapade (HIC)",
