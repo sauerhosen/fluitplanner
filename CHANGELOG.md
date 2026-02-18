@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.6.2](https://github.com/sauerhosen/fluitplanner/compare/v2.6.1...v2.6.2) (2026-02-18)
+
+
+### Bug Fixes
+
+* correct timezone handling for match dates and times ([#75](https://github.com/sauerhosen/fluitplanner/issues/75)) ([b8006f2](https://github.com/sauerhosen/fluitplanner/commit/b8006f243c264619f5e0f7138d8e5e232e9f3325))
+
 ## [2.6.1](https://github.com/sauerhosen/fluitplanner/compare/v2.6.0...v2.6.1) (2026-02-18)
 
 
