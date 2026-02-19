@@ -290,11 +290,12 @@ describe("getActionItems", () => {
 
 describe("getRecentActivity", () => {
   it("returns merged and sorted activity events", async () => {
-    // 1. recent responses: .from("availability_responses").select("participant_name, created_at, polls(title)").order().limit()
+    // 1. recent responses
     mockLimit.mockResolvedValueOnce({
       data: [
         {
           participant_name: "Jan",
+          poll_id: "poll-1",
           created_at: "2026-02-10T10:00:00Z",
           polls: { title: "Week 10" },
         },
@@ -302,7 +303,7 @@ describe("getRecentActivity", () => {
       error: null,
     });
 
-    // 2. recent assignments: .from("assignments").select("created_at, umpires(name), matches(home_team, away_team)").order().limit()
+    // 2. recent assignments
     mockLimit.mockResolvedValueOnce({
       data: [
         {
@@ -314,7 +315,7 @@ describe("getRecentActivity", () => {
       error: null,
     });
 
-    // 3. recent matches: .from("matches").select("home_team, away_team, created_at").eq("created_by",...).order().limit()
+    // 3. recent matches
     mockLimit.mockResolvedValueOnce({
       data: [
         {
@@ -345,10 +346,72 @@ describe("getRecentActivity", () => {
     expect(events[2].description).toContain("Week 10");
   });
 
+  it("deduplicates responses by participant + poll", async () => {
+    // Same umpire responded to 5 slots in the same poll — should collapse to 1 event
+    const responses = Array.from({ length: 5 }, (_, i) => ({
+      participant_name: "Emiel",
+      poll_id: "poll-1",
+      created_at: `2026-02-10T10:00:0${i}Z`,
+      polls: { title: "Maart 2026" },
+    }));
+    mockLimit.mockResolvedValueOnce({ data: responses, error: null });
+    mockLimit.mockResolvedValueOnce({ data: [], error: null });
+    mockLimit.mockResolvedValueOnce({ data: [], error: null });
+
+    const { getRecentActivity } = await import("@/lib/actions/dashboard");
+    const events = await getRecentActivity();
+
+    expect(events).toHaveLength(1);
+    expect(events[0].type).toBe("response");
+    expect(events[0].description).toContain("Emiel");
+    expect(events[0].description).toContain("Maart 2026");
+    // Should use the most recent timestamp
+    expect(events[0].timestamp).toBe("2026-02-10T10:00:04Z");
+  });
+
+  it("groups bulk-imported matches into a single event", async () => {
+    // 8 matches created within 2 seconds (bulk import)
+    const matches = Array.from({ length: 8 }, (_, i) => ({
+      home_team: `Team${i}`,
+      away_team: `Opp${i}`,
+      created_at: `2026-02-12T08:00:0${i}.000Z`,
+    }));
+    mockLimit.mockResolvedValueOnce({ data: [], error: null });
+    mockLimit.mockResolvedValueOnce({ data: [], error: null });
+    mockLimit.mockResolvedValueOnce({ data: matches, error: null });
+
+    const { getRecentActivity } = await import("@/lib/actions/dashboard");
+    const events = await getRecentActivity();
+
+    expect(events).toHaveLength(1);
+    expect(events[0].type).toBe("match_added");
+    expect(events[0].description).toBe("8 matches added");
+  });
+
+  it("groups batch assignments into a single event", async () => {
+    // 3 assignments created within 2 seconds
+    const assignments = Array.from({ length: 3 }, (_, i) => ({
+      created_at: `2026-02-11T09:00:0${i}.000Z`,
+      umpires: { name: `Umpire${i}` },
+      matches: { home_team: "A", away_team: "B" },
+    }));
+    mockLimit.mockResolvedValueOnce({ data: [], error: null });
+    mockLimit.mockResolvedValueOnce({ data: assignments, error: null });
+    mockLimit.mockResolvedValueOnce({ data: [], error: null });
+
+    const { getRecentActivity } = await import("@/lib/actions/dashboard");
+    const events = await getRecentActivity();
+
+    expect(events).toHaveLength(1);
+    expect(events[0].type).toBe("assignment");
+    expect(events[0].description).toBe("3 umpires assigned");
+  });
+
   it("limits output to 10 events total", async () => {
-    // Return 10 responses, 10 assignments, 10 matches
+    // Return 10 unique responses (different umpires), 10 assignments (spread out), 10 matches (spread out)
     const responses = Array.from({ length: 10 }, (_, i) => ({
       participant_name: `Umpire${i}`,
+      poll_id: `poll-${i}`,
       created_at: `2026-02-01T${String(i).padStart(2, "0")}:00:00Z`,
       polls: { title: "Week 10" },
     }));
