@@ -332,18 +332,23 @@ describe("getRecentActivity", () => {
 
     expect(events).toHaveLength(3);
     // Should be sorted by timestamp descending
-    expect(events[0].type).toBe("match_added");
-    expect(events[0].timestamp).toBe("2026-02-12T08:00:00Z");
-    expect(events[0].description).toContain("Lions");
-    expect(events[0].description).toContain("Tigers");
-
-    expect(events[1].type).toBe("assignment");
-    expect(events[1].description).toContain("Piet");
-    expect(events[1].description).toContain("Eagles");
-
-    expect(events[2].type).toBe("response");
-    expect(events[2].description).toContain("Jan");
-    expect(events[2].description).toContain("Week 10");
+    expect(events[0]).toMatchObject({
+      type: "match_added",
+      homeTeam: "Lions",
+      awayTeam: "Tigers",
+      timestamp: "2026-02-12T08:00:00Z",
+    });
+    expect(events[1]).toMatchObject({
+      type: "assignment",
+      umpire: "Piet",
+      homeTeam: "Eagles",
+      awayTeam: "Hawks",
+    });
+    expect(events[2]).toMatchObject({
+      type: "response",
+      participant: "Jan",
+      pollTitle: "Week 10",
+    });
   });
 
   it("deduplicates responses by participant + poll", async () => {
@@ -362,11 +367,13 @@ describe("getRecentActivity", () => {
     const events = await getRecentActivity();
 
     expect(events).toHaveLength(1);
-    expect(events[0].type).toBe("response");
-    expect(events[0].description).toContain("Emiel");
-    expect(events[0].description).toContain("Maart 2026");
-    // Should use the most recent timestamp
-    expect(events[0].timestamp).toBe("2026-02-10T10:00:04Z");
+    expect(events[0]).toMatchObject({
+      type: "response",
+      participant: "Emiel",
+      pollTitle: "Maart 2026",
+      // Should use the most recent timestamp
+      timestamp: "2026-02-10T10:00:04Z",
+    });
   });
 
   it("groups bulk-imported matches into a single event", async () => {
@@ -384,8 +391,10 @@ describe("getRecentActivity", () => {
     const events = await getRecentActivity();
 
     expect(events).toHaveLength(1);
-    expect(events[0].type).toBe("match_added");
-    expect(events[0].description).toBe("8 matches added");
+    expect(events[0]).toMatchObject({
+      type: "matches_batch",
+      count: 8,
+    });
   });
 
   it("groups batch assignments into a single event", async () => {
@@ -403,8 +412,10 @@ describe("getRecentActivity", () => {
     const events = await getRecentActivity();
 
     expect(events).toHaveLength(1);
-    expect(events[0].type).toBe("assignment");
-    expect(events[0].description).toBe("3 umpires assigned");
+    expect(events[0]).toMatchObject({
+      type: "assignments_batch",
+      count: 3,
+    });
   });
 
   it("limits output to 10 events total", async () => {

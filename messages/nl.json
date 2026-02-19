@@ -84,7 +84,12 @@
     "needsAttention": "Actie vereist",
     "allCaughtUp": "Je bent helemaal bij",
     "recentActivity": "Recente activiteit",
-    "noRecentActivity": "Geen recente activiteit."
+    "noRecentActivity": "Geen recente activiteit.",
+    "activityResponse": "{participant} heeft gereageerd op {pollTitle}",
+    "activityAssignment": "{umpire} ingedeeld bij {homeTeam} vs {awayTeam}",
+    "activityAssignmentsBatch": "{count, plural, one {# scheidsrechter} other {# scheidsrechters}} ingedeeld",
+    "activityMatchAdded": "Wedstrijd toegevoegd: {homeTeam} vs {awayTeam}",
+    "activityMatchesBatch": "{count, plural, one {# wedstrijd} other {# wedstrijden}} toegevoegd"
   },
   "matches": {
     "pageTitle": "Wedstrijden",

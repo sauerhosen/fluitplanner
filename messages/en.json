@@ -84,7 +84,12 @@
     "needsAttention": "Needs attention",
     "allCaughtUp": "You're all caught up",
     "recentActivity": "Recent activity",
-    "noRecentActivity": "No recent activity."
+    "noRecentActivity": "No recent activity.",
+    "activityResponse": "{participant} responded to {pollTitle}",
+    "activityAssignment": "{umpire} assigned to {homeTeam} vs {awayTeam}",
+    "activityAssignmentsBatch": "{count, plural, one {# umpire} other {# umpires}} assigned",
+    "activityMatchAdded": "Match added: {homeTeam} vs {awayTeam}",
+    "activityMatchesBatch": "{count, plural, one {# match} other {# matches}} added"
   },
   "matches": {
     "pageTitle": "Matches",

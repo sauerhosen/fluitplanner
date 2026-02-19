@@ -21,11 +21,36 @@ export type ActionItem = {
   href: string;
 };
 
-export type ActivityEvent = {
-  type: "response" | "assignment" | "match_added";
-  description: string;
-  timestamp: string;
-};
+export type ActivityEvent =
+  | {
+      type: "response";
+      participant: string;
+      pollTitle: string;
+      timestamp: string;
+    }
+  | {
+      type: "assignment";
+      umpire: string;
+      homeTeam: string;
+      awayTeam: string;
+      timestamp: string;
+    }
+  | {
+      type: "assignments_batch";
+      count: number;
+      timestamp: string;
+    }
+  | {
+      type: "match_added";
+      homeTeam: string;
+      awayTeam: string;
+      timestamp: string;
+    }
+  | {
+      type: "matches_batch";
+      count: number;
+      timestamp: string;
+    };
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
@@ -359,7 +384,8 @@ export async function getRecentActivity(): Promise<ActivityEvent[]> {
       const poll = Array.isArray(r.polls) ? r.polls[0] : r.polls;
       return {
         type: "response" as const,
-        description: `${r.participant_name} responded to ${poll?.title ?? "poll"}`,
+        participant: r.participant_name,
+        pollTitle: poll?.title ?? "poll",
         timestamp: r.created_at,
       };
     },
@@ -393,13 +419,15 @@ export async function getRecentActivity(): Promise<ActivityEvent[]> {
     if (group.length === 1) {
       return {
         type: "assignment" as const,
-        description: `${umpire?.name ?? "Umpire"} assigned to ${match?.home_team ?? "?"} vs ${match?.away_team ?? "?"}`,
+        umpire: umpire?.name ?? "Umpire",
+        homeTeam: match?.home_team ?? "?",
+        awayTeam: match?.away_team ?? "?",
         timestamp: first.created_at,
       };
     }
     return {
-      type: "assignment" as const,
-      description: `${group.length} umpires assigned`,
+      type: "assignments_batch" as const,
+      count: group.length,
       timestamp: first.created_at,
     };
   });
@@ -424,13 +452,14 @@ export async function getRecentActivity(): Promise<ActivityEvent[]> {
     if (group.length === 1) {
       return {
         type: "match_added" as const,
-        description: `Match added: ${group[0].home_team} vs ${group[0].away_team}`,
+        homeTeam: group[0].home_team,
+        awayTeam: group[0].away_team,
         timestamp: group[0].created_at,
       };
     }
     return {
-      type: "match_added" as const,
-      description: `${group.length} matches added`,
+      type: "matches_batch" as const,
+      count: group.length,
       timestamp: group[0].created_at,
     };
   });
