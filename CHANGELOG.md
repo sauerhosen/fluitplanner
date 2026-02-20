@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.6.5](https://github.com/sauerhosen/fluitplanner/compare/v2.6.4...v2.6.5) (2026-02-20)
+
+
+### Bug Fixes
+
+* deduplicate recent activity events on dashboard ([#81](https://github.com/sauerhosen/fluitplanner/issues/81)) ([273af43](https://github.com/sauerhosen/fluitplanner/commit/273af43b44c53b5f30ee8f1735fc9bf9a7ef5b67))
+
 ## [2.6.4](https://github.com/sauerhosen/fluitplanner/compare/v2.6.3...v2.6.4) (2026-02-18)
 
 
