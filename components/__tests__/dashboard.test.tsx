@@ -7,7 +7,24 @@ vi.mock("next-intl/server", () => ({
   getTranslations: vi.fn(async (namespace?: string) => {
     const ns = namespace as keyof typeof messages | undefined;
     const nsMessages = ns ? (messages[ns] as Record<string, string>) : {};
-    return (key: string) => nsMessages?.[key] ?? key;
+    return (key: string, params?: Record<string, string | number>) => {
+      let msg = nsMessages?.[key] ?? key;
+      if (params) {
+        for (const [k, v] of Object.entries(params)) {
+          msg = msg.replace(new RegExp(`\\{${k}\\}`, "g"), String(v));
+          // Handle simple ICU plural: {key, plural, one {#...} other {#...}}
+          const pluralRe = new RegExp(
+            `\\{${k},\\s*plural,\\s*one\\s*\\{([^}]*)\\}\\s*other\\s*\\{([^}]*)\\}\\}`,
+          );
+          const match = msg.match(pluralRe);
+          if (match) {
+            const replacement = Number(v) === 1 ? match[1] : match[2];
+            msg = msg.replace(match[0], replacement.replace("#", String(v)));
+          }
+        }
+      }
+      return msg;
+    };
   }),
   getLocale: vi.fn(async () => "en"),
   getMessages: vi.fn(async () => messages),
@@ -104,12 +121,15 @@ describe("RecentActivitySection", () => {
     vi.mocked(getRecentActivity).mockResolvedValue([
       {
         type: "response",
-        description: "Jan responded to Weekend Poll",
+        participant: "Jan",
+        pollTitle: "Weekend Poll",
         timestamp: new Date().toISOString(),
       },
       {
         type: "assignment",
-        description: "Piet assigned to HC A vs HC B",
+        umpire: "Piet",
+        homeTeam: "HC A",
+        awayTeam: "HC B",
         timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
       },
     ]);

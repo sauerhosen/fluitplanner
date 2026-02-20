@@ -1,8 +1,36 @@
-import { getRecentActivity } from "@/lib/actions/dashboard";
+import { getRecentActivity, type ActivityEvent } from "@/lib/actions/dashboard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatDistanceToNow } from "date-fns";
 import { nl } from "date-fns/locale";
 import { getTranslations, getLocale } from "next-intl/server";
+
+function formatEvent(
+  event: ActivityEvent,
+  t: Awaited<ReturnType<typeof getTranslations<"dashboard">>>,
+): string {
+  switch (event.type) {
+    case "response":
+      return t("activityResponse", {
+        participant: event.participant,
+        pollTitle: event.pollTitle,
+      });
+    case "assignment":
+      return t("activityAssignment", {
+        umpire: event.umpire,
+        homeTeam: event.homeTeam,
+        awayTeam: event.awayTeam,
+      });
+    case "assignments_batch":
+      return t("activityAssignmentsBatch", { count: event.count });
+    case "match_added":
+      return t("activityMatchAdded", {
+        homeTeam: event.homeTeam,
+        awayTeam: event.awayTeam,
+      });
+    case "matches_batch":
+      return t("activityMatchesBatch", { count: event.count });
+  }
+}
 
 export async function RecentActivitySection() {
   const t = await getTranslations("dashboard");
@@ -23,7 +51,7 @@ export async function RecentActivitySection() {
           <ul className="flex flex-col gap-3">
             {events.map((event, i) => (
               <li key={i} className="flex items-center justify-between text-sm">
-                <span>{event.description}</span>
+                <span>{formatEvent(event, t)}</span>
                 <span className="text-muted-foreground text-xs whitespace-nowrap ml-4">
                   {formatDistanceToNow(new Date(event.timestamp), {
                     addSuffix: true,

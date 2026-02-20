@@ -21,11 +21,36 @@ export type ActionItem = {
   href: string;
 };
 
-export type ActivityEvent = {
-  type: "response" | "assignment" | "match_added";
-  description: string;
-  timestamp: string;
-};
+export type ActivityEvent =
+  | {
+      type: "response";
+      participant: string;
+      pollTitle: string;
+      timestamp: string;
+    }
+  | {
+      type: "assignment";
+      umpire: string;
+      homeTeam: string;
+      awayTeam: string;
+      timestamp: string;
+    }
+  | {
+      type: "assignments_batch";
+      count: number;
+      timestamp: string;
+    }
+  | {
+      type: "match_added";
+      homeTeam: string;
+      awayTeam: string;
+      timestamp: string;
+    }
+  | {
+      type: "matches_batch";
+      count: number;
+      timestamp: string;
+    };
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
@@ -293,84 +318,151 @@ export async function getActionItems(): Promise<ActionItem[]> {
 /*  getRecentActivity                                                  */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Group items by time proximity: items within `windowMs` of each other
+ * are merged into a single group. Returns groups sorted by most recent first.
+ */
+function groupByTimeWindow<T>(
+  items: T[],
+  getTime: (item: T) => number,
+  windowMs: number,
+): T[][] {
+  if (items.length === 0) return [];
+  const sorted = [...items].sort((a, b) => getTime(b) - getTime(a));
+  const groups: T[][] = [[sorted[0]]];
+  for (let i = 1; i < sorted.length; i++) {
+    const currentGroup = groups[groups.length - 1];
+    const prevTime = getTime(currentGroup[currentGroup.length - 1]);
+    const curTime = getTime(sorted[i]);
+    if (prevTime - curTime <= windowMs) {
+      groups[groups.length - 1].push(sorted[i]);
+    } else {
+      groups.push([sorted[i]]);
+    }
+  }
+  return groups;
+}
+
 export async function getRecentActivity(): Promise<ActivityEvent[]> {
   const { supabase } = await requireAuth();
   const tenantId = await requireTenantId();
 
-  // 1. Recent responses (scoped via polls belonging to this org)
+  // 1. Recent responses — fetch more rows, then deduplicate by participant + poll
   const { data: responses, error: respError } = await supabase
     .from("availability_responses")
-    .select("participant_name, created_at, polls!inner(title, organization_id)")
+    .select(
+      "participant_name, poll_id, created_at, polls!inner(title, organization_id)",
+    )
     .eq("polls.organization_id", tenantId)
     .order("created_at", { ascending: false })
-    .limit(10);
+    .limit(50);
 
   if (respError) throw new Error(respError.message);
 
-  const responseEvents: ActivityEvent[] = (responses ?? []).map(
-    (r: {
+  // Deduplicate: keep only the most recent row per (participant_name, poll_id)
+  const responseMap = new Map<
+    string,
+    {
       participant_name: string;
       created_at: string;
       polls:
         | { title: string; organization_id: string }[]
         | { title: string; organization_id: string }
         | null;
-    }) => {
+    }
+  >();
+  for (const r of responses ?? []) {
+    const key = `${r.participant_name}::${r.poll_id}`;
+    const existing = responseMap.get(key);
+    if (!existing || r.created_at > existing.created_at) {
+      responseMap.set(key, r);
+    }
+  }
+
+  const responseEvents: ActivityEvent[] = Array.from(responseMap.values()).map(
+    (r) => {
       const poll = Array.isArray(r.polls) ? r.polls[0] : r.polls;
       return {
         type: "response" as const,
-        description: `${r.participant_name} responded to ${poll?.title ?? "poll"}`,
+        participant: r.participant_name,
+        pollTitle: poll?.title ?? "poll",
         timestamp: r.created_at,
       };
     },
   );
 
-  // 2. Recent assignments (scoped to this org)
+  // 2. Recent assignments — group by time window (5s) to collapse batch operations
   const { data: assignments, error: assignError } = await supabase
     .from("assignments")
     .select("created_at, umpires(name), matches(home_team, away_team)")
     .eq("organization_id", tenantId)
     .order("created_at", { ascending: false })
-    .limit(10);
+    .limit(50);
 
   if (assignError) throw new Error(assignError.message);
 
-  const assignmentEvents: ActivityEvent[] = (assignments ?? []).map(
-    (a: {
-      created_at: string;
-      umpires: { name: string }[] | { name: string } | null;
-      matches:
-        | { home_team: string; away_team: string }[]
-        | { home_team: string; away_team: string }
-        | null;
-    }) => {
-      const umpire = Array.isArray(a.umpires) ? a.umpires[0] : a.umpires;
-      const match = Array.isArray(a.matches) ? a.matches[0] : a.matches;
-      return {
-        type: "assignment" as const,
-        description: `${umpire?.name ?? "Umpire"} assigned to ${match?.home_team ?? "?"} vs ${match?.away_team ?? "?"}`,
-        timestamp: a.created_at,
-      };
-    },
+  const assignmentGroups = groupByTimeWindow(
+    assignments ?? [],
+    (a) => new Date(a.created_at).getTime(),
+    5000,
   );
 
-  // 3. Recent matches added
+  const assignmentEvents: ActivityEvent[] = assignmentGroups.map((group) => {
+    const first = group[0];
+    const umpire = Array.isArray(first.umpires)
+      ? first.umpires[0]
+      : first.umpires;
+    const match = Array.isArray(first.matches)
+      ? first.matches[0]
+      : first.matches;
+
+    if (group.length === 1) {
+      return {
+        type: "assignment" as const,
+        umpire: umpire?.name ?? "Umpire",
+        homeTeam: match?.home_team ?? "?",
+        awayTeam: match?.away_team ?? "?",
+        timestamp: first.created_at,
+      };
+    }
+    return {
+      type: "assignments_batch" as const,
+      count: group.length,
+      timestamp: first.created_at,
+    };
+  });
+
+  // 3. Recent matches — group by time window (5s) to collapse bulk imports
   const { data: matches, error: matchError } = await supabase
     .from("matches")
     .select("home_team, away_team, created_at")
     .eq("organization_id", tenantId)
     .order("created_at", { ascending: false })
-    .limit(10);
+    .limit(50);
 
   if (matchError) throw new Error(matchError.message);
 
-  const matchEvents: ActivityEvent[] = (matches ?? []).map(
-    (m: { home_team: string; away_team: string; created_at: string }) => ({
-      type: "match_added" as const,
-      description: `Match added: ${m.home_team} vs ${m.away_team}`,
-      timestamp: m.created_at,
-    }),
+  const matchGroups = groupByTimeWindow(
+    matches ?? [],
+    (m) => new Date(m.created_at).getTime(),
+    5000,
   );
+
+  const matchEvents: ActivityEvent[] = matchGroups.map((group) => {
+    if (group.length === 1) {
+      return {
+        type: "match_added" as const,
+        homeTeam: group[0].home_team,
+        awayTeam: group[0].away_team,
+        timestamp: group[0].created_at,
+      };
+    }
+    return {
+      type: "matches_batch" as const,
+      count: group.length,
+      timestamp: group[0].created_at,
+    };
+  });
 
   // Merge, sort descending, limit 10
   const allEvents = [...responseEvents, ...assignmentEvents, ...matchEvents];
