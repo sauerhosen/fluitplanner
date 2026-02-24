@@ -93,9 +93,11 @@ export function VerificationForm({
       const result = await requestVerification(email, pollToken);
       if ("error" in result) {
         setError(t("couldNotResendCode"));
+        setResendCooldown(0);
       }
     } catch {
       setError(t("couldNotResendCode"));
+      setResendCooldown(0);
     }
   }
 
