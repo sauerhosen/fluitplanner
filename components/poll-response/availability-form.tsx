@@ -4,7 +4,20 @@ import { useState, useRef, useEffect, useMemo } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { SlotRow } from "@/components/poll-response/slot-row";
 import { StickyDirtyBar } from "@/components/poll-response/sticky-dirty-bar";
-import { submitResponses } from "@/lib/actions/public-polls";
+import {
+  submitResponses,
+  type AvailabilityGuardPolicy,
+} from "@/lib/actions/public-polls";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useTranslations, useFormatter } from "next-intl";
 import type { PollSlot, AvailabilityResponse } from "@/lib/types/domain";
 
@@ -16,6 +29,8 @@ type Props = {
   umpireName: string;
   slots: PollSlot[];
   existingResponses: AvailabilityResponse[];
+  guardPolicy: AvailabilityGuardPolicy;
+  assignedSlotIds: string[];
 };
 
 export function AvailabilityForm({
@@ -24,6 +39,8 @@ export function AvailabilityForm({
   umpireName,
   slots,
   existingResponses,
+  guardPolicy,
+  assignedSlotIds,
 }: Props) {
   const t = useTranslations("pollResponse");
   const format = useFormatter();
@@ -31,6 +48,10 @@ export function AvailabilityForm({
   // Capture "now" once on mount so slots don't shuffle between past/future on re-renders
   const mountTimeRef = useRef(new Date());
   const now = mountTimeRef.current;
+  const assignedSlotSet = useMemo(
+    () => new Set(assignedSlotIds),
+    [assignedSlotIds],
+  );
 
   function formatDateHeading(isoString: string): string {
     return format.dateTime(new Date(isoString), {
@@ -90,7 +111,9 @@ export function AvailabilityForm({
   const [saving, setSaving] = useState(false);
   const [showSavedInBar, setShowSavedInBar] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [showPastDates, setShowPastDates] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const [savedBaseline, setSavedBaseline] =
     useState<Record<string, ResponseValue | null>>(initialState);
@@ -124,24 +147,59 @@ export function AvailabilityForm({
   function handleChange(slotId: string, value: ResponseValue | null) {
     setResponses((prev) => ({ ...prev, [slotId]: value }));
     setError(null);
+    setStatusMessage(null);
   }
 
-  // Only consider future slots for save button enable state
-  const hasSelections = Array.from(futureSlotIds).some(
-    (id) => responses[id] !== null,
-  );
-
-  async function handleSubmit(e?: React.FormEvent) {
-    if (e) e.preventDefault();
+  async function runSubmit(confirmAssignedDowngrade = false) {
     setSaving(true);
     setError(null);
-    // Only submit responses for future slots
-    const toSubmit = Object.entries(responses)
-      .filter(([slotId, value]) => value !== null && futureSlotIds.has(slotId))
-      .map(([slotId, response]) => ({ slotId, response: response! }));
+    setStatusMessage(null);
+
+    const toSubmit = Array.from(futureSlotIds).map((slotId) => ({
+      slotId,
+      response: responses[slotId],
+    }));
+
     try {
-      await submitResponses(pollId, umpireId, umpireName, toSubmit);
-      setSavedBaseline({ ...responses });
+      const result = await submitResponses(
+        pollId,
+        umpireId,
+        umpireName,
+        toSubmit,
+        { confirmAssignedDowngrade },
+      );
+
+      if (result.status === "confirm_required") {
+        setConfirmOpen(true);
+        return;
+      }
+
+      if (result.status === "partial_saved") {
+        const blockedSet = new Set(result.blockedSlots);
+        const nextBaseline: Record<string, ResponseValue | null> = {
+          ...savedBaseline,
+        };
+        const nextResponses: Record<string, ResponseValue | null> = {
+          ...responses,
+        };
+
+        for (const slotId of futureSlotIds) {
+          if (blockedSet.has(slotId)) {
+            nextResponses[slotId] = savedBaseline[slotId];
+            continue;
+          }
+          nextBaseline[slotId] = responses[slotId];
+        }
+
+        setResponses(nextResponses);
+        setSavedBaseline(nextBaseline);
+        setStatusMessage(
+          t("guardBlockedPartialSaved", { count: result.blockedSlots.length }),
+        );
+      } else {
+        setSavedBaseline({ ...responses });
+      }
+
       setShowSavedInBar(true);
       if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
       savedTimerRef.current = setTimeout(() => setShowSavedInBar(false), 2000);
@@ -150,6 +208,11 @@ export function AvailabilityForm({
     } finally {
       setSaving(false);
     }
+  }
+
+  async function handleSubmit(e?: React.FormEvent) {
+    if (e) e.preventDefault();
+    await runSubmit(false);
   }
 
   const barVisible = isDirty || saving || showSavedInBar || error !== null;
@@ -165,78 +228,120 @@ export function AvailabilityForm({
           {group.label}
         </div>
         <div className="px-3">
-          {group.slots.map((slot) => (
-            <SlotRow
-              key={slot.id}
-              startTime={slot.start_time}
-              endTime={slot.end_time}
-              value={responses[slot.id]}
-              onChange={(value) => handleChange(slot.id, value)}
-              disabled={disabled}
-            />
-          ))}
+          {group.slots.map((slot) => {
+            const isAssigned = assignedSlotSet.has(slot.id);
+            const value = responses[slot.id];
+            const downgradeBlocked =
+              guardPolicy === "block" &&
+              isAssigned &&
+              (value === "yes" || value === "if_need_be");
+
+            return (
+              <SlotRow
+                key={slot.id}
+                startTime={slot.start_time}
+                endTime={slot.end_time}
+                value={value}
+                onChange={(nextValue) => handleChange(slot.id, nextValue)}
+                disabled={disabled}
+                disabledValues={downgradeBlocked ? ["no"] : []}
+                disableClear={downgradeBlocked}
+              />
+            );
+          })}
         </div>
       </div>
     );
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      {/* Edge case: all slots in past */}
-      {allSlotsInPast && (
-        <div className="bg-muted text-muted-foreground rounded-md px-3 py-4 text-center text-sm">
-          {t("allDatesInPast")}
-        </div>
-      )}
+    <>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Edge case: all slots in past */}
+        {allSlotsInPast && (
+          <div className="bg-muted text-muted-foreground rounded-md px-3 py-4 text-center text-sm">
+            {t("allDatesInPast")}
+          </div>
+        )}
 
-      {/* Future date groups (editable) */}
-      {futureDateGroups.map((group) => renderDateGroup(group))}
+        {/* Future date groups (editable) */}
+        {futureDateGroups.map((group) => renderDateGroup(group))}
 
-      {/* When all slots are past, show them expanded (no toggle) */}
-      {allSlotsInPast && (
-        <div className="space-y-4">
-          {pastDateGroups.map((group) => renderDateGroup(group, true))}
-        </div>
-      )}
+        {/* When all slots are past, show them expanded (no toggle) */}
+        {allSlotsInPast && (
+          <div className="space-y-4">
+            {pastDateGroups.map((group) => renderDateGroup(group, true))}
+          </div>
+        )}
 
-      {/* Past dates toggle + collapsible section (only when there are also future slots) */}
-      {hasPastSlots && !allSlotsInPast && (
-        <div>
-          <button
-            type="button"
-            onClick={() => setShowPastDates((prev) => !prev)}
-            className="text-muted-foreground hover:text-foreground flex items-center gap-1.5 px-3 py-2 text-sm"
-          >
-            {showPastDates ? (
-              <ChevronDown className="h-4 w-4" />
-            ) : (
-              <ChevronRight className="h-4 w-4" />
+        {/* Past dates toggle + collapsible section (only when there are also future slots) */}
+        {hasPastSlots && !allSlotsInPast && (
+          <div>
+            <button
+              type="button"
+              onClick={() => setShowPastDates((prev) => !prev)}
+              className="text-muted-foreground hover:text-foreground flex items-center gap-1.5 px-3 py-2 text-sm"
+            >
+              {showPastDates ? (
+                <ChevronDown className="h-4 w-4" />
+              ) : (
+                <ChevronRight className="h-4 w-4" />
+              )}
+              {t("pastDatesToggle", { count: pastDateGroups.length })}
+            </button>
+
+            {showPastDates && (
+              <div className="space-y-4">
+                {pastDateGroups.map((group) => renderDateGroup(group, true))}
+              </div>
             )}
-            {t("pastDatesToggle", { count: pastDateGroups.length })}
-          </button>
+          </div>
+        )}
 
-          {showPastDates && (
-            <div className="space-y-4">
-              {pastDateGroups.map((group) => renderDateGroup(group, true))}
-            </div>
-          )}
-        </div>
-      )}
+        {statusMessage && (
+          <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            {statusMessage}
+          </p>
+        )}
 
-      {/* Save bar — only when there are future slots to save */}
-      {!allSlotsInPast && (
-        <>
-          <div className="h-16" />
-          <StickyDirtyBar
-            visible={barVisible}
-            saving={saving}
-            saved={showSavedInBar && !isDirty}
-            error={error}
-            disabled={!hasSelections || saving}
-            onSave={() => handleSubmit()}
-          />
-        </>
-      )}
-    </form>
+        {/* Save bar — only when there are future slots to save */}
+        {!allSlotsInPast && (
+          <>
+            <div className="h-16" />
+            <StickyDirtyBar
+              visible={barVisible}
+              saving={saving}
+              saved={showSavedInBar && !isDirty}
+              error={error}
+              disabled={!isDirty || saving}
+              onSave={() => handleSubmit()}
+            />
+          </>
+        )}
+      </form>
+
+      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("guardConfirmTitle")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("guardConfirmDescription")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("guardConfirmCancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async (event) => {
+                event.preventDefault();
+                setConfirmOpen(false);
+                await runSubmit(true);
+              }}
+            >
+              {t("guardConfirmProceed")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

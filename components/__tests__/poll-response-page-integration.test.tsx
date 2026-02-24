@@ -7,6 +7,7 @@ import type { Poll, PollSlot } from "@/lib/types/domain";
 vi.mock("@/lib/actions/public-polls", () => ({
   findUmpireById: vi.fn(),
   getMyResponses: vi.fn(),
+  getAvailabilityGuardStatus: vi.fn(),
   findOrCreateUmpire: vi.fn(),
   submitResponses: vi.fn(),
 }));
@@ -24,10 +25,15 @@ vi.mock("@/lib/supabase/client", () => ({
   }),
 }));
 
-import { findUmpireById, getMyResponses } from "@/lib/actions/public-polls";
+import {
+  findUmpireById,
+  getMyResponses,
+  getAvailabilityGuardStatus,
+} from "@/lib/actions/public-polls";
 
 const mockFindUmpireById = vi.mocked(findUmpireById);
 const mockGetMyResponses = vi.mocked(getMyResponses);
+const mockGetAvailabilityGuardStatus = vi.mocked(getAvailabilityGuardStatus);
 
 const openPoll: Poll = {
   id: "poll-1",
@@ -56,6 +62,10 @@ const slots: PollSlot[] = [
 describe("PollResponsePage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockGetAvailabilityGuardStatus.mockResolvedValue({
+      policy: "warn",
+      assignedSlotIds: [],
+    });
     // Clear the umpire cookie
     document.cookie =
       "fluitplanner_umpire_id=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/";

@@ -146,6 +146,27 @@ describe("RecentActivitySection", () => {
     ).toBeInTheDocument();
   });
 
+  it("renders availability warning events prominently", async () => {
+    vi.mocked(getRecentActivity).mockResolvedValue([
+      {
+        type: "availability_warning",
+        umpire: "Jan",
+        pollTitle: "Weekend Poll",
+        outcome: "blocked",
+        timestamp: new Date().toISOString(),
+      },
+    ]);
+
+    const jsx = await RecentActivitySection();
+    render(jsx);
+
+    const message = screen.getByText(
+      "Availability blocked: Jan could not set assigned-slot availability to unavailable in Weekend Poll",
+    );
+    expect(message).toBeInTheDocument();
+    expect(message.closest("li")?.className).toContain("border-amber-300");
+  });
+
   it("shows 'No recent activity' when there are no events", async () => {
     vi.mocked(getRecentActivity).mockResolvedValue([]);
 

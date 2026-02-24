@@ -89,7 +89,9 @@
     "activityAssignment": "{umpire} ingedeeld bij {homeTeam} vs {awayTeam}",
     "activityAssignmentsBatch": "{count, plural, one {# scheidsrechter} other {# scheidsrechters}} ingedeeld",
     "activityMatchAdded": "Wedstrijd toegevoegd: {homeTeam} vs {awayTeam}",
-    "activityMatchesBatch": "{count, plural, one {# wedstrijd} other {# wedstrijden}} toegevoegd"
+    "activityMatchesBatch": "{count, plural, one {# wedstrijd} other {# wedstrijden}} toegevoegd",
+    "activityAvailabilityWarned": "Beschikbaarheidswaarschuwing: {umpire} wijzigt beschikbaarheid in een toegewezen slot in {pollTitle}",
+    "activityAvailabilityBlocked": "Beschikbaarheid geblokkeerd: {umpire} kon in {pollTitle} niet op niet-beschikbaar zetten voor een toegewezen slot"
   },
   "matches": {
     "pageTitle": "Wedstrijden",
@@ -317,7 +319,12 @@
     "couldNotResendCode": "Code opnieuw versturen mislukt. Probeer het later opnieuw.",
     "useDifferentEmail": "Ander e-mailadres gebruiken",
     "pastDatesToggle": "{count, plural, one {# afgelopen datum} other {# afgelopen datums}}",
-    "allDatesInPast": "Alle datums in deze peiling zijn verstreken. Je eerdere reacties staan hieronder."
+    "allDatesInPast": "Alle datums in deze peiling zijn verstreken. Je eerdere reacties staan hieronder.",
+    "guardConfirmTitle": "Waarschuwing toegewezen wedstrijd",
+    "guardConfirmDescription": "Je bent ingedeeld voor minimaal één wedstrijd in dit slot. Weet je zeker dat je jezelf als niet beschikbaar wilt markeren?",
+    "guardConfirmCancel": "Terug",
+    "guardConfirmProceed": "Niet beschikbaar markeren",
+    "guardBlockedPartialSaved": "{count, plural, one {# wijziging naar niet-beschikbaar in een toegewezen slot is geblokkeerd. Overige wijzigingen zijn opgeslagen.} other {# wijzigingen naar niet-beschikbaar in toegewezen slots zijn geblokkeerd. Overige wijzigingen zijn opgeslagen.}}"
   },
   "umpires": {
     "pageTitle": "Scheidsrechters",
@@ -364,7 +371,19 @@
     "levelLabelTop": "Top",
     "addTeam": "Team toevoegen",
     "duplicateTeamName": "Er bestaat al een team met deze naam",
-    "teamError": "Er is iets misgegaan. Probeer het opnieuw."
+    "teamError": "Er is iets misgegaan. Probeer het opnieuw.",
+    "guardPolicySection": "Beschikbaarheidsbeveiliging",
+    "guardPolicyTitle": "Beleid voor toegewezen slots",
+    "guardPolicyHelp": "Kies wat er gebeurt wanneer een scheidsrechter van beschikbaar/indien nodig naar niet beschikbaar/geen reactie wil gaan in een slot waar die is ingedeeld.",
+    "guardPolicyWarnLabel": "Waarschuwen met bevestiging",
+    "guardPolicyWarnHelp": "Scheidsrechters kunnen de wijziging nog steeds opslaan, maar moeten eerst expliciet bevestigen.",
+    "guardPolicyBlockLabel": "Hard blokkeren",
+    "guardPolicyBlockHelp": "Wijzigen naar niet beschikbaar/geen reactie is geblokkeerd voor toegewezen slots. Overige wijzigingen kunnen wel worden opgeslagen.",
+    "guardPolicySave": "Beleid opslaan",
+    "guardPolicySaving": "Opslaan...",
+    "guardPolicySaved": "Opgeslagen",
+    "guardPolicyReadOnly": "Alleen planners kunnen deze instelling wijzigen.",
+    "guardPolicyError": "Deze instelling opslaan is mislukt. Probeer het opnieuw."
   },
   "landing": {
     "title": "Fluitplanner",

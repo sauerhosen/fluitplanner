@@ -50,6 +50,13 @@ export type ActivityEvent =
       type: "matches_batch";
       count: number;
       timestamp: string;
+    }
+  | {
+      type: "availability_warning";
+      umpire: string;
+      pollTitle: string;
+      outcome: "confirm_required" | "blocked";
+      timestamp: string;
     };
 
 /* ------------------------------------------------------------------ */
@@ -464,8 +471,40 @@ export async function getRecentActivity(): Promise<ActivityEvent[]> {
     };
   });
 
+  // 4. Availability downgrade warnings
+  const { data: warnings, error: warningError } = await supabase
+    .from("availability_change_warnings")
+    .select("created_at, outcome, umpires(name), polls(title)")
+    .eq("organization_id", tenantId)
+    .order("created_at", { ascending: false })
+    .limit(50);
+
+  if (warningError) throw new Error(warningError.message);
+
+  const warningEvents: ActivityEvent[] = (warnings ?? []).map((warning) => {
+    const umpire = Array.isArray(warning.umpires)
+      ? warning.umpires[0]
+      : warning.umpires;
+    const poll = Array.isArray(warning.polls)
+      ? warning.polls[0]
+      : warning.polls;
+
+    return {
+      type: "availability_warning",
+      umpire: umpire?.name ?? "Umpire",
+      pollTitle: poll?.title ?? "poll",
+      outcome: warning.outcome as "confirm_required" | "blocked",
+      timestamp: warning.created_at,
+    };
+  });
+
   // Merge, sort descending, limit 10
-  const allEvents = [...responseEvents, ...assignmentEvents, ...matchEvents];
+  const allEvents = [
+    ...responseEvents,
+    ...assignmentEvents,
+    ...matchEvents,
+    ...warningEvents,
+  ];
   allEvents.sort(
     (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
   );

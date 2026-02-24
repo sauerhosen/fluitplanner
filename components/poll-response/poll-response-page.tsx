@@ -6,7 +6,12 @@ import { AvailabilityForm } from "@/components/poll-response/availability-form";
 import { UmpireIdentifier } from "@/components/poll-response/umpire-identifier";
 import { VerificationForm } from "@/components/poll-response/verification-form";
 import { createClient } from "@/lib/supabase/client";
-import { findUmpireById, getMyResponses } from "@/lib/actions/public-polls";
+import {
+  findUmpireById,
+  getMyResponses,
+  getAvailabilityGuardStatus,
+  type AvailabilityGuardPolicy,
+} from "@/lib/actions/public-polls";
 import { verifyMagicLink } from "@/lib/actions/verification";
 import { LayoutDashboard } from "lucide-react";
 import Link from "next/link";
@@ -66,6 +71,9 @@ export function PollResponsePage({
   const [existingResponses, setExistingResponses] = useState<
     AvailabilityResponse[]
   >([]);
+  const [guardPolicy, setGuardPolicy] =
+    useState<AvailabilityGuardPolicy>("warn");
+  const [assignedSlotIds, setAssignedSlotIds] = useState<string[]>([]);
   const [verifyState, setVerifyState] = useState<{
     email: string;
     maskedEmail: string;
@@ -85,8 +93,13 @@ export function PollResponsePage({
         const result = await verifyMagicLink(verifyToken);
         if ("umpire" in result) {
           setCookie(COOKIE_NAME, result.umpire.id, 365);
-          const responses = await getMyResponses(poll.id, result.umpire.id);
+          const [responses, guardStatus] = await Promise.all([
+            getMyResponses(poll.id, result.umpire.id),
+            getAvailabilityGuardStatus(poll.id, result.umpire.id),
+          ]);
           setExistingResponses(responses);
+          setGuardPolicy(guardStatus.policy);
+          setAssignedSlotIds(guardStatus.assignedSlotIds);
           setUmpire(result.umpire);
           setLoading(false);
           return;
@@ -98,8 +111,13 @@ export function PollResponsePage({
       if (savedId) {
         const found = await findUmpireById(savedId);
         if (found) {
-          const responses = await getMyResponses(poll.id, found.id);
+          const [responses, guardStatus] = await Promise.all([
+            getMyResponses(poll.id, found.id),
+            getAvailabilityGuardStatus(poll.id, found.id),
+          ]);
           setExistingResponses(responses);
+          setGuardPolicy(guardStatus.policy);
+          setAssignedSlotIds(guardStatus.assignedSlotIds);
           setUmpire(found);
         } else {
           deleteCookie(COOKIE_NAME);
@@ -112,8 +130,13 @@ export function PollResponsePage({
 
   async function handleIdentified(identified: Umpire) {
     setCookie(COOKIE_NAME, identified.id, 365);
-    const responses = await getMyResponses(poll.id, identified.id);
+    const [responses, guardStatus] = await Promise.all([
+      getMyResponses(poll.id, identified.id),
+      getAvailabilityGuardStatus(poll.id, identified.id),
+    ]);
     setExistingResponses(responses);
+    setGuardPolicy(guardStatus.policy);
+    setAssignedSlotIds(guardStatus.assignedSlotIds);
     setUmpire(identified);
   }
 
@@ -233,6 +256,8 @@ export function PollResponsePage({
         umpireName={umpire.name}
         slots={slots}
         existingResponses={existingResponses}
+        guardPolicy={guardPolicy}
+        assignedSlotIds={assignedSlotIds}
       />
     </div>
   );

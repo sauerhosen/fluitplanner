@@ -12,6 +12,8 @@ type Props = {
   value: ResponseValue | null;
   onChange: (value: ResponseValue | null) => void;
   disabled?: boolean;
+  disabledValues?: ResponseValue[];
+  disableClear?: boolean;
 };
 
 type ButtonConfig = {
@@ -45,6 +47,8 @@ export function SlotRow({
   value,
   onChange,
   disabled,
+  disabledValues = [],
+  disableClear = false,
 }: Props) {
   const t = useTranslations("pollResponse");
   const format = useFormatter();
@@ -76,7 +80,11 @@ export function SlotRow({
             size="sm"
             className={value === btn.value ? btn.activeClass : ""}
             onClick={() => onChange(value === btn.value ? null : btn.value)}
-            disabled={disabled}
+            disabled={
+              disabled ||
+              disabledValues.includes(btn.value) ||
+              (disableClear && value === btn.value)
+            }
           >
             {t(btn.labelKey)}
           </Button>

@@ -89,7 +89,9 @@
     "activityAssignment": "{umpire} assigned to {homeTeam} vs {awayTeam}",
     "activityAssignmentsBatch": "{count, plural, one {# umpire} other {# umpires}} assigned",
     "activityMatchAdded": "Match added: {homeTeam} vs {awayTeam}",
-    "activityMatchesBatch": "{count, plural, one {# match} other {# matches}} added"
+    "activityMatchesBatch": "{count, plural, one {# match} other {# matches}} added",
+    "activityAvailabilityWarned": "Availability warning: {umpire} is changing assigned-slot availability in {pollTitle}",
+    "activityAvailabilityBlocked": "Availability blocked: {umpire} could not set assigned-slot availability to unavailable in {pollTitle}"
   },
   "matches": {
     "pageTitle": "Matches",
@@ -317,7 +319,12 @@
     "couldNotResendCode": "Could not resend code. Please try again later.",
     "useDifferentEmail": "Use a different email",
     "pastDatesToggle": "{count, plural, one {# past date} other {# past dates}}",
-    "allDatesInPast": "All dates in this poll have passed. Your previous responses are shown below."
+    "allDatesInPast": "All dates in this poll have passed. Your previous responses are shown below.",
+    "guardConfirmTitle": "Assigned match warning",
+    "guardConfirmDescription": "You are assigned to at least one match in this slot. Are you sure you want to mark yourself unavailable?",
+    "guardConfirmCancel": "Go back",
+    "guardConfirmProceed": "Mark unavailable",
+    "guardBlockedPartialSaved": "{count, plural, one {# assigned-slot downgrade was blocked. Other changes were saved.} other {# assigned-slot downgrades were blocked. Other changes were saved.}}"
   },
   "umpires": {
     "pageTitle": "Umpires",
@@ -364,7 +371,19 @@
     "levelLabelTop": "Top",
     "addTeam": "Add team",
     "duplicateTeamName": "A team with this name already exists",
-    "teamError": "Something went wrong. Please try again."
+    "teamError": "Something went wrong. Please try again.",
+    "guardPolicySection": "Availability guard",
+    "guardPolicyTitle": "Assigned-slot availability policy",
+    "guardPolicyHelp": "Choose what happens when an umpire tries to downgrade from available or maybe to unavailable/none in a slot where they are assigned.",
+    "guardPolicyWarnLabel": "Warn with confirmation",
+    "guardPolicyWarnHelp": "Umpires can still save the change, but must explicitly confirm first.",
+    "guardPolicyBlockLabel": "Hard block",
+    "guardPolicyBlockHelp": "Downgrading to unavailable/none is blocked for assigned slots. Other changes can still be saved.",
+    "guardPolicySave": "Save policy",
+    "guardPolicySaving": "Saving...",
+    "guardPolicySaved": "Saved",
+    "guardPolicyReadOnly": "Only planners can edit this setting.",
+    "guardPolicyError": "Could not save this setting. Please try again."
   },
   "landing": {
     "title": "Fluitplanner",

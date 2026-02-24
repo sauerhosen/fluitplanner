@@ -33,6 +33,8 @@ const defaultProps = {
   umpireName: "Jan",
   slots,
   existingResponses: [] as AvailabilityResponse[],
+  guardPolicy: "warn" as const,
+  assignedSlotIds: [] as string[],
 };
 
 describe("AvailabilityForm", () => {
@@ -62,7 +64,7 @@ describe("AvailabilityForm", () => {
   });
 
   it("submits selected responses", async () => {
-    mockSubmit.mockResolvedValue(undefined);
+    mockSubmit.mockResolvedValue({ status: "saved" });
     render(<AvailabilityForm {...defaultProps} />);
 
     // Select Yes for slot 1
@@ -77,15 +79,21 @@ describe("AvailabilityForm", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
 
     await waitFor(() => {
-      expect(mockSubmit).toHaveBeenCalledWith("poll-1", "ump-1", "Jan", [
-        { slotId: "slot-1", response: "yes" },
-        { slotId: "slot-2", response: "no" },
-      ]);
+      expect(mockSubmit).toHaveBeenCalledWith(
+        "poll-1",
+        "ump-1",
+        "Jan",
+        [
+          { slotId: "slot-1", response: "yes" },
+          { slotId: "slot-2", response: "no" },
+        ],
+        { confirmAssignedDowngrade: false },
+      );
     });
   });
 
   it("shows success message after save", async () => {
-    mockSubmit.mockResolvedValue(undefined);
+    mockSubmit.mockResolvedValue({ status: "saved" });
     render(<AvailabilityForm {...defaultProps} />);
 
     fireEvent.click(screen.getAllByRole("button", { name: "Yes" })[0]);
@@ -199,6 +207,90 @@ describe("AvailabilityForm", () => {
       expect(screen.getByText("Poll is closed")).toBeTruthy();
     });
   });
+
+  it("shows confirmation dialog when server requires assigned-slot downgrade confirm", async () => {
+    mockSubmit
+      .mockResolvedValueOnce({
+        status: "confirm_required",
+        affectedSlots: ["slot-1"],
+      })
+      .mockResolvedValueOnce({ status: "saved" });
+
+    const existing: AvailabilityResponse[] = [
+      {
+        id: "resp-1",
+        poll_id: "poll-1",
+        slot_id: "slot-1",
+        participant_name: "Jan",
+        response: "yes",
+        umpire_id: "ump-1",
+        created_at: "2030-02-01T00:00:00Z",
+        updated_at: "2030-02-01T00:00:00Z",
+      },
+    ];
+
+    render(
+      <AvailabilityForm
+        {...defaultProps}
+        existingResponses={existing}
+        guardPolicy="warn"
+        assignedSlotIds={["slot-1"]}
+      />,
+    );
+
+    fireEvent.click(screen.getAllByRole("button", { name: "No" })[0]);
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Assigned match warning")).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Mark unavailable" }));
+
+    await waitFor(() => {
+      expect(mockSubmit).toHaveBeenNthCalledWith(
+        2,
+        "poll-1",
+        "ump-1",
+        "Jan",
+        [
+          { slotId: "slot-1", response: "no" },
+          { slotId: "slot-2", response: null },
+        ],
+        { confirmAssignedDowngrade: true },
+      );
+    });
+  });
+
+  it("disables downgrade controls for assigned slots in block mode", () => {
+    const existing: AvailabilityResponse[] = [
+      {
+        id: "resp-1",
+        poll_id: "poll-1",
+        slot_id: "slot-1",
+        participant_name: "Jan",
+        response: "yes",
+        umpire_id: "ump-1",
+        created_at: "2030-02-01T00:00:00Z",
+        updated_at: "2030-02-01T00:00:00Z",
+      },
+    ];
+
+    render(
+      <AvailabilityForm
+        {...defaultProps}
+        existingResponses={existing}
+        guardPolicy="block"
+        assignedSlotIds={["slot-1"]}
+      />,
+    );
+
+    expect(screen.getAllByRole("button", { name: "No" })[0]).toBeDisabled();
+    expect(screen.getAllByRole("button", { name: "Yes" })[0]).toBeDisabled();
+    expect(
+      screen.getAllByRole("button", { name: "If need be" })[0],
+    ).not.toBeDisabled();
+  });
 });
 
 /* ------------------------------------------------------------------ */
@@ -241,6 +333,8 @@ const pastFutureProps = {
   umpireId: "ump-1",
   umpireName: "Jan",
   existingResponses: [] as AvailabilityResponse[],
+  guardPolicy: "warn" as const,
+  assignedSlotIds: [] as string[],
 };
 
 describe("AvailabilityForm – past/future partitioning", () => {
@@ -362,7 +456,7 @@ describe("AvailabilityForm – past/future partitioning", () => {
   });
 
   it("does not include past slot responses in submission", async () => {
-    mockSubmit.mockResolvedValue(undefined);
+    mockSubmit.mockResolvedValue({ status: "saved" });
 
     const existingResponses: AvailabilityResponse[] = [
       {
@@ -391,9 +485,13 @@ describe("AvailabilityForm – past/future partitioning", () => {
     fireEvent.click(screen.getByText("Save changes"));
 
     await waitFor(() => {
-      expect(mockSubmit).toHaveBeenCalledWith("poll-1", "ump-1", "Jan", [
-        { slotId: "future-1", response: "yes" },
-      ]);
+      expect(mockSubmit).toHaveBeenCalledWith(
+        "poll-1",
+        "ump-1",
+        "Jan",
+        [{ slotId: "future-1", response: "yes" }],
+        { confirmAssignedDowngrade: false },
+      );
     });
   });
 

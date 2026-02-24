@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatDistanceToNow } from "date-fns";
 import { nl } from "date-fns/locale";
 import { getTranslations, getLocale } from "next-intl/server";
+import { AlertTriangle } from "lucide-react";
 
 function formatEvent(
   event: ActivityEvent,
@@ -29,6 +30,17 @@ function formatEvent(
       });
     case "matches_batch":
       return t("activityMatchesBatch", { count: event.count });
+    case "availability_warning":
+      if (event.outcome === "blocked") {
+        return t("activityAvailabilityBlocked", {
+          umpire: event.umpire,
+          pollTitle: event.pollTitle,
+        });
+      }
+      return t("activityAvailabilityWarned", {
+        umpire: event.umpire,
+        pollTitle: event.pollTitle,
+      });
   }
 }
 
@@ -50,8 +62,20 @@ export async function RecentActivitySection() {
         ) : (
           <ul className="flex flex-col gap-3">
             {events.map((event, i) => (
-              <li key={i} className="flex items-center justify-between text-sm">
-                <span>{formatEvent(event, t)}</span>
+              <li
+                key={i}
+                className={`flex items-center justify-between text-sm ${
+                  event.type === "availability_warning"
+                    ? "rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-amber-900"
+                    : ""
+                }`}
+              >
+                <span className="flex items-center gap-2">
+                  {event.type === "availability_warning" && (
+                    <AlertTriangle className="h-4 w-4 shrink-0 text-amber-700" />
+                  )}
+                  {formatEvent(event, t)}
+                </span>
                 <span className="text-muted-foreground text-xs whitespace-nowrap ml-4">
                   {formatDistanceToNow(new Date(event.timestamp), {
                     addSuffix: true,

@@ -326,6 +326,8 @@ describe("getRecentActivity", () => {
       ],
       error: null,
     });
+    // 4. warning events
+    mockLimit.mockResolvedValueOnce({ data: [], error: null });
 
     const { getRecentActivity } = await import("@/lib/actions/dashboard");
     const events = await getRecentActivity();
@@ -362,6 +364,7 @@ describe("getRecentActivity", () => {
     mockLimit.mockResolvedValueOnce({ data: responses, error: null });
     mockLimit.mockResolvedValueOnce({ data: [], error: null });
     mockLimit.mockResolvedValueOnce({ data: [], error: null });
+    mockLimit.mockResolvedValueOnce({ data: [], error: null });
 
     const { getRecentActivity } = await import("@/lib/actions/dashboard");
     const events = await getRecentActivity();
@@ -386,6 +389,7 @@ describe("getRecentActivity", () => {
     mockLimit.mockResolvedValueOnce({ data: [], error: null });
     mockLimit.mockResolvedValueOnce({ data: [], error: null });
     mockLimit.mockResolvedValueOnce({ data: matches, error: null });
+    mockLimit.mockResolvedValueOnce({ data: [], error: null });
 
     const { getRecentActivity } = await import("@/lib/actions/dashboard");
     const events = await getRecentActivity();
@@ -406,6 +410,7 @@ describe("getRecentActivity", () => {
     }));
     mockLimit.mockResolvedValueOnce({ data: [], error: null });
     mockLimit.mockResolvedValueOnce({ data: assignments, error: null });
+    mockLimit.mockResolvedValueOnce({ data: [], error: null });
     mockLimit.mockResolvedValueOnce({ data: [], error: null });
 
     const { getRecentActivity } = await import("@/lib/actions/dashboard");
@@ -441,6 +446,7 @@ describe("getRecentActivity", () => {
       created_at: `2026-02-03T${String(i).padStart(2, "0")}:00:00Z`,
     }));
     mockLimit.mockResolvedValueOnce({ data: matches, error: null });
+    mockLimit.mockResolvedValueOnce({ data: [], error: null });
 
     const { getRecentActivity } = await import("@/lib/actions/dashboard");
     const events = await getRecentActivity();
@@ -448,5 +454,32 @@ describe("getRecentActivity", () => {
     expect(events).toHaveLength(10);
     // First event should be the most recent (matches from Feb 3)
     expect(events[0].type).toBe("match_added");
+  });
+
+  it("includes availability warning events", async () => {
+    mockLimit.mockResolvedValueOnce({ data: [], error: null });
+    mockLimit.mockResolvedValueOnce({ data: [], error: null });
+    mockLimit.mockResolvedValueOnce({ data: [], error: null });
+    mockLimit.mockResolvedValueOnce({
+      data: [
+        {
+          created_at: "2026-02-13T08:00:00Z",
+          outcome: "blocked",
+          umpires: { name: "Jan" },
+          polls: { title: "Weekend Poll" },
+        },
+      ],
+      error: null,
+    });
+
+    const { getRecentActivity } = await import("@/lib/actions/dashboard");
+    const events = await getRecentActivity();
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      type: "availability_warning",
+      umpire: "Jan",
+      pollTitle: "Weekend Poll",
+      outcome: "blocked",
+    });
   });
 });
