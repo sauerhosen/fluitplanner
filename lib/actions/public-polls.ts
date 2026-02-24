@@ -4,6 +4,10 @@ import { createClient } from "@/lib/supabase/server";
 import { getTenantId } from "@/lib/tenant";
 import { mapMatchesToSlots } from "@/lib/domain/match-slot-mapping";
 import { createServiceClient } from "@/lib/supabase/service";
+import {
+  AVAILABILITY_GUARD_POLICIES,
+  type AvailabilityGuardPolicy,
+} from "@/lib/types/availability";
 import type {
   Poll,
   PollSlot,
@@ -31,8 +35,6 @@ export type SubmitResponsesResult =
   | { status: "confirm_required"; affectedSlots: string[] }
   | { status: "partial_saved"; blockedSlots: string[] };
 
-export type AvailabilityGuardPolicy = "warn" | "block";
-
 export type AvailabilityGuardStatus = {
   policy: AvailabilityGuardPolicy;
   assignedSlotIds: string[];
@@ -46,32 +48,49 @@ function isDowngradeTransition(
   from: AvailabilityResponse["response"] | null,
   to: ResponseInput["response"],
 ): boolean {
+  // By product decision, "yes" -> "if_need_be" stays allowed.
+  // Guarding only applies when downgrading to explicitly unavailable/none.
   return (
     (from === "yes" || from === "if_need_be") && (to === "no" || to === null)
   );
 }
 
+type ServiceClient = ReturnType<typeof createServiceClient>;
+
+function isAvailabilityGuardPolicy(
+  value: unknown,
+): value is AvailabilityGuardPolicy {
+  return (
+    typeof value === "string" &&
+    AVAILABILITY_GUARD_POLICIES.includes(value as AvailabilityGuardPolicy)
+  );
+}
+
 async function getGuardPolicyForOrganization(
   organizationId: string,
+  serviceClient?: ServiceClient,
 ): Promise<AvailabilityGuardPolicy> {
-  const serviceClient = createServiceClient();
-  const { data, error } = await serviceClient
+  const client = serviceClient ?? createServiceClient();
+  const { data, error } = await client
     .from("organization_settings")
     .select("availability_guard_policy")
     .eq("organization_id", organizationId)
     .maybeSingle();
 
   if (error) throw new Error(error.message);
-  return (data?.availability_guard_policy ?? "warn") as AvailabilityGuardPolicy;
+  return isAvailabilityGuardPolicy(data?.availability_guard_policy)
+    ? data.availability_guard_policy
+    : "warn";
 }
 
 async function getAssignedSlotIds(
   pollId: string,
   umpireId: string,
+  serviceClient?: ServiceClient,
 ): Promise<Set<string>> {
-  const serviceClient = createServiceClient();
+  const client = serviceClient ?? createServiceClient();
 
-  const { data: assignments, error: assignmentError } = await serviceClient
+  const { data: assignments, error: assignmentError } = await client
     .from("assignments")
     .select("match_id")
     .eq("poll_id", pollId)
@@ -84,7 +103,7 @@ async function getAssignedSlotIds(
   );
   if (matchIds.length === 0) return new Set<string>();
 
-  const { data: matches, error: matchError } = await serviceClient
+  const { data: matches, error: matchError } = await client
     .from("matches")
     .select(
       "id, date, start_time, home_team, away_team, competition, venue, field, required_level, created_by, created_at, organization_id",
@@ -93,7 +112,7 @@ async function getAssignedSlotIds(
 
   if (matchError) throw new Error(matchError.message);
 
-  const { data: slots, error: slotError } = await serviceClient
+  const { data: slots, error: slotError } = await client
     .from("poll_slots")
     .select("id, poll_id, start_time, end_time")
     .eq("poll_id", pollId);
@@ -282,6 +301,7 @@ export async function getAvailabilityGuardStatus(
   umpireId: string,
 ): Promise<AvailabilityGuardStatus> {
   const supabase = await createClient();
+  const serviceClient = createServiceClient();
 
   const { data: poll, error } = await supabase
     .from("polls")
@@ -297,8 +317,8 @@ export async function getAvailabilityGuardStatus(
   }
 
   const [policy, assignedSlotIds] = await Promise.all([
-    getGuardPolicyForOrganization(poll.organization_id),
-    getAssignedSlotIds(pollId, umpireId),
+    getGuardPolicyForOrganization(poll.organization_id, serviceClient),
+    getAssignedSlotIds(pollId, umpireId, serviceClient),
   ]);
 
   return {
@@ -319,6 +339,7 @@ export async function submitResponses(
   options?: { confirmAssignedDowngrade?: boolean },
 ): Promise<SubmitResponsesResult> {
   const supabase = await createClient();
+  const serviceClient = createServiceClient();
 
   // Verify poll is open and get organization scope
   const { data: poll, error: pollError } = await supabase
@@ -346,8 +367,8 @@ export async function submitResponses(
       .eq("poll_id", pollId)
       .eq("umpire_id", umpireId)
       .in("slot_id", submittedSlotIds),
-    getGuardPolicyForOrganization(poll.organization_id),
-    getAssignedSlotIds(pollId, umpireId),
+    getGuardPolicyForOrganization(poll.organization_id, serviceClient),
+    getAssignedSlotIds(pollId, umpireId, serviceClient),
   ]);
 
   if (existingResponseRows.error) {

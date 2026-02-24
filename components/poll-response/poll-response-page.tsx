@@ -10,12 +10,12 @@ import {
   findUmpireById,
   getMyResponses,
   getAvailabilityGuardStatus,
-  type AvailabilityGuardPolicy,
 } from "@/lib/actions/public-polls";
 import { verifyMagicLink } from "@/lib/actions/verification";
 import { LayoutDashboard } from "lucide-react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
+import type { AvailabilityGuardPolicy } from "@/lib/types/availability";
 import type {
   AvailabilityResponse,
   Poll,
@@ -149,6 +149,8 @@ export function PollResponsePage({
     setUmpire(null);
     setVerifyState(null);
     setExistingResponses([]);
+    setGuardPolicy("warn");
+    setAssignedSlotIds([]);
   }
 
   /* Loading */

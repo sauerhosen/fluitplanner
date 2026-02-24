@@ -301,7 +301,18 @@ describe("submitResponses", () => {
       status: "partial_saved",
       blockedSlots: ["slot-1"],
     });
-    expect(mockUpsert).toHaveBeenCalled();
+    expect(mockUpsert).toHaveBeenCalledWith(
+      [
+        expect.objectContaining({
+          poll_id: "poll-1",
+          slot_id: "slot-2",
+          participant_name: "Jan",
+          response: "yes",
+          umpire_id: "ump-1",
+        }),
+      ],
+      { onConflict: "poll_id,slot_id,umpire_id" },
+    );
   });
 
   it("deletes response when null is submitted", async () => {

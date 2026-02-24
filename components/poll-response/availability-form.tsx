@@ -4,10 +4,7 @@ import { useState, useRef, useEffect, useMemo } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { SlotRow } from "@/components/poll-response/slot-row";
 import { StickyDirtyBar } from "@/components/poll-response/sticky-dirty-bar";
-import {
-  submitResponses,
-  type AvailabilityGuardPolicy,
-} from "@/lib/actions/public-polls";
+import { submitResponses } from "@/lib/actions/public-polls";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -20,6 +17,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useTranslations, useFormatter } from "next-intl";
 import type { PollSlot, AvailabilityResponse } from "@/lib/types/domain";
+import type { AvailabilityGuardPolicy } from "@/lib/types/availability";
 
 type ResponseValue = "yes" | "if_need_be" | "no";
 

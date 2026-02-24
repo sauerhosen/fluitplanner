@@ -1,14 +1,12 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import {
-  updateAvailabilityGuardPolicy,
-  type AvailabilityGuardPolicy,
-} from "@/lib/actions/settings";
+import { updateAvailabilityGuardPolicy } from "@/lib/actions/settings";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { useTranslations } from "next-intl";
+import type { AvailabilityGuardPolicy } from "@/lib/types/availability";
 
 type Props = {
   initialPolicy: AvailabilityGuardPolicy;
@@ -53,6 +51,7 @@ export function AvailabilityGuardSettings({ initialPolicy, canEdit }: Props) {
         onValueChange={(value) => {
           setPolicy(value as AvailabilityGuardPolicy);
           setSaved(false);
+          setError(null);
         }}
         disabled={!canEdit || isPending}
         className="space-y-3"
@@ -95,7 +94,9 @@ export function AvailabilityGuardSettings({ initialPolicy, canEdit }: Props) {
           </p>
         )}
         {saved && (
-          <p className="text-sm text-green-600">{t("guardPolicySaved")}</p>
+          <p className="text-sm text-emerald-600 dark:text-emerald-400">
+            {t("guardPolicySaved")}
+          </p>
         )}
       </div>
 

@@ -12,6 +12,26 @@ select id
 from public.organizations
 on conflict (organization_id) do nothing;
 
+create or replace function public.fn_create_organization_settings_if_missing()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into public.organization_settings (organization_id)
+  values (new.id)
+  on conflict (organization_id) do nothing;
+
+  return new;
+end;
+$$;
+
+create trigger trg_create_organization_settings_after_org_insert
+after insert on public.organizations
+for each row
+execute function public.fn_create_organization_settings_if_missing();
+
 create table public.availability_change_warnings (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations on delete cascade,

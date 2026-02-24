@@ -59,6 +59,11 @@ export type ActivityEvent =
       timestamp: string;
     };
 
+const VALID_WARNING_OUTCOMES = new Set([
+  "confirm_required",
+  "blocked",
+] as const);
+
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
 /* ------------------------------------------------------------------ */
@@ -489,11 +494,19 @@ export async function getRecentActivity(): Promise<ActivityEvent[]> {
       ? warning.polls[0]
       : warning.polls;
 
+    const outcome =
+      typeof warning.outcome === "string" &&
+      VALID_WARNING_OUTCOMES.has(
+        warning.outcome as "confirm_required" | "blocked",
+      )
+        ? (warning.outcome as "confirm_required" | "blocked")
+        : "confirm_required";
+
     return {
       type: "availability_warning",
       umpire: umpire?.name ?? "Umpire",
       pollTitle: poll?.title ?? "poll",
-      outcome: warning.outcome as "confirm_required" | "blocked",
+      outcome,
       timestamp: warning.created_at,
     };
   });

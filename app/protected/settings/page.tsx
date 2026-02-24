@@ -3,9 +3,12 @@ import { TableSkeleton } from "@/components/skeletons";
 import { getManagedTeams } from "@/lib/actions/managed-teams";
 import { ManagedTeamsList } from "@/components/settings/managed-teams-list";
 import { AvailabilityGuardSettings } from "@/components/settings/availability-guard-settings";
-import { getAvailabilityGuardPolicy } from "@/lib/actions/settings";
 import { requireTenantId } from "@/lib/tenant";
 import { createClient } from "@/lib/supabase/server";
+import {
+  AVAILABILITY_GUARD_POLICIES,
+  type AvailabilityGuardPolicy,
+} from "@/lib/types/availability";
 import { getTranslations } from "next-intl/server";
 
 async function ManagedTeamsLoader() {
@@ -21,8 +24,12 @@ async function AvailabilityGuardSettingsLoader() {
   if (!user) throw new Error("Not authenticated");
 
   const tenantId = await requireTenantId();
-  const [policy, membership] = await Promise.all([
-    getAvailabilityGuardPolicy(),
+  const [settings, membership] = await Promise.all([
+    supabase
+      .from("organization_settings")
+      .select("availability_guard_policy")
+      .eq("organization_id", tenantId)
+      .maybeSingle(),
     supabase
       .from("organization_members")
       .select("role")
@@ -31,7 +38,16 @@ async function AvailabilityGuardSettingsLoader() {
       .maybeSingle(),
   ]);
 
+  if (settings.error) throw new Error(settings.error.message);
   if (membership.error) throw new Error(membership.error.message);
+
+  const policy =
+    settings.data?.availability_guard_policy &&
+    AVAILABILITY_GUARD_POLICIES.includes(
+      settings.data.availability_guard_policy as AvailabilityGuardPolicy,
+    )
+      ? (settings.data.availability_guard_policy as AvailabilityGuardPolicy)
+      : "warn";
 
   return (
     <AvailabilityGuardSettings

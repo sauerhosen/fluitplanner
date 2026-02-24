@@ -2,8 +2,10 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { requireTenantId } from "@/lib/tenant";
-
-export type AvailabilityGuardPolicy = "warn" | "block";
+import {
+  AVAILABILITY_GUARD_POLICIES,
+  type AvailabilityGuardPolicy,
+} from "@/lib/types/availability";
 
 async function requireAuth() {
   const supabase = await createClient();
@@ -12,6 +14,15 @@ async function requireAuth() {
   } = await supabase.auth.getUser();
   if (!user) throw new Error("Not authenticated");
   return { supabase, user };
+}
+
+function isAvailabilityGuardPolicy(
+  value: unknown,
+): value is AvailabilityGuardPolicy {
+  return (
+    typeof value === "string" &&
+    AVAILABILITY_GUARD_POLICIES.includes(value as AvailabilityGuardPolicy)
+  );
 }
 
 async function isPlannerInTenant(
@@ -42,7 +53,8 @@ export async function getAvailabilityGuardPolicy(): Promise<AvailabilityGuardPol
     .maybeSingle();
 
   if (error) throw new Error(error.message);
-  return (data?.availability_guard_policy ?? "warn") as AvailabilityGuardPolicy;
+  const policy = data?.availability_guard_policy;
+  return isAvailabilityGuardPolicy(policy) ? policy : "warn";
 }
 
 export async function updateAvailabilityGuardPolicy(
@@ -50,6 +62,9 @@ export async function updateAvailabilityGuardPolicy(
 ): Promise<void> {
   const { supabase, user } = await requireAuth();
   const tenantId = await requireTenantId();
+  if (!isAvailabilityGuardPolicy(policy)) {
+    throw new Error(`Invalid policy value: ${String(policy)}`);
+  }
 
   const canEdit = await isPlannerInTenant(supabase, tenantId, user.id);
   if (!canEdit) throw new Error("Only planners can update this setting");

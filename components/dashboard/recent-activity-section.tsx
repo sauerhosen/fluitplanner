@@ -4,6 +4,7 @@ import { formatDistanceToNow } from "date-fns";
 import { nl } from "date-fns/locale";
 import { getTranslations, getLocale } from "next-intl/server";
 import { AlertTriangle } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 function formatEvent(
   event: ActivityEvent,
@@ -44,6 +45,14 @@ function formatEvent(
   }
 }
 
+function getEventItemClass(event: ActivityEvent): string {
+  return cn(
+    "flex items-center justify-between text-sm",
+    event.type === "availability_warning" &&
+      "rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-amber-900",
+  );
+}
+
 export async function RecentActivitySection() {
   const t = await getTranslations("dashboard");
   const locale = await getLocale();
@@ -62,14 +71,7 @@ export async function RecentActivitySection() {
         ) : (
           <ul className="flex flex-col gap-3">
             {events.map((event, i) => (
-              <li
-                key={i}
-                className={`flex items-center justify-between text-sm ${
-                  event.type === "availability_warning"
-                    ? "rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-amber-900"
-                    : ""
-                }`}
-              >
+              <li key={i} className={getEventItemClass(event)}>
                 <span className="flex items-center gap-2">
                   {event.type === "availability_warning" && (
                     <AlertTriangle className="h-4 w-4 shrink-0 text-amber-700" />
