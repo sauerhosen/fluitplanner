@@ -105,3 +105,23 @@ export type Assignment = {
   created_at: string;
   organization_id: string;
 };
+
+export type AvailabilityLockMode = "warn" | "lock";
+
+export type OrganizationSettings = {
+  organization_id: string;
+  availability_lock_mode: AvailabilityLockMode;
+  updated_at: string;
+};
+
+export type AvailabilityOverrideLog = {
+  id: string;
+  poll_id: string;
+  slot_id: string;
+  umpire_id: string;
+  match_id: string;
+  previous_response: "yes" | "if_need_be";
+  new_response: "no";
+  organization_id: string;
+  created_at: string;
+};

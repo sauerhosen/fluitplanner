@@ -89,7 +89,8 @@
     "activityAssignment": "{umpire} ingedeeld bij {homeTeam} vs {awayTeam}",
     "activityAssignmentsBatch": "{count, plural, one {# scheidsrechter} other {# scheidsrechters}} ingedeeld",
     "activityMatchAdded": "Wedstrijd toegevoegd: {homeTeam} vs {awayTeam}",
-    "activityMatchesBatch": "{count, plural, one {# wedstrijd} other {# wedstrijden}} toegevoegd"
+    "activityMatchesBatch": "{count, plural, one {# wedstrijd} other {# wedstrijden}} toegevoegd",
+    "activityAvailabilityOverride": "{umpire} heeft beschikbaarheid ingetrokken voor {homeTeam} vs {awayTeam} ondanks indeling"
   },
   "matches": {
     "pageTitle": "Wedstrijden",
@@ -317,7 +318,15 @@
     "couldNotResendCode": "Code opnieuw versturen mislukt. Probeer het later opnieuw.",
     "useDifferentEmail": "Ander e-mailadres gebruiken",
     "pastDatesToggle": "{count, plural, one {# afgelopen datum} other {# afgelopen datums}}",
-    "allDatesInPast": "Alle datums in deze peiling zijn verstreken. Je eerdere reacties staan hieronder."
+    "allDatesInPast": "Alle datums in deze peiling zijn verstreken. Je eerdere reacties staan hieronder.",
+    "slotLockedAssigned": "Vergrendeld — je bent ingedeeld voor een wedstrijd",
+    "assignedToMatch": "Je bent ingedeeld voor {match}",
+    "availabilityLockedError": "Je kunt je beschikbaarheid niet wijzigen voor tijdsloten waarvoor je bent ingedeeld. Neem contact op met de planner als je wijzigingen wilt maken.",
+    "warningDialogTitle": "Beschikbaarheid wijzigen voor ingedeelde wedstrijden",
+    "warningDialogDescription": "Je staat op het punt jezelf als niet beschikbaar te markeren voor tijdsloten waarvoor je bent ingedeeld.",
+    "warningDialogNotice": "De planner wordt op de hoogte gesteld van deze wijziging.",
+    "warningDialogCancel": "Terug",
+    "warningDialogProceed": "Toch doorgaan"
   },
   "umpires": {
     "pageTitle": "Scheidsrechters",
@@ -364,7 +373,14 @@
     "levelLabelTop": "Top",
     "addTeam": "Team toevoegen",
     "duplicateTeamName": "Er bestaat al een team met deze naam",
-    "teamError": "Er is iets misgegaan. Probeer het opnieuw."
+    "teamError": "Er is iets misgegaan. Probeer het opnieuw.",
+    "availabilityLockTitle": "Beschikbaarheidsbescherming",
+    "availabilityLockDescription": "Kies wat er gebeurt als een scheidsrechter zich niet beschikbaar wil melden voor een tijdslot waarvoor hij of zij al is ingedeeld.",
+    "lockModeWarn": "Waarschuwen",
+    "lockModeWarnDescription": "Toon een waarschuwing, maar sta de scheidsrechter toe de beschikbaarheid te wijzigen. Je wordt op het dashboard op de hoogte gesteld.",
+    "lockModeLock": "Vergrendelen",
+    "lockModeLockDescription": "Voorkom dat de scheidsrechter de beschikbaarheid voor ingedeelde tijdsloten kan wijzigen.",
+    "settingError": "Instelling opslaan mislukt. Probeer het opnieuw."
   },
   "landing": {
     "title": "Fluitplanner",

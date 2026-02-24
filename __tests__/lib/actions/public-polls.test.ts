@@ -37,6 +37,19 @@ vi.mock("@/lib/supabase/server", () => ({
   })),
 }));
 
+const mockServiceFrom = vi.fn(() => ({
+  select: vi.fn().mockReturnThis(),
+  eq: vi.fn().mockReturnThis(),
+  in: vi.fn().mockReturnThis(),
+  single: vi.fn().mockResolvedValue({ data: null, error: null }),
+}));
+
+vi.mock("@/lib/supabase/service", () => ({
+  createServiceClient: vi.fn(() => ({
+    from: mockServiceFrom,
+  })),
+}));
+
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
 /* ------------------------------------------------------------------ */

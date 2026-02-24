@@ -7,6 +7,10 @@ import { UmpireIdentifier } from "@/components/poll-response/umpire-identifier";
 import { VerificationForm } from "@/components/poll-response/verification-form";
 import { createClient } from "@/lib/supabase/client";
 import { findUmpireById, getMyResponses } from "@/lib/actions/public-polls";
+import {
+  getPollAssignmentContext,
+  type PollAssignmentContext,
+} from "@/lib/actions/public-poll-assignments";
 import { verifyMagicLink } from "@/lib/actions/verification";
 import { LayoutDashboard } from "lucide-react";
 import Link from "next/link";
@@ -70,6 +74,8 @@ export function PollResponsePage({
     email: string;
     maskedEmail: string;
   } | null>(null);
+  const [assignmentContext, setAssignmentContext] =
+    useState<PollAssignmentContext | null>(null);
 
   useEffect(() => {
     async function init() {
@@ -109,6 +115,15 @@ export function PollResponsePage({
     }
     init();
   }, [poll.id, verifyToken]);
+
+  // Fetch assignment context whenever umpire changes
+  useEffect(() => {
+    if (umpire) {
+      getPollAssignmentContext(poll.id, umpire.id).then(setAssignmentContext);
+    } else {
+      setAssignmentContext(null);
+    }
+  }, [umpire, poll.id]);
 
   async function handleIdentified(identified: Umpire) {
     setCookie(COOKIE_NAME, identified.id, 365);
@@ -233,6 +248,7 @@ export function PollResponsePage({
         umpireName={umpire.name}
         slots={slots}
         existingResponses={existingResponses}
+        assignmentContext={assignmentContext}
       />
     </div>
   );

@@ -2,6 +2,7 @@ import { getRecentActivity, type ActivityEvent } from "@/lib/actions/dashboard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatDistanceToNow } from "date-fns";
 import { nl } from "date-fns/locale";
+import { AlertTriangle } from "lucide-react";
 import { getTranslations, getLocale } from "next-intl/server";
 
 function formatEvent(
@@ -29,7 +30,17 @@ function formatEvent(
       });
     case "matches_batch":
       return t("activityMatchesBatch", { count: event.count });
+    case "availability_override":
+      return t("activityAvailabilityOverride", {
+        umpire: event.umpire,
+        homeTeam: event.homeTeam,
+        awayTeam: event.awayTeam,
+      });
   }
+}
+
+function isOverrideEvent(event: ActivityEvent): boolean {
+  return event.type === "availability_override";
 }
 
 export async function RecentActivitySection() {
@@ -50,8 +61,16 @@ export async function RecentActivitySection() {
         ) : (
           <ul className="flex flex-col gap-3">
             {events.map((event, i) => (
-              <li key={i} className="flex items-center justify-between text-sm">
-                <span>{formatEvent(event, t)}</span>
+              <li
+                key={i}
+                className={`flex items-center justify-between text-sm ${isOverrideEvent(event) ? "text-orange-600 dark:text-orange-400 font-medium" : ""}`}
+              >
+                <span className="flex items-center gap-1.5">
+                  {isOverrideEvent(event) && (
+                    <AlertTriangle className="h-4 w-4 shrink-0" />
+                  )}
+                  {formatEvent(event, t)}
+                </span>
                 <span className="text-muted-foreground text-xs whitespace-nowrap ml-4">
                   {formatDistanceToNow(new Date(event.timestamp), {
                     addSuffix: true,

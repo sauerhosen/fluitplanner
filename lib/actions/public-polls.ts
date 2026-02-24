@@ -1,12 +1,16 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/service";
+import { mapMatchesToSlots } from "@/lib/domain/match-slot-mapping";
 import { getTenantId } from "@/lib/tenant";
 import type {
   Poll,
   PollSlot,
+  Match,
   Umpire,
   AvailabilityResponse,
+  AvailabilityLockMode,
 } from "@/lib/types/domain";
 
 /* ------------------------------------------------------------------ */
@@ -177,6 +181,9 @@ export async function submitResponses(
   if (pollError || !poll) throw new Error("Poll not found");
   if (poll.status === "closed") throw new Error("Poll is closed");
 
+  // Check for assignment conflicts (uses service client to bypass RLS)
+  await checkAssignmentConflicts(pollId, umpireId, responses);
+
   // Upsert responses
   const rows = responses.map((r) => ({
     poll_id: pollId,
@@ -192,4 +199,128 @@ export async function submitResponses(
     .upsert(rows, { onConflict: "poll_id,slot_id,umpire_id" });
 
   if (error) throw new Error(error.message);
+}
+
+/* ------------------------------------------------------------------ */
+/*  checkAssignmentConflicts (internal)                                */
+/* ------------------------------------------------------------------ */
+
+async function checkAssignmentConflicts(
+  pollId: string,
+  umpireId: string,
+  newResponses: ResponseInput[],
+): Promise<void> {
+  const serviceClient = createServiceClient();
+
+  // Get assignments for this umpire in this poll
+  const { data: assignments } = await serviceClient
+    .from("assignments")
+    .select("match_id")
+    .eq("poll_id", pollId)
+    .eq("umpire_id", umpireId);
+
+  if (!assignments || assignments.length === 0) return;
+
+  // Get current (saved) responses for this umpire
+  const { data: currentResponses } = await serviceClient
+    .from("availability_responses")
+    .select("slot_id, response")
+    .eq("poll_id", pollId)
+    .eq("umpire_id", umpireId);
+
+  // Build a map of current slot responses
+  const currentMap = new Map<string, string>();
+  for (const r of currentResponses ?? []) {
+    currentMap.set(r.slot_id, r.response);
+  }
+
+  // Get matches and slots to build the match->slot mapping
+  const matchIds = assignments.map((a) => a.match_id);
+
+  const { data: matches } = await serviceClient
+    .from("matches")
+    .select("id, date, start_time, home_team, away_team")
+    .in("id", matchIds);
+
+  const { data: slots } = await serviceClient
+    .from("poll_slots")
+    .select("id, poll_id, start_time, end_time")
+    .eq("poll_id", pollId);
+
+  if (!matches || !slots) return;
+
+  const matchToSlot = mapMatchesToSlots(
+    matches as Match[],
+    slots as PollSlot[],
+  );
+
+  // Build slot->matchIds map for assigned slots
+  const assignedSlotMatches = new Map<string, string[]>();
+  for (const assignment of assignments) {
+    const slotId = matchToSlot.get(assignment.match_id);
+    if (!slotId) continue;
+    const existing = assignedSlotMatches.get(slotId) ?? [];
+    existing.push(assignment.match_id);
+    assignedSlotMatches.set(slotId, existing);
+  }
+
+  // Find downgrade conflicts: slots where response changes from yes/if_need_be to no
+  const conflictSlots: {
+    slotId: string;
+    matchIds: string[];
+    previousResponse: "yes" | "if_need_be";
+  }[] = [];
+
+  for (const resp of newResponses) {
+    if (resp.response !== "no") continue;
+    if (!assignedSlotMatches.has(resp.slotId)) continue;
+
+    const prev = currentMap.get(resp.slotId);
+    if (prev === "yes" || prev === "if_need_be") {
+      conflictSlots.push({
+        slotId: resp.slotId,
+        matchIds: assignedSlotMatches.get(resp.slotId)!,
+        previousResponse: prev,
+      });
+    }
+  }
+
+  if (conflictSlots.length === 0) return;
+
+  // Get organization's lock mode
+  const { data: pollData } = await serviceClient
+    .from("polls")
+    .select("organization_id")
+    .eq("id", pollId)
+    .single();
+
+  if (!pollData) return;
+
+  const { data: settings } = await serviceClient
+    .from("organization_settings")
+    .select("availability_lock_mode")
+    .eq("organization_id", pollData.organization_id)
+    .single();
+
+  const lockMode: AvailabilityLockMode =
+    (settings?.availability_lock_mode as AvailabilityLockMode) ?? "warn";
+
+  if (lockMode === "lock") {
+    throw new Error("AVAILABILITY_LOCKED");
+  }
+
+  // Warn mode: insert override log entries
+  const overrideRows = conflictSlots.flatMap((conflict) =>
+    conflict.matchIds.map((matchId) => ({
+      poll_id: pollId,
+      umpire_id: umpireId,
+      slot_id: conflict.slotId,
+      match_id: matchId,
+      previous_response: conflict.previousResponse,
+      new_response: "no",
+      organization_id: pollData.organization_id,
+    })),
+  );
+
+  await serviceClient.from("availability_override_logs").insert(overrideRows);
 }

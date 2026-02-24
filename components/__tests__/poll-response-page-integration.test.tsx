@@ -16,6 +16,13 @@ vi.mock("@/lib/actions/verification", () => ({
   requestVerification: vi.fn(),
 }));
 
+vi.mock("@/lib/actions/public-poll-assignments", () => ({
+  getPollAssignmentContext: vi.fn().mockResolvedValue({
+    lockMode: "warn",
+    assignedSlots: [],
+  }),
+}));
+
 vi.mock("@/lib/supabase/client", () => ({
   createClient: () => ({
     auth: {
