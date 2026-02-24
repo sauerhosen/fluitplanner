@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.6.6](https://github.com/sauerhosen/fluitplanner/compare/v2.6.5...v2.6.6) (2026-02-24)
+
+
+### Bug Fixes
+
+* reset resend fix: cooldown when verification request fails ([#83](https://github.com/sauerhosen/fluitplanner/issues/83)) ([c4f07fe](https://github.com/sauerhosen/fluitplanner/commit/c4f07fe708faa4937596d1dcf6352933cd33b639))
+
 ## [2.6.5](https://github.com/sauerhosen/fluitplanner/compare/v2.6.4...v2.6.5) (2026-02-20)
 
 
