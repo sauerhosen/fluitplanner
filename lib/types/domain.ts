@@ -123,10 +123,10 @@ export type OrganizationSettings = {
 
 export type AvailabilityOverrideLog = {
   id: string;
-  poll_id: string;
-  slot_id: string;
-  umpire_id: string;
-  match_id: string;
+  poll_id: string | null;
+  slot_id: string | null;
+  umpire_id: string | null;
+  match_id: string | null;
   previous_response: "yes" | "if_need_be";
   new_response: "no";
   policy: AvailabilityLockMode;

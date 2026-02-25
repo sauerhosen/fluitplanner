@@ -60,6 +60,10 @@ export async function updateAvailabilityLockMode(
   const { supabase } = await requireAuth();
   const tenantId = await requireTenantId();
 
+  if (!(await isPlannerRole())) {
+    throw new Error("Only planners can update availability lock mode");
+  }
+
   const { data, error } = await supabase
     .from("organization_settings")
     .upsert(

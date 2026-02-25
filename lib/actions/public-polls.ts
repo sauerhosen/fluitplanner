@@ -221,6 +221,17 @@ export async function submitResponses(
     if (error) throw new Error(error.message);
   }
 
+  // Log audit entries AFTER successful persistence
+  if (conflictResult) {
+    await logOverrideAudit(
+      pollId,
+      umpireId,
+      conflictResult.conflicts,
+      conflictResult.lockMode,
+      conflictResult.organizationId,
+    );
+  }
+
   // Return partial_saved result when lock mode blocked some slots
   if (
     conflictResult?.lockMode === "lock" &&
@@ -236,6 +247,41 @@ export async function submitResponses(
   }
 
   return { status: "saved" };
+}
+
+/* ------------------------------------------------------------------ */
+/*  logOverrideAudit (internal)                                        */
+/* ------------------------------------------------------------------ */
+
+async function logOverrideAudit(
+  pollId: string,
+  umpireId: string,
+  conflicts: ConflictInfo[],
+  lockMode: AvailabilityLockMode,
+  organizationId: string,
+): Promise<void> {
+  const serviceClient = createServiceClient();
+  const outcome = lockMode === "lock" ? "blocked" : "confirmed";
+
+  const overrideRows = conflicts.flatMap((conflict) =>
+    conflict.matchIds.map((matchId) => ({
+      poll_id: pollId,
+      umpire_id: umpireId,
+      slot_id: conflict.slotId,
+      match_id: matchId,
+      previous_response: conflict.previousResponse,
+      new_response: "no",
+      policy: lockMode,
+      outcome,
+      organization_id: organizationId,
+    })),
+  );
+
+  const { error } = await serviceClient
+    .from("availability_override_logs")
+    .insert(overrideRows);
+
+  if (error) throw new Error("Failed to log availability override");
 }
 
 /* ------------------------------------------------------------------ */
@@ -260,7 +306,7 @@ type ConflictResult = {
  * Uses service role client to bypass RLS (assignments table has no anon policy).
  *
  * Returns null if no conflicts, otherwise returns conflict details.
- * In both modes, logs to availability_override_logs for audit trail.
+ * Audit logging is handled by the caller after persistence succeeds.
  */
 async function checkAssignmentConflicts(
   pollId: string,
@@ -376,29 +422,6 @@ async function checkAssignmentConflicts(
   )
     ? settings.availability_lock_mode
     : "warn";
-
-  const outcome = lockMode === "lock" ? "blocked" : "confirmed";
-
-  // Log override entries for audit trail (both modes)
-  const overrideRows = conflicts.flatMap((conflict) =>
-    conflict.matchIds.map((matchId) => ({
-      poll_id: pollId,
-      umpire_id: umpireId,
-      slot_id: conflict.slotId,
-      match_id: matchId,
-      previous_response: conflict.previousResponse,
-      new_response: "no",
-      policy: lockMode,
-      outcome,
-      organization_id: pollData.organization_id,
-    })),
-  );
-
-  const { error: insertErr } = await serviceClient
-    .from("availability_override_logs")
-    .insert(overrideRows);
-
-  if (insertErr) throw new Error("Failed to log availability override");
 
   return {
     lockMode,
