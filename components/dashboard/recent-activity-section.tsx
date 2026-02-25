@@ -32,6 +32,21 @@ function formatEvent(
   }
 }
 
+function getEventKey(event: ActivityEvent): string {
+  switch (event.type) {
+    case "response":
+      return `response:${event.timestamp}:${event.participant}:${event.pollTitle}`;
+    case "assignment":
+      return `assignment:${event.timestamp}:${event.umpire}:${event.homeTeam}:${event.awayTeam}`;
+    case "assignments_batch":
+      return `assignments_batch:${event.timestamp}:${event.count}`;
+    case "match_added":
+      return `match_added:${event.timestamp}:${event.homeTeam}:${event.awayTeam}`;
+    case "matches_batch":
+      return `matches_batch:${event.timestamp}:${event.count}`;
+  }
+}
+
 export async function RecentActivitySection() {
   const t = await getTranslations("dashboard");
   const locale = await getLocale();
@@ -49,8 +64,11 @@ export async function RecentActivitySection() {
           </p>
         ) : (
           <ul className="flex flex-col gap-3">
-            {events.map((event, i) => (
-              <li key={i} className="flex items-center justify-between text-sm">
+            {events.map((event) => (
+              <li
+                key={getEventKey(event)}
+                className="flex items-center justify-between text-sm"
+              >
                 <span>{formatEvent(event, t)}</span>
                 <span className="text-muted-foreground text-xs whitespace-nowrap ml-4">
                   {formatDistanceToNow(new Date(event.timestamp), {
