@@ -118,11 +118,17 @@ export function PollResponsePage({
 
   // Fetch assignment context whenever umpire changes
   useEffect(() => {
+    let cancelled = false;
     if (umpire) {
-      getPollAssignmentContext(poll.id, umpire.id).then(setAssignmentContext);
+      getPollAssignmentContext(poll.id, umpire.id).then((ctx) => {
+        if (!cancelled) setAssignmentContext(ctx);
+      });
     } else {
       setAssignmentContext(null);
     }
+    return () => {
+      cancelled = true;
+    };
   }, [umpire, poll.id]);
 
   async function handleIdentified(identified: Umpire) {

@@ -213,20 +213,23 @@ async function checkAssignmentConflicts(
   const serviceClient = createServiceClient();
 
   // Get assignments for this umpire in this poll
-  const { data: assignments } = await serviceClient
+  const { data: assignments, error: assignErr } = await serviceClient
     .from("assignments")
     .select("match_id")
     .eq("poll_id", pollId)
     .eq("umpire_id", umpireId);
 
+  if (assignErr) throw new Error("Failed to check assignments");
   if (!assignments || assignments.length === 0) return;
 
   // Get current (saved) responses for this umpire
-  const { data: currentResponses } = await serviceClient
+  const { data: currentResponses, error: respErr } = await serviceClient
     .from("availability_responses")
     .select("slot_id, response")
     .eq("poll_id", pollId)
     .eq("umpire_id", umpireId);
+
+  if (respErr) throw new Error("Failed to check current responses");
 
   // Build a map of current slot responses
   const currentMap = new Map<string, string>();
@@ -237,16 +240,17 @@ async function checkAssignmentConflicts(
   // Get matches and slots to build the match->slot mapping
   const matchIds = assignments.map((a) => a.match_id);
 
-  const { data: matches } = await serviceClient
+  const { data: matches, error: matchErr } = await serviceClient
     .from("matches")
     .select("id, date, start_time, home_team, away_team")
     .in("id", matchIds);
 
-  const { data: slots } = await serviceClient
+  const { data: slots, error: slotErr } = await serviceClient
     .from("poll_slots")
     .select("id, poll_id, start_time, end_time")
     .eq("poll_id", pollId);
 
+  if (matchErr || slotErr) throw new Error("Failed to load match/slot data");
   if (!matches || !slots) return;
 
   const matchToSlot = mapMatchesToSlots(
@@ -288,19 +292,19 @@ async function checkAssignmentConflicts(
   if (conflictSlots.length === 0) return;
 
   // Get organization's lock mode
-  const { data: pollData } = await serviceClient
+  const { data: pollData, error: pollErr } = await serviceClient
     .from("polls")
     .select("organization_id")
     .eq("id", pollId)
     .single();
 
-  if (!pollData) return;
+  if (pollErr || !pollData) throw new Error("Failed to load poll data");
 
   const { data: settings } = await serviceClient
     .from("organization_settings")
     .select("availability_lock_mode")
     .eq("organization_id", pollData.organization_id)
-    .single();
+    .maybeSingle();
 
   const lockMode: AvailabilityLockMode =
     (settings?.availability_lock_mode as AvailabilityLockMode) ?? "warn";
@@ -322,5 +326,9 @@ async function checkAssignmentConflicts(
     })),
   );
 
-  await serviceClient.from("availability_override_logs").insert(overrideRows);
+  const { error: insertErr } = await serviceClient
+    .from("availability_override_logs")
+    .insert(overrideRows);
+
+  if (insertErr) throw new Error("Failed to log availability override");
 }

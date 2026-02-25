@@ -340,6 +340,7 @@ export async function getActionItems(): Promise<ActionItem[]> {
       { umpireNames: Set<string>; pollTitle: string; pollId: string }
     >();
     for (const o of overrides) {
+      if (!o.poll_id) continue; // skip orphaned logs where poll was deleted
       const umpire = Array.isArray(o.umpires) ? o.umpires[0] : o.umpires;
       const poll = Array.isArray(o.polls) ? o.polls[0] : o.polls;
       if (!overrideByPoll.has(o.poll_id)) {
@@ -519,9 +520,10 @@ export async function getRecentActivity(): Promise<ActivityEvent[]> {
   const { data: overrideLogs, error: overrideLogError } = await supabase
     .from("availability_override_logs")
     .select(
-      "created_at, poll_id, umpires(name), matches(home_team, away_team), polls!inner(title, organization_id)",
+      "created_at, poll_id, umpires(name), matches(home_team, away_team), polls(title, organization_id)",
     )
-    .eq("polls.organization_id", tenantId)
+    .eq("organization_id", tenantId)
+    .not("poll_id", "is", null)
     .order("created_at", { ascending: false })
     .limit(50);
 

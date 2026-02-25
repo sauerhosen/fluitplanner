@@ -41,7 +41,7 @@ export async function getPollAssignmentContext(
     .from("organization_settings")
     .select("availability_lock_mode")
     .eq("organization_id", poll.organization_id)
-    .single();
+    .maybeSingle();
 
   const lockMode: AvailabilityLockMode =
     (settings?.availability_lock_mode as AvailabilityLockMode) ?? "warn";

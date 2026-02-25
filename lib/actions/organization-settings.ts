@@ -20,13 +20,13 @@ export async function getOrganizationSettings(): Promise<OrganizationSettings> {
   const { supabase } = await requireAuth();
   const tenantId = await requireTenantId();
 
-  const { data, error } = await supabase
+  const { data } = await supabase
     .from("organization_settings")
     .select("*")
     .eq("organization_id", tenantId)
-    .single();
+    .maybeSingle();
 
-  if (error || !data) {
+  if (!data) {
     // Return defaults if no row exists
     return {
       organization_id: tenantId,

@@ -42,6 +42,8 @@ const mockServiceFrom = vi.fn(() => ({
   eq: vi.fn().mockReturnThis(),
   in: vi.fn().mockReturnThis(),
   single: vi.fn().mockResolvedValue({ data: null, error: null }),
+  insert: vi.fn().mockResolvedValue({ error: null }),
+  maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
 }));
 
 vi.mock("@/lib/supabase/service", () => ({
