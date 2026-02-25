@@ -36,7 +36,19 @@ export async function getPollAssignmentContext(
     return { lockMode: "warn", assignedSlots: [] };
   }
 
-  // 2. Get organization settings
+  // 2. Validate the umpire belongs to this poll's organization
+  const { data: membership } = await supabase
+    .from("organization_umpires")
+    .select("umpire_id")
+    .eq("organization_id", poll.organization_id)
+    .eq("umpire_id", umpireId)
+    .maybeSingle();
+
+  if (!membership) {
+    return { lockMode: "warn", assignedSlots: [] };
+  }
+
+  // 3. Get organization settings
   const { data: settings } = await supabase
     .from("organization_settings")
     .select("availability_lock_mode")
@@ -46,7 +58,7 @@ export async function getPollAssignmentContext(
   const lockMode: AvailabilityLockMode =
     (settings?.availability_lock_mode as AvailabilityLockMode) ?? "warn";
 
-  // 3. Get assignments for this umpire in this poll
+  // 4. Get assignments for this umpire in this poll
   const { data: assignments } = await supabase
     .from("assignments")
     .select("match_id")
@@ -57,7 +69,7 @@ export async function getPollAssignmentContext(
     return { lockMode, assignedSlots: [] };
   }
 
-  // 4. Get matches and slots to build mapping
+  // 5. Get matches and slots to build mapping
   const matchIds = assignments.map((a) => a.match_id);
 
   const { data: matches } = await supabase
@@ -74,13 +86,13 @@ export async function getPollAssignmentContext(
     return { lockMode, assignedSlots: [] };
   }
 
-  // 5. Map matches to slots using existing domain function
+  // 6. Map matches to slots using existing domain function
   const matchToSlot = mapMatchesToSlots(
     matches as Match[],
     slots as PollSlot[],
   );
 
-  // 6. Build slotId -> match info map
+  // 7. Build slotId -> match info map
   const slotMap = new Map<
     string,
     { matchId: string; homeTeam: string; awayTeam: string }[]

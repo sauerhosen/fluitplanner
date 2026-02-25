@@ -120,9 +120,14 @@ export function PollResponsePage({
   useEffect(() => {
     let cancelled = false;
     if (umpire) {
-      getPollAssignmentContext(poll.id, umpire.id).then((ctx) => {
-        if (!cancelled) setAssignmentContext(ctx);
-      });
+      getPollAssignmentContext(poll.id, umpire.id)
+        .then((ctx) => {
+          if (!cancelled) setAssignmentContext(ctx);
+        })
+        .catch(() => {
+          // Gracefully degrade: no lock/warn enforcement on fetch failure
+          if (!cancelled) setAssignmentContext(null);
+        });
     } else {
       setAssignmentContext(null);
     }

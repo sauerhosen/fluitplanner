@@ -333,7 +333,9 @@ export async function getActionItems(): Promise<ActionItem[]> {
     .order("created_at", { ascending: false })
     .limit(50);
 
-  if (!overrideError && overrides && overrides.length > 0) {
+  if (overrideError) throw new Error(overrideError.message);
+
+  if (overrides && overrides.length > 0) {
     // Group by umpire + poll for a cleaner display
     const overrideByPoll = new Map<
       string,
