@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.6.7](https://github.com/sauerhosen/fluitplanner/compare/v2.6.6...v2.6.7) (2026-02-25)
+
+
+### Features
+
+* Add availability lock mode to prevent assigned umpires from withdrawing ([#89](https://github.com/sauerhosen/fluitplanner/issues/89)) ([136b822](https://github.com/sauerhosen/fluitplanner/commit/136b8227fa453d2f34e0905c280a1bfdcd8fcd90))
+
 ## [2.6.6](https://github.com/sauerhosen/fluitplanner/compare/v2.6.5...v2.6.6) (2026-02-24)
 
 
