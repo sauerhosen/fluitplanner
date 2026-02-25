@@ -86,14 +86,14 @@ CI (GitHub Actions) runs lint, format check, type check, tests, and build on eve
 
 ### Local Supabase Development
 
-Local dev uses **Podman** (not Docker) to run the full Supabase stack locally. Config: `supabase/config.toml`. Migrations: `supabase/migrations/`.
+Local dev uses **Podman** (not Docker) to run the full Supabase stack locally. See [`docs/local-supabase.md`](docs/local-supabase.md) for full setup guide, troubleshooting, and seeding instructions.
+
+Quick reference:
 
 - **Start**: `npm run supabase:start` (requires Podman machine running)
 - **Seed from production**: `npm run supabase:seed` then `npm run supabase:reset`
-- `supabase/seed.sql` is gitignored (contains production data)
-- Local services: API on `:54321`, DB on `:54322`, Studio on `:54323`, Mailpit (email) on `:54324`
-- If `supabase start` fails with "Cannot connect to Docker daemon", set `export DOCKER_HOST=unix:///var/run/docker.sock`
-- E2E tests and dev server both use the local instance via `.env.local` credentials
+- **Local services**: API `:54321`, DB `:54322`, Studio `:54323`, Mailpit `:54324`
+- **E2E tests**: `npm run test:e2e` (production build) or `npm run test:e2e:dev` (dev server)
 
 ### Environment Variables
 
