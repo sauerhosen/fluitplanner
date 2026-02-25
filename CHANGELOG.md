@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.6.9](https://github.com/sauerhosen/fluitplanner/compare/v2.6.8...v2.6.9) (2026-02-25)
+
+
+### Bug Fixes
+
+* use service client in linkUmpireToOrg to bypass RLS for anonymous poll respondents ([#93](https://github.com/sauerhosen/fluitplanner/issues/93)) ([20220ef](https://github.com/sauerhosen/fluitplanner/commit/20220ef24a7fb0970ebe3ad6e01edaa35f3ccb64))
+
 ## [2.6.8](https://github.com/sauerhosen/fluitplanner/compare/v2.6.7...v2.6.8) (2026-02-25)
 
 
