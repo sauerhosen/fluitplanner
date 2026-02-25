@@ -41,10 +41,10 @@ SMTP variables are not needed locally — Mailpit captures all emails.
 
 | Service  | URL                    | Purpose                                         |
 | -------- | ---------------------- | ----------------------------------------------- |
-| API      | http://localhost:54321 | Supabase REST/Auth API                          |
-| Database | localhost:54322        | PostgreSQL (user: `postgres`, pass: `postgres`) |
-| Studio   | http://localhost:54323 | Database admin UI                               |
-| Mailpit  | http://localhost:54324 | Email capture (replaces SES)                    |
+| API      | http://127.0.0.1:54321 | Supabase REST/Auth API                          |
+| Database | 127.0.0.1:54322        | PostgreSQL (user: `postgres`, pass: `postgres`) |
+| Studio   | http://127.0.0.1:54323 | Database admin UI                               |
+| Mailpit  | http://127.0.0.1:54324 | Email capture (replaces SES)                    |
 
 ## Convenience Scripts
 
@@ -97,10 +97,10 @@ Migrations live in `supabase/migrations/`. To create a new migration:
 supabase migration new <name>
 ```
 
-To apply migrations without re-seeding:
+To apply pending migrations locally without re-seeding:
 
 ```bash
-supabase db push
+supabase migration up --local
 ```
 
 ## Troubleshooting
