@@ -57,7 +57,7 @@ INSERT INTO public.organization_settings (organization_id)
 SELECT id FROM public.organizations
 ON CONFLICT DO NOTHING;
 
--- Log table for when umpires override warnings (change availability despite being assigned)
+-- Log table for when umpires override warnings or are blocked from changing availability.
 -- Foreign keys use SET NULL to preserve audit trail when referenced entities are deleted.
 CREATE TABLE IF NOT EXISTS public.availability_override_logs (
   id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -67,6 +67,8 @@ CREATE TABLE IF NOT EXISTS public.availability_override_logs (
   match_id uuid REFERENCES public.matches(id) ON DELETE SET NULL,
   previous_response text NOT NULL CHECK (previous_response IN ('yes', 'if_need_be')),
   new_response text NOT NULL DEFAULT 'no' CHECK (new_response IN ('no')),
+  policy text NOT NULL DEFAULT 'warn' CHECK (policy IN ('warn', 'lock')),
+  outcome text NOT NULL DEFAULT 'confirmed' CHECK (outcome IN ('confirmed', 'blocked')),
   organization_id uuid NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
   created_at timestamptz DEFAULT now() NOT NULL
 );

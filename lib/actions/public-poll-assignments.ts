@@ -2,17 +2,17 @@
 
 import { createServiceClient } from "@/lib/supabase/service";
 import { mapMatchesToSlots } from "@/lib/domain/match-slot-mapping";
-import type { AvailabilityLockMode, Match, PollSlot } from "@/lib/types/domain";
+import {
+  isAvailabilityLockMode,
+  type AvailabilityLockMode,
+  type Match,
+  type PollSlot,
+  type AssignedSlotInfo,
+  type PollAssignmentContext,
+} from "@/lib/types/domain";
 
-export type AssignedSlotInfo = {
-  slotId: string;
-  matches: { matchId: string; homeTeam: string; awayTeam: string }[];
-};
-
-export type PollAssignmentContext = {
-  lockMode: AvailabilityLockMode;
-  assignedSlots: AssignedSlotInfo[];
-};
+// Re-export types for consumers
+export type { AssignedSlotInfo, PollAssignmentContext };
 
 /**
  * For a given poll and umpire, returns which slots have assignments
@@ -55,8 +55,11 @@ export async function getPollAssignmentContext(
     .eq("organization_id", poll.organization_id)
     .maybeSingle();
 
-  const lockMode: AvailabilityLockMode =
-    (settings?.availability_lock_mode as AvailabilityLockMode) ?? "warn";
+  const lockMode: AvailabilityLockMode = isAvailabilityLockMode(
+    settings?.availability_lock_mode,
+  )
+    ? settings.availability_lock_mode
+    : "warn";
 
   // 4. Get assignments for this umpire in this poll
   const { data: assignments } = await supabase

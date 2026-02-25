@@ -326,7 +326,8 @@
     "warningDialogDescription": "You are about to mark yourself as unavailable for time slots where you have been assigned to matches.",
     "warningDialogNotice": "The planner will be notified of this change.",
     "warningDialogCancel": "Go back",
-    "warningDialogProceed": "Proceed anyway"
+    "warningDialogProceed": "Proceed anyway",
+    "partialSaveBlocked": "Some changes were blocked because you are assigned to: {matches}. The rest of your changes have been saved."
   },
   "umpires": {
     "pageTitle": "Umpires",
@@ -380,7 +381,8 @@
     "lockModeWarnDescription": "Show a warning, but allow the umpire to change their availability. You will be notified on the dashboard.",
     "lockModeLock": "Lock",
     "lockModeLockDescription": "Prevent the umpire from changing their availability for assigned slots entirely.",
-    "settingError": "Failed to save setting. Please try again."
+    "settingError": "Failed to save setting. Please try again.",
+    "settingReadOnly": "Only planners can edit this setting."
   },
   "landing": {
     "title": "Fluitplanner",

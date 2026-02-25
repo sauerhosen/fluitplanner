@@ -1,7 +1,10 @@
 import { Suspense } from "react";
 import { TableSkeleton } from "@/components/skeletons";
 import { getManagedTeams } from "@/lib/actions/managed-teams";
-import { getOrganizationSettings } from "@/lib/actions/organization-settings";
+import {
+  getOrganizationSettings,
+  isPlannerRole,
+} from "@/lib/actions/organization-settings";
 import { ManagedTeamsList } from "@/components/settings/managed-teams-list";
 import { AvailabilityLockSetting } from "@/components/settings/availability-lock-setting";
 import { getTranslations } from "next-intl/server";
@@ -12,9 +15,15 @@ async function ManagedTeamsLoader() {
 }
 
 async function AvailabilityLockLoader() {
-  const settings = await getOrganizationSettings();
+  const [settings, canEdit] = await Promise.all([
+    getOrganizationSettings(),
+    isPlannerRole(),
+  ]);
   return (
-    <AvailabilityLockSetting initialMode={settings.availability_lock_mode} />
+    <AvailabilityLockSetting
+      initialMode={settings.availability_lock_mode}
+      canEdit={canEdit}
+    />
   );
 }
 

@@ -7,10 +7,8 @@ import { UmpireIdentifier } from "@/components/poll-response/umpire-identifier";
 import { VerificationForm } from "@/components/poll-response/verification-form";
 import { createClient } from "@/lib/supabase/client";
 import { findUmpireById, getMyResponses } from "@/lib/actions/public-polls";
-import {
-  getPollAssignmentContext,
-  type PollAssignmentContext,
-} from "@/lib/actions/public-poll-assignments";
+import { getPollAssignmentContext } from "@/lib/actions/public-poll-assignments";
+import type { PollAssignmentContext } from "@/lib/types/domain";
 import { verifyMagicLink } from "@/lib/actions/verification";
 import { LayoutDashboard } from "lucide-react";
 import Link from "next/link";

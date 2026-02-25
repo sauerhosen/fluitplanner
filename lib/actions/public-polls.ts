@@ -4,13 +4,15 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { mapMatchesToSlots } from "@/lib/domain/match-slot-mapping";
 import { getTenantId } from "@/lib/tenant";
-import type {
-  Poll,
-  PollSlot,
-  Match,
-  Umpire,
-  AvailabilityResponse,
-  AvailabilityLockMode,
+import {
+  isAvailabilityLockMode,
+  type Poll,
+  type PollSlot,
+  type Match,
+  type Umpire,
+  type AvailabilityResponse,
+  type AvailabilityLockMode,
+  type SubmitResponsesResult,
 } from "@/lib/types/domain";
 
 /* ------------------------------------------------------------------ */
@@ -166,8 +168,8 @@ export async function submitResponses(
   umpireId: string,
   participantName: string,
   responses: ResponseInput[],
-): Promise<void> {
-  if (responses.length === 0) return;
+): Promise<SubmitResponsesResult> {
+  if (responses.length === 0) return { status: "saved" };
 
   const supabase = await createClient();
 
@@ -182,34 +184,89 @@ export async function submitResponses(
   if (poll.status === "closed") throw new Error("Poll is closed");
 
   // Check for assignment conflicts (uses service client to bypass RLS)
-  await checkAssignmentConflicts(pollId, umpireId, responses);
+  const conflictResult = await checkAssignmentConflicts(
+    pollId,
+    umpireId,
+    responses,
+  );
 
-  // Upsert responses
-  const rows = responses.map((r) => ({
-    poll_id: pollId,
-    slot_id: r.slotId,
-    participant_name: participantName,
-    response: r.response,
-    umpire_id: umpireId,
-    updated_at: new Date().toISOString(),
-  }));
+  // Determine which responses to actually save
+  let toSave = responses;
+  if (conflictResult) {
+    if (conflictResult.lockMode === "lock") {
+      // Partial save: filter out blocked slots, save the rest
+      const blockedSlotIds = new Set(
+        conflictResult.conflicts.map((c) => c.slotId),
+      );
+      toSave = responses.filter((r) => !blockedSlotIds.has(r.slotId));
+    }
+    // In warn mode, save everything (user already confirmed via dialog)
+  }
 
-  const { error } = await supabase
-    .from("availability_responses")
-    .upsert(rows, { onConflict: "poll_id,slot_id,umpire_id" });
+  // Upsert responses (may be empty if all were blocked)
+  if (toSave.length > 0) {
+    const rows = toSave.map((r) => ({
+      poll_id: pollId,
+      slot_id: r.slotId,
+      participant_name: participantName,
+      response: r.response,
+      umpire_id: umpireId,
+      updated_at: new Date().toISOString(),
+    }));
 
-  if (error) throw new Error(error.message);
+    const { error } = await supabase
+      .from("availability_responses")
+      .upsert(rows, { onConflict: "poll_id,slot_id,umpire_id" });
+
+    if (error) throw new Error(error.message);
+  }
+
+  // Return partial_saved result when lock mode blocked some slots
+  if (
+    conflictResult?.lockMode === "lock" &&
+    conflictResult.conflicts.length > 0
+  ) {
+    return {
+      status: "partial_saved",
+      blockedSlots: conflictResult.conflicts.map((c) => ({
+        slotId: c.slotId,
+        matchLabels: c.matchLabels,
+      })),
+    };
+  }
+
+  return { status: "saved" };
 }
 
 /* ------------------------------------------------------------------ */
 /*  checkAssignmentConflicts (internal)                                */
 /* ------------------------------------------------------------------ */
 
+type ConflictInfo = {
+  slotId: string;
+  matchIds: string[];
+  matchLabels: string[];
+  previousResponse: "yes" | "if_need_be";
+};
+
+type ConflictResult = {
+  lockMode: AvailabilityLockMode;
+  conflicts: ConflictInfo[];
+  organizationId: string;
+};
+
+/**
+ * Checks if new responses would downgrade availability for assigned slots.
+ * Uses service role client to bypass RLS (assignments table has no anon policy).
+ *
+ * Returns null if no conflicts, otherwise returns conflict details.
+ * In both modes, logs to availability_override_logs for audit trail.
+ */
 async function checkAssignmentConflicts(
   pollId: string,
   umpireId: string,
   newResponses: ResponseInput[],
-): Promise<void> {
+): Promise<ConflictResult | null> {
   const serviceClient = createServiceClient();
 
   // Get assignments for this umpire in this poll
@@ -220,7 +277,7 @@ async function checkAssignmentConflicts(
     .eq("umpire_id", umpireId);
 
   if (assignErr) throw new Error("Failed to check assignments");
-  if (!assignments || assignments.length === 0) return;
+  if (!assignments || assignments.length === 0) return null;
 
   // Get current (saved) responses for this umpire
   const { data: currentResponses, error: respErr } = await serviceClient
@@ -251,29 +308,35 @@ async function checkAssignmentConflicts(
     .eq("poll_id", pollId);
 
   if (matchErr || slotErr) throw new Error("Failed to load match/slot data");
-  if (!matches || !slots) return;
+  if (!matches || !slots) return null;
 
   const matchToSlot = mapMatchesToSlots(
     matches as Match[],
     slots as PollSlot[],
   );
 
-  // Build slot->matchIds map for assigned slots
-  const assignedSlotMatches = new Map<string, string[]>();
+  // Build slot->match info map for assigned slots
+  const assignedSlotMatches = new Map<
+    string,
+    { matchIds: string[]; matchLabels: string[] }
+  >();
   for (const assignment of assignments) {
     const slotId = matchToSlot.get(assignment.match_id);
     if (!slotId) continue;
-    const existing = assignedSlotMatches.get(slotId) ?? [];
-    existing.push(assignment.match_id);
+    const match = matches.find((m) => m.id === assignment.match_id);
+    const existing = assignedSlotMatches.get(slotId) ?? {
+      matchIds: [],
+      matchLabels: [],
+    };
+    existing.matchIds.push(assignment.match_id);
+    if (match) {
+      existing.matchLabels.push(`${match.home_team} vs ${match.away_team}`);
+    }
     assignedSlotMatches.set(slotId, existing);
   }
 
   // Find downgrade conflicts: slots where response changes from yes/if_need_be to no
-  const conflictSlots: {
-    slotId: string;
-    matchIds: string[];
-    previousResponse: "yes" | "if_need_be";
-  }[] = [];
+  const conflicts: ConflictInfo[] = [];
 
   for (const resp of newResponses) {
     if (resp.response !== "no") continue;
@@ -281,15 +344,17 @@ async function checkAssignmentConflicts(
 
     const prev = currentMap.get(resp.slotId);
     if (prev === "yes" || prev === "if_need_be") {
-      conflictSlots.push({
+      const slotInfo = assignedSlotMatches.get(resp.slotId)!;
+      conflicts.push({
         slotId: resp.slotId,
-        matchIds: assignedSlotMatches.get(resp.slotId)!,
+        matchIds: slotInfo.matchIds,
+        matchLabels: slotInfo.matchLabels,
         previousResponse: prev,
       });
     }
   }
 
-  if (conflictSlots.length === 0) return;
+  if (conflicts.length === 0) return null;
 
   // Get organization's lock mode
   const { data: pollData, error: pollErr } = await serviceClient
@@ -306,15 +371,16 @@ async function checkAssignmentConflicts(
     .eq("organization_id", pollData.organization_id)
     .maybeSingle();
 
-  const lockMode: AvailabilityLockMode =
-    (settings?.availability_lock_mode as AvailabilityLockMode) ?? "warn";
+  const lockMode: AvailabilityLockMode = isAvailabilityLockMode(
+    settings?.availability_lock_mode,
+  )
+    ? settings.availability_lock_mode
+    : "warn";
 
-  if (lockMode === "lock") {
-    throw new Error("AVAILABILITY_LOCKED");
-  }
+  const outcome = lockMode === "lock" ? "blocked" : "confirmed";
 
-  // Warn mode: insert override log entries
-  const overrideRows = conflictSlots.flatMap((conflict) =>
+  // Log override entries for audit trail (both modes)
+  const overrideRows = conflicts.flatMap((conflict) =>
     conflict.matchIds.map((matchId) => ({
       poll_id: pollId,
       umpire_id: umpireId,
@@ -322,6 +388,8 @@ async function checkAssignmentConflicts(
       match_id: matchId,
       previous_response: conflict.previousResponse,
       new_response: "no",
+      policy: lockMode,
+      outcome,
       organization_id: pollData.organization_id,
     })),
   );
@@ -331,4 +399,10 @@ async function checkAssignmentConflicts(
     .insert(overrideRows);
 
   if (insertErr) throw new Error("Failed to log availability override");
+
+  return {
+    lockMode,
+    conflicts,
+    organizationId: pollData.organization_id,
+  };
 }

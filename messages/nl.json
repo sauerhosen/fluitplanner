@@ -326,7 +326,8 @@
     "warningDialogDescription": "Je staat op het punt jezelf als niet beschikbaar te markeren voor tijdsloten waarvoor je bent ingedeeld.",
     "warningDialogNotice": "De planner wordt op de hoogte gesteld van deze wijziging.",
     "warningDialogCancel": "Terug",
-    "warningDialogProceed": "Toch doorgaan"
+    "warningDialogProceed": "Toch doorgaan",
+    "partialSaveBlocked": "Sommige wijzigingen zijn geblokkeerd omdat je bent ingedeeld voor: {matches}. De rest van je wijzigingen is opgeslagen."
   },
   "umpires": {
     "pageTitle": "Scheidsrechters",
@@ -380,7 +381,8 @@
     "lockModeWarnDescription": "Toon een waarschuwing, maar sta de scheidsrechter toe de beschikbaarheid te wijzigen. Je wordt op het dashboard op de hoogte gesteld.",
     "lockModeLock": "Vergrendelen",
     "lockModeLockDescription": "Voorkom dat de scheidsrechter de beschikbaarheid voor ingedeelde tijdsloten kan wijzigen.",
-    "settingError": "Instelling opslaan mislukt. Probeer het opnieuw."
+    "settingError": "Instelling opslaan mislukt. Probeer het opnieuw.",
+    "settingReadOnly": "Alleen planners kunnen deze instelling wijzigen."
   },
   "landing": {
     "title": "Fluitplanner",

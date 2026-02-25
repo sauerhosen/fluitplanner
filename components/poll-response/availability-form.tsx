@@ -7,8 +7,11 @@ import { StickyDirtyBar } from "@/components/poll-response/sticky-dirty-bar";
 import { AssignmentWarningDialog } from "@/components/poll-response/assignment-warning-dialog";
 import { submitResponses } from "@/lib/actions/public-polls";
 import { useTranslations, useFormatter } from "next-intl";
-import type { PollSlot, AvailabilityResponse } from "@/lib/types/domain";
-import type { PollAssignmentContext } from "@/lib/actions/public-poll-assignments";
+import type {
+  PollSlot,
+  AvailabilityResponse,
+  PollAssignmentContext,
+} from "@/lib/types/domain";
 
 type ResponseValue = "yes" | "if_need_be" | "no";
 
@@ -202,17 +205,35 @@ export function AvailabilityForm({
       .filter(([slotId, value]) => value !== null && futureSlotIds.has(slotId))
       .map(([slotId, response]) => ({ slotId, response: response! }));
     try {
-      await submitResponses(pollId, umpireId, umpireName, toSubmit);
-      setSavedBaseline({ ...responses });
-      setShowSavedInBar(true);
-      if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
-      savedTimerRef.current = setTimeout(() => setShowSavedInBar(false), 2000);
-    } catch (err) {
-      if (err instanceof Error && err.message === "AVAILABILITY_LOCKED") {
-        setError(t("availabilityLockedError"));
+      const result = await submitResponses(
+        pollId,
+        umpireId,
+        umpireName,
+        toSubmit,
+      );
+      if (result.status === "partial_saved") {
+        // Some slots were blocked by lock mode — update baseline for saved slots only
+        const blockedIds = new Set(result.blockedSlots.map((b) => b.slotId));
+        const newBaseline = { ...responses };
+        // Revert blocked slots to their saved baseline values
+        for (const slotId of blockedIds) {
+          newBaseline[slotId] = savedBaseline[slotId];
+        }
+        setResponses(newBaseline);
+        setSavedBaseline(newBaseline);
+        const labels = result.blockedSlots.flatMap((b) => b.matchLabels);
+        setError(t("partialSaveBlocked", { matches: labels.join(", ") }));
       } else {
-        setError(err instanceof Error ? err.message : t("failedToSave"));
+        setSavedBaseline({ ...responses });
+        setShowSavedInBar(true);
+        if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+        savedTimerRef.current = setTimeout(
+          () => setShowSavedInBar(false),
+          2000,
+        );
       }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("failedToSave"));
     } finally {
       setSaving(false);
     }

@@ -2,7 +2,11 @@ import { screen, fireEvent, waitFor } from "@testing-library/react";
 import { render } from "@/__tests__/helpers/render";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { AvailabilityForm } from "@/components/poll-response/availability-form";
-import type { PollSlot, AvailabilityResponse } from "@/lib/types/domain";
+import type {
+  PollSlot,
+  AvailabilityResponse,
+  PollAssignmentContext,
+} from "@/lib/types/domain";
 
 vi.mock("@/lib/actions/public-polls", () => ({
   submitResponses: vi.fn(),
@@ -62,7 +66,7 @@ describe("AvailabilityForm", () => {
   });
 
   it("submits selected responses", async () => {
-    mockSubmit.mockResolvedValue(undefined);
+    mockSubmit.mockResolvedValue({ status: "saved" });
     render(<AvailabilityForm {...defaultProps} />);
 
     // Select Yes for slot 1
@@ -85,7 +89,7 @@ describe("AvailabilityForm", () => {
   });
 
   it("shows success message after save", async () => {
-    mockSubmit.mockResolvedValue(undefined);
+    mockSubmit.mockResolvedValue({ status: "saved" });
     render(<AvailabilityForm {...defaultProps} />);
 
     fireEvent.click(screen.getAllByRole("button", { name: "Yes" })[0]);
@@ -362,7 +366,7 @@ describe("AvailabilityForm – past/future partitioning", () => {
   });
 
   it("does not include past slot responses in submission", async () => {
-    mockSubmit.mockResolvedValue(undefined);
+    mockSubmit.mockResolvedValue({ status: "saved" });
 
     const existingResponses: AvailabilityResponse[] = [
       {
@@ -417,5 +421,210 @@ describe("AvailabilityForm – past/future partitioning", () => {
     );
 
     expect(screen.getByText("2 past dates")).toBeTruthy();
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  Warn / Lock mode behavior                                          */
+/* ------------------------------------------------------------------ */
+
+describe("AvailabilityForm – warn mode", () => {
+  const assignmentContext: PollAssignmentContext = {
+    lockMode: "warn",
+    assignedSlots: [
+      {
+        slotId: "slot-1",
+        matches: [{ matchId: "m1", homeTeam: "Team A", awayTeam: "Team B" }],
+      },
+    ],
+  };
+
+  const existingYes: AvailabilityResponse[] = [
+    {
+      id: "resp-1",
+      poll_id: "poll-1",
+      slot_id: "slot-1",
+      participant_name: "Jan",
+      response: "yes",
+      umpire_id: "ump-1",
+      created_at: "2030-02-01T00:00:00Z",
+      updated_at: "2030-02-01T00:00:00Z",
+    },
+  ];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("shows confirmation dialog when downgrading assigned slot to no", async () => {
+    render(
+      <AvailabilityForm
+        {...defaultProps}
+        existingResponses={existingYes}
+        assignmentContext={assignmentContext}
+      />,
+    );
+
+    // Change slot-1 from yes to no
+    fireEvent.click(screen.getAllByRole("button", { name: "No" })[0]);
+
+    // Try to save — should show the dialog instead
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Changing availability for assigned matches"),
+      ).toBeTruthy();
+    });
+
+    // Should list the affected match
+    expect(screen.getByText("Team A vs Team B")).toBeTruthy();
+    expect(
+      screen.getByText("The planner will be notified of this change."),
+    ).toBeTruthy();
+  });
+
+  it("submits after confirming the warning dialog", async () => {
+    mockSubmit.mockResolvedValue({ status: "saved" });
+
+    render(
+      <AvailabilityForm
+        {...defaultProps}
+        existingResponses={existingYes}
+        assignmentContext={assignmentContext}
+      />,
+    );
+
+    // Change slot-1 from yes to no
+    fireEvent.click(screen.getAllByRole("button", { name: "No" })[0]);
+
+    // Try to save
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+
+    // Wait for dialog
+    await waitFor(() => {
+      expect(screen.getByText("Proceed anyway")).toBeTruthy();
+    });
+
+    // Confirm
+    fireEvent.click(screen.getByText("Proceed anyway"));
+
+    await waitFor(() => {
+      expect(mockSubmit).toHaveBeenCalled();
+    });
+  });
+
+  it("shows inline warning on assigned slot when changed to no", () => {
+    render(
+      <AvailabilityForm
+        {...defaultProps}
+        existingResponses={existingYes}
+        assignmentContext={assignmentContext}
+      />,
+    );
+
+    // Change slot-1 from yes to no
+    fireEvent.click(screen.getAllByRole("button", { name: "No" })[0]);
+
+    // Should show the warning text inline
+    expect(
+      screen.getByText("You are assigned to Team A vs Team B"),
+    ).toBeTruthy();
+  });
+});
+
+describe("AvailabilityForm – lock mode", () => {
+  const lockContext: PollAssignmentContext = {
+    lockMode: "lock",
+    assignedSlots: [
+      {
+        slotId: "slot-1",
+        matches: [{ matchId: "m1", homeTeam: "Team A", awayTeam: "Team B" }],
+      },
+    ],
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("disables all buttons on locked/assigned slots", () => {
+    const existingYes: AvailabilityResponse[] = [
+      {
+        id: "resp-1",
+        poll_id: "poll-1",
+        slot_id: "slot-1",
+        participant_name: "Jan",
+        response: "yes",
+        umpire_id: "ump-1",
+        created_at: "2030-02-01T00:00:00Z",
+        updated_at: "2030-02-01T00:00:00Z",
+      },
+    ];
+
+    render(
+      <AvailabilityForm
+        {...defaultProps}
+        existingResponses={existingYes}
+        assignmentContext={lockContext}
+      />,
+    );
+
+    // Slot-1 buttons should all be disabled (locked)
+    const yesButtons = screen.getAllByRole("button", { name: "Yes" });
+    const noButtons = screen.getAllByRole("button", { name: "No" });
+    expect(yesButtons[0]).toBeDisabled(); // slot-1: locked
+    expect(noButtons[0]).toBeDisabled(); // slot-1: locked
+
+    // Slot-2 buttons should NOT be disabled (not assigned)
+    expect(yesButtons[1]).not.toBeDisabled();
+    expect(noButtons[1]).not.toBeDisabled();
+  });
+
+  it("shows lock indicator text on assigned slots", () => {
+    render(
+      <AvailabilityForm
+        {...defaultProps}
+        existingResponses={[]}
+        assignmentContext={lockContext}
+      />,
+    );
+
+    expect(
+      screen.getByText("Locked — you're assigned to a match"),
+    ).toBeTruthy();
+  });
+
+  it("handles partial_saved result from server", async () => {
+    mockSubmit.mockResolvedValue({
+      status: "partial_saved",
+      blockedSlots: [{ slotId: "slot-1", matchLabels: ["Team A vs Team B"] }],
+    });
+
+    // With lock mode, no assignment context is needed for the test
+    // because the server handles the blocking
+    render(
+      <AvailabilityForm
+        {...defaultProps}
+        existingResponses={[]}
+        assignmentContext={null}
+      />,
+    );
+
+    // Select yes for both
+    const yesButtons = screen.getAllByRole("button", { name: "Yes" });
+    fireEvent.click(yesButtons[0]);
+    fireEvent.click(yesButtons[1]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+
+    await waitFor(() => {
+      expect(mockSubmit).toHaveBeenCalled();
+    });
+
+    // Should show partial save error
+    await waitFor(() => {
+      expect(screen.getByText(/Some changes were blocked/)).toBeTruthy();
+    });
   });
 });

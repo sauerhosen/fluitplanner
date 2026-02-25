@@ -2,9 +2,10 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { requireTenantId } from "@/lib/tenant";
-import type {
-  OrganizationSettings,
-  AvailabilityLockMode,
+import {
+  isAvailabilityLockMode,
+  type OrganizationSettings,
+  type AvailabilityLockMode,
 } from "@/lib/types/domain";
 
 async function requireAuth() {
@@ -14,6 +15,19 @@ async function requireAuth() {
   } = await supabase.auth.getUser();
   if (!user) throw new Error("Not authenticated");
   return { supabase, user };
+}
+
+/** Check if the current user has planner role in the current org. */
+export async function isPlannerRole(): Promise<boolean> {
+  const { supabase, user } = await requireAuth();
+  const tenantId = await requireTenantId();
+  const { data } = await supabase
+    .from("organization_members")
+    .select("role")
+    .eq("organization_id", tenantId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+  return data?.role === "planner";
 }
 
 export async function getOrganizationSettings(): Promise<OrganizationSettings> {
@@ -42,6 +56,7 @@ export async function getOrganizationSettings(): Promise<OrganizationSettings> {
 export async function updateAvailabilityLockMode(
   mode: AvailabilityLockMode,
 ): Promise<OrganizationSettings> {
+  if (!isAvailabilityLockMode(mode)) throw new Error("Invalid lock mode");
   const { supabase } = await requireAuth();
   const tenantId = await requireTenantId();
 

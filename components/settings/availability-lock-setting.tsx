@@ -10,9 +10,13 @@ import type { AvailabilityLockMode } from "@/lib/types/domain";
 
 type Props = {
   initialMode: AvailabilityLockMode;
+  canEdit?: boolean;
 };
 
-export function AvailabilityLockSetting({ initialMode }: Props) {
+export function AvailabilityLockSetting({
+  initialMode,
+  canEdit = true,
+}: Props) {
   const t = useTranslations("settings");
   const [mode, setMode] = useState<AvailabilityLockMode>(initialMode);
   const [saving, setSaving] = useState(false);
@@ -32,15 +36,22 @@ export function AvailabilityLockSetting({ initialMode }: Props) {
     }
   }
 
+  const isDisabled = saving || !canEdit;
+
   return (
     <div className="space-y-3">
       <p className="text-muted-foreground text-sm">
         {t("availabilityLockDescription")}
       </p>
+      {!canEdit && (
+        <p className="text-muted-foreground text-sm italic">
+          {t("settingReadOnly")}
+        </p>
+      )}
       <RadioGroup
         value={mode}
         onValueChange={handleChange}
-        disabled={saving}
+        disabled={isDisabled}
         className="space-y-2"
       >
         <div className="flex items-start gap-3">
