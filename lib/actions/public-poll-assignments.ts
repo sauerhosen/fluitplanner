@@ -11,9 +11,6 @@ import {
   type PollAssignmentContext,
 } from "@/lib/types/domain";
 
-// Re-export types for consumers
-export type { AssignedSlotInfo, PollAssignmentContext };
-
 /**
  * For a given poll and umpire, returns which slots have assignments
  * and what the organization's lock mode is.
