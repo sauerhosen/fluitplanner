@@ -522,6 +522,13 @@ export async function deletePoll(pollId: string): Promise<void> {
   const { supabase } = await requireAuth();
   const tenantId = await requireTenantId();
 
+  // Delete availability responses (FK doesn't cascade)
+  const { error: respDeleteError } = await supabase
+    .from("availability_responses")
+    .delete()
+    .eq("poll_id", pollId);
+  if (respDeleteError) throw new Error(respDeleteError.message);
+
   const { error } = await supabase
     .from("polls")
     .delete()
@@ -537,6 +544,13 @@ export async function deletePolls(pollIds: string[]): Promise<void> {
     throw new Error("Cannot delete more than 500 items at once");
   const { supabase } = await requireAuth();
   const tenantId = await requireTenantId();
+
+  // Delete availability responses (FK doesn't cascade)
+  const { error: respDeleteError } = await supabase
+    .from("availability_responses")
+    .delete()
+    .in("poll_id", pollIds);
+  if (respDeleteError) throw new Error(respDeleteError.message);
 
   const { error } = await supabase
     .from("polls")

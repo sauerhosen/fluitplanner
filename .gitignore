@@ -22,6 +22,7 @@ dist/
 # supabase
 supabase/.branches
 supabase/.temp
+supabase/seed.sql
 
 # debug / logs
 npm-debug.log*

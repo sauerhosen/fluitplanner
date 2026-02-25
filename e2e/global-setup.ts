@@ -20,11 +20,15 @@ async function globalSetup(config: FullConfig) {
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!supabaseUrl || !supabaseKey) {
     throw new Error(
       "Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
     );
+  }
+  if (!serviceRoleKey) {
+    throw new Error("Missing SUPABASE_SERVICE_ROLE_KEY (needed for E2E setup)");
   }
 
   const testEmail = process.env.E2E_TEST_EMAIL ?? "e2e-test@fluitplanner.test";
@@ -66,6 +70,40 @@ async function globalSetup(config: FullConfig) {
       );
     }
   }
+
+  // Ensure test user has org membership (middleware auto-join can silently fail)
+  const serviceClient = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+
+  // Get user ID from the signed-in session
+  const {
+    data: { user: testUser },
+  } = await supabase.auth.getUser();
+  if (!testUser) throw new Error("Failed to get test user after sign-in");
+
+  // Look up the "default" organization
+  const { data: org } = await serviceClient
+    .from("organizations")
+    .select("id")
+    .eq("slug", "default")
+    .single();
+
+  if (!org) throw new Error('Organization "default" not found in database');
+
+  // Ensure test user is a planner in the default org
+  const { error: upsertError } = await serviceClient
+    .from("organization_members")
+    .upsert(
+      {
+        organization_id: org.id,
+        user_id: testUser.id,
+        role: "planner",
+      },
+      { onConflict: "organization_id,user_id" },
+    );
+  if (upsertError)
+    throw new Error(`Failed to upsert org membership: ${upsertError.message}`);
 
   // Use browser to log in and capture authenticated state (cookies/localStorage)
   const browser = await chromium.launch();
