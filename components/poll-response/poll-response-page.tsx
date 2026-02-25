@@ -122,8 +122,9 @@ export function PollResponsePage({
         .then((ctx) => {
           if (!cancelled) setAssignmentContext(ctx);
         })
-        .catch(() => {
+        .catch((err) => {
           // Gracefully degrade: no lock/warn enforcement on fetch failure
+          console.error("Failed to fetch assignment context:", err);
           if (!cancelled) setAssignmentContext(null);
         });
     } else {

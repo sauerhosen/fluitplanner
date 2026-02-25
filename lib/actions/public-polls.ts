@@ -81,7 +81,7 @@ export async function findOrCreateUmpire(
 
   if (!error && existing) {
     // Link existing umpire to the poll's organization if not already linked
-    if (pollId) await linkUmpireToOrg(supabase, existing.id, pollId);
+    if (pollId) await linkUmpireToOrg(existing.id, pollId);
     return existing;
   }
 
@@ -97,29 +97,39 @@ export async function findOrCreateUmpire(
   if (insertError || !created) return null;
 
   // Link new umpire to the poll's organization
-  if (pollId) await linkUmpireToOrg(supabase, created.id, pollId);
+  if (pollId) await linkUmpireToOrg(created.id, pollId);
   return created;
 }
 
 async function linkUmpireToOrg(
-  supabase: Awaited<ReturnType<typeof createClient>>,
   umpireId: string,
   pollId: string,
 ): Promise<void> {
-  const { data: poll } = await supabase
+  // Use service client to bypass RLS — poll respondents are anonymous
+  // and organization_umpires only allows authenticated users
+  const supabase = createServiceClient();
+
+  const { data: poll, error: pollError } = await supabase
     .from("polls")
     .select("organization_id")
     .eq("id", pollId)
     .single();
 
-  if (!poll?.organization_id) return;
+  if (pollError || !poll?.organization_id) {
+    console.error("linkUmpireToOrg: failed to fetch poll", pollError);
+    return;
+  }
 
-  await supabase
+  const { error: upsertError } = await supabase
     .from("organization_umpires")
     .upsert(
       { organization_id: poll.organization_id, umpire_id: umpireId },
       { onConflict: "organization_id,umpire_id" },
     );
+
+  if (upsertError) {
+    console.error("linkUmpireToOrg: failed to upsert membership", upsertError);
+  }
 }
 
 /* ------------------------------------------------------------------ */

@@ -37,12 +37,19 @@ vi.mock("@/lib/supabase/server", () => ({
   })),
 }));
 
+const mockServiceSingle = vi.fn().mockResolvedValue({
+  data: null,
+  error: null,
+});
+const mockServiceUpsert = vi.fn().mockResolvedValue({ error: null });
+
 const mockServiceFrom = vi.fn(() => ({
   select: vi.fn().mockReturnThis(),
   eq: vi.fn().mockReturnThis(),
   in: vi.fn().mockReturnThis(),
-  single: vi.fn().mockResolvedValue({ data: null, error: null }),
+  single: mockServiceSingle,
   insert: vi.fn().mockResolvedValue({ error: null }),
+  upsert: mockServiceUpsert,
   maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
 }));
 
@@ -65,6 +72,9 @@ function resetChain() {
     mockOrder,
     mockInsert,
     mockUpsert,
+    mockServiceFrom,
+    mockServiceSingle,
+    mockServiceUpsert,
   ]) {
     fn.mockReset();
   }
@@ -76,6 +86,18 @@ function resetChain() {
   mockInsert.mockReturnValue(chainable());
   mockUpsert.mockReturnValue(chainable());
   mockSingle.mockResolvedValue({ data: null, error: null });
+  // Restore service client defaults
+  mockServiceFrom.mockReturnValue({
+    select: vi.fn().mockReturnThis(),
+    eq: vi.fn().mockReturnThis(),
+    in: vi.fn().mockReturnThis(),
+    single: mockServiceSingle,
+    insert: vi.fn().mockResolvedValue({ error: null }),
+    upsert: mockServiceUpsert,
+    maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+  });
+  mockServiceSingle.mockResolvedValue({ data: null, error: null });
+  mockServiceUpsert.mockResolvedValue({ error: null });
 }
 
 beforeEach(() => {
@@ -205,15 +227,15 @@ describe("findOrCreateUmpire", () => {
       updated_at: "2026-01-01T00:00:00Z",
     };
 
-    // First call: lookup umpire → found
+    // Regular client: lookup umpire → found
     mockSingle.mockResolvedValueOnce({ data: umpire, error: null });
-    // Second call: linkUmpireToOrg → polls lookup returns org id
-    mockSingle.mockResolvedValueOnce({
+    // Service client: linkUmpireToOrg → polls lookup returns org id
+    mockServiceSingle.mockResolvedValueOnce({
       data: { organization_id: "org-123" },
       error: null,
     });
-    // Third call: upsert to organization_umpires
-    mockUpsert.mockResolvedValueOnce({ error: null });
+    // Service client: upsert to organization_umpires
+    mockServiceUpsert.mockResolvedValueOnce({ error: null });
 
     const { findOrCreateUmpire } = await import("@/lib/actions/public-polls");
     const result = await findOrCreateUmpire(
@@ -223,9 +245,9 @@ describe("findOrCreateUmpire", () => {
     );
     expect(result).toEqual(umpire);
 
-    // Verify polls lookup and org_umpires upsert were called
-    expect(mockFrom).toHaveBeenCalledWith("polls");
-    expect(mockFrom).toHaveBeenCalledWith("organization_umpires");
+    // Verify polls lookup and org_umpires upsert were called via service client
+    expect(mockServiceFrom).toHaveBeenCalledWith("polls");
+    expect(mockServiceFrom).toHaveBeenCalledWith("organization_umpires");
   });
 
   it("skips org linking when poll has no organization_id", async () => {
@@ -239,10 +261,10 @@ describe("findOrCreateUmpire", () => {
       updated_at: "2026-01-01T00:00:00Z",
     };
 
-    // Lookup umpire → found
+    // Regular client: lookup umpire → found
     mockSingle.mockResolvedValueOnce({ data: umpire, error: null });
-    // linkUmpireToOrg → polls lookup returns null org
-    mockSingle.mockResolvedValueOnce({
+    // Service client: linkUmpireToOrg → polls lookup returns null org
+    mockServiceSingle.mockResolvedValueOnce({
       data: { organization_id: null },
       error: null,
     });
@@ -256,7 +278,7 @@ describe("findOrCreateUmpire", () => {
     expect(result).toEqual(umpire);
 
     // org_umpires upsert should NOT have been called
-    expect(mockFrom).not.toHaveBeenCalledWith("organization_umpires");
+    expect(mockServiceFrom).not.toHaveBeenCalledWith("organization_umpires");
   });
 });
 

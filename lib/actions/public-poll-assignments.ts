@@ -33,19 +33,7 @@ export async function getPollAssignmentContext(
     return { lockMode: "warn", assignedSlots: [] };
   }
 
-  // 2. Validate the umpire belongs to this poll's organization
-  const { data: membership } = await supabase
-    .from("organization_umpires")
-    .select("umpire_id")
-    .eq("organization_id", poll.organization_id)
-    .eq("umpire_id", umpireId)
-    .maybeSingle();
-
-  if (!membership) {
-    return { lockMode: "warn", assignedSlots: [] };
-  }
-
-  // 3. Get organization settings
+  // 2. Get organization settings
   const { data: settings } = await supabase
     .from("organization_settings")
     .select("availability_lock_mode")
