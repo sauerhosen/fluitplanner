@@ -523,7 +523,11 @@ export async function deletePoll(pollId: string): Promise<void> {
   const tenantId = await requireTenantId();
 
   // Delete availability responses (FK doesn't cascade)
-  await supabase.from("availability_responses").delete().eq("poll_id", pollId);
+  const { error: respDeleteError } = await supabase
+    .from("availability_responses")
+    .delete()
+    .eq("poll_id", pollId);
+  if (respDeleteError) throw new Error(respDeleteError.message);
 
   const { error } = await supabase
     .from("polls")
@@ -542,7 +546,11 @@ export async function deletePolls(pollIds: string[]): Promise<void> {
   const tenantId = await requireTenantId();
 
   // Delete availability responses (FK doesn't cascade)
-  await supabase.from("availability_responses").delete().in("poll_id", pollIds);
+  const { error: respDeleteError } = await supabase
+    .from("availability_responses")
+    .delete()
+    .in("poll_id", pollIds);
+  if (respDeleteError) throw new Error(respDeleteError.message);
 
   const { error } = await supabase
     .from("polls")

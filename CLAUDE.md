@@ -25,7 +25,8 @@ npm run format         # Format all files with Prettier
 npm run format:check   # Check formatting without writing
 npm test               # Run unit/component tests (vitest)
 npm run test:watch     # Watch mode for TDD red/green cycles
-npm run test:e2e       # Run E2E tests (playwright, starts dev server)
+npm run test:e2e       # Run E2E tests (playwright, production build)
+npm run test:e2e:dev   # Run E2E tests against dev server (faster)
 npm run type-check     # TypeScript type checking
 npm run supabase:start # Start local Supabase (requires Podman)
 npm run supabase:stop  # Stop local Supabase

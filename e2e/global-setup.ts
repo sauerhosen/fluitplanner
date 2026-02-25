@@ -92,14 +92,18 @@ async function globalSetup(config: FullConfig) {
   if (!org) throw new Error('Organization "default" not found in database');
 
   // Ensure test user is a planner in the default org
-  await serviceClient.from("organization_members").upsert(
-    {
-      organization_id: org.id,
-      user_id: testUser.id,
-      role: "planner",
-    },
-    { onConflict: "organization_id,user_id" },
-  );
+  const { error: upsertError } = await serviceClient
+    .from("organization_members")
+    .upsert(
+      {
+        organization_id: org.id,
+        user_id: testUser.id,
+        role: "planner",
+      },
+      { onConflict: "organization_id,user_id" },
+    );
+  if (upsertError)
+    throw new Error(`Failed to upsert org membership: ${upsertError.message}`);
 
   // Use browser to log in and capture authenticated state (cookies/localStorage)
   const browser = await chromium.launch();
