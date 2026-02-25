@@ -1,9 +1,13 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type BrowserContext, type Page } from "@playwright/test";
 
 test.describe("Poll response page", () => {
-  test("shows not found for invalid token", async ({ page }) => {
+  test("shows not found for invalid token", async ({ browser }) => {
+    // Poll pages are public — test without auth to match real umpire usage
+    const context = await browser.newContext();
+    const page = await context.newPage();
     await page.goto("/poll/nonexistent-token-xyz");
     await expect(page.getByText("Poll not found")).toBeVisible();
+    await context.close();
   });
 
   test.describe("full poll response flow", () => {
@@ -15,6 +19,10 @@ test.describe("Poll response page", () => {
     const umpireName = `E2E Umpire ${uniqueId}`;
     let pollToken = "";
     let pollCreated = false;
+
+    // Shared unauthenticated context for umpire tests (preserves cookies)
+    let umpireContext: BrowserContext;
+    let umpirePage: Page;
 
     test("planner creates a poll and gets share link", async ({ page }) => {
       await page.goto("/protected/polls/new");
@@ -50,56 +58,67 @@ test.describe("Poll response page", () => {
       pollCreated = true;
     });
 
-    test("umpire can fill out availability via poll link", async ({ page }) => {
+    test("umpire can fill out availability via poll link", async ({
+      browser,
+    }) => {
       test.skip(!pollCreated, "Poll was not created");
 
-      await page.goto(`/poll/${pollToken}`);
-      await expect(page.getByText(pollTitle)).toBeVisible();
+      // Create unauthenticated context that will persist across serial tests
+      umpireContext = await browser.newContext();
+      umpirePage = await umpireContext.newPage();
+
+      await umpirePage.goto(`/poll/${pollToken}`);
+      await expect(umpirePage.getByText(pollTitle)).toBeVisible();
 
       // Enter email (new umpire)
-      await page.getByLabel("Your email").fill(umpireEmail);
-      await page.getByRole("button", { name: "Continue" }).click();
+      await umpirePage.getByLabel("Your email").fill(umpireEmail);
+      await umpirePage.getByRole("button", { name: "Continue" }).click();
 
       // Should ask for name (new umpire)
-      await expect(page.getByLabel("Your name")).toBeVisible();
-      await page.getByLabel("Your name").fill(umpireName);
-      await page.getByRole("button", { name: "Continue" }).click();
+      await expect(umpirePage.getByLabel("Your name")).toBeVisible();
+      await umpirePage.getByLabel("Your name").fill(umpireName);
+      await umpirePage.getByRole("button", { name: "Continue" }).click();
 
-      // Should show availability form
-      await expect(page.getByText("Responding as:")).toBeVisible();
-      await expect(page.getByText(umpireName)).toBeVisible();
+      // Should show availability form with umpire name
+      await expect(
+        umpirePage.getByText(`Responding as ${umpireName}`),
+      ).toBeVisible();
 
       // Click Yes on the first slot
-      const yesButtons = page.getByRole("button", { name: "Yes" });
+      const yesButtons = umpirePage.getByRole("button", { name: "Yes" });
       await yesButtons.first().click();
 
       // Save
-      await page.getByRole("button", { name: /save/i }).click();
-      await expect(page.getByText(/saved/i)).toBeVisible();
+      await umpirePage.getByRole("button", { name: /save/i }).click();
+      await expect(umpirePage.getByText(/saved/i)).toBeVisible();
     });
 
-    test("returning umpire sees existing responses", async ({ page }) => {
+    test("returning umpire sees existing responses", async () => {
       test.skip(!pollCreated, "Poll was not created");
 
-      // Visit same poll (cookie should still be set from previous test)
-      await page.goto(`/poll/${pollToken}`);
+      // Re-use the same context so the umpire cookie persists
+      await umpirePage.goto(`/poll/${pollToken}`);
 
-      await expect(page.getByText(umpireName)).toBeVisible({ timeout: 10000 });
-      await expect(page.getByText("Responding as:")).toBeVisible();
+      await expect(
+        umpirePage.getByText(`Responding as ${umpireName}`),
+      ).toBeVisible({ timeout: 10000 });
     });
 
     test("closed poll shows closed message", async ({ page }) => {
       test.skip(!pollCreated, "Poll was not created");
 
-      // Close the poll via planner
+      // Close the poll via planner (authenticated context)
       await page.goto("/protected/polls");
       await page.getByText(pollTitle).click();
       await page.getByRole("button", { name: /close poll/i }).click();
       await expect(page.getByText("Closed")).toBeVisible();
 
-      // Visit the public poll link
-      await page.goto(`/poll/${pollToken}`);
-      await expect(page.getByText("This poll is closed")).toBeVisible();
+      // Visit the public poll link using the umpire context
+      await umpirePage.goto(`/poll/${pollToken}`);
+      await expect(umpirePage.getByText("Poll closed")).toBeVisible();
+
+      // Cleanup umpire context
+      await umpireContext.close();
 
       // Cleanup: reopen and delete
       await page.goto("/protected/polls");
