@@ -43,6 +43,23 @@ function isOverrideEvent(event: ActivityEvent): boolean {
   return event.type === "availability_override";
 }
 
+function getEventKey(event: ActivityEvent): string {
+  switch (event.type) {
+    case "response":
+      return `response:${event.timestamp}:${event.participant}:${event.pollTitle}`;
+    case "assignment":
+      return `assignment:${event.timestamp}:${event.umpire}:${event.homeTeam}:${event.awayTeam}`;
+    case "assignments_batch":
+      return `assignments_batch:${event.timestamp}:${event.count}`;
+    case "match_added":
+      return `match_added:${event.timestamp}:${event.homeTeam}:${event.awayTeam}`;
+    case "matches_batch":
+      return `matches_batch:${event.timestamp}:${event.count}`;
+    case "availability_override":
+      return `availability_override:${event.timestamp}:${event.umpire}:${event.homeTeam}:${event.awayTeam}`;
+  }
+}
+
 export async function RecentActivitySection() {
   const t = await getTranslations("dashboard");
   const locale = await getLocale();
@@ -60,9 +77,9 @@ export async function RecentActivitySection() {
           </p>
         ) : (
           <ul className="flex flex-col gap-3">
-            {events.map((event, i) => (
+            {events.map((event) => (
               <li
-                key={i}
+                key={getEventKey(event)}
                 className={`flex items-center justify-between text-sm ${isOverrideEvent(event) ? "text-orange-600 dark:text-orange-400 font-medium" : ""}`}
               >
                 <span className="flex items-center gap-1.5">
