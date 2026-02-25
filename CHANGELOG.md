@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.7.0](https://github.com/sauerhosen/fluitplanner/compare/v2.6.9...v2.7.0) (2026-02-25)
+
+
+### Features
+
+* local Supabase dev instance with Podman ([#95](https://github.com/sauerhosen/fluitplanner/issues/95)) ([48e3881](https://github.com/sauerhosen/fluitplanner/commit/48e3881f55ae364fc700ee15f670e88867e26e20))
+
 ## [2.6.9](https://github.com/sauerhosen/fluitplanner/compare/v2.6.8...v2.6.9) (2026-02-25)
 
 
