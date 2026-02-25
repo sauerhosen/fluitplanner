@@ -105,3 +105,51 @@ export type Assignment = {
   created_at: string;
   organization_id: string;
 };
+
+export type AvailabilityLockMode = "warn" | "lock";
+
+/** Runtime type guard for values read from the database. */
+export function isAvailabilityLockMode(
+  value: unknown,
+): value is AvailabilityLockMode {
+  return value === "warn" || value === "lock";
+}
+
+export type OrganizationSettings = {
+  organization_id: string;
+  availability_lock_mode: AvailabilityLockMode;
+  updated_at: string;
+};
+
+export type AvailabilityOverrideLog = {
+  id: string;
+  poll_id: string | null;
+  slot_id: string | null;
+  umpire_id: string | null;
+  match_id: string | null;
+  previous_response: "yes" | "if_need_be";
+  new_response: "no";
+  policy: AvailabilityLockMode;
+  outcome: "confirmed" | "blocked";
+  organization_id: string;
+  created_at: string;
+};
+
+/** Discriminated union returned by submitResponses. */
+export type SubmitResponsesResult =
+  | { status: "saved" }
+  | {
+      status: "partial_saved";
+      blockedSlots: { slotId: string; matchLabels: string[] }[];
+    };
+
+/** Move PollAssignmentContext into domain types for consistency. */
+export type AssignedSlotInfo = {
+  slotId: string;
+  matches: { matchId: string; homeTeam: string; awayTeam: string }[];
+};
+
+export type PollAssignmentContext = {
+  lockMode: AvailabilityLockMode;
+  assignedSlots: AssignedSlotInfo[];
+};

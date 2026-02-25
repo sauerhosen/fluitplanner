@@ -89,7 +89,8 @@
     "activityAssignment": "{umpire} assigned to {homeTeam} vs {awayTeam}",
     "activityAssignmentsBatch": "{count, plural, one {# umpire} other {# umpires}} assigned",
     "activityMatchAdded": "Match added: {homeTeam} vs {awayTeam}",
-    "activityMatchesBatch": "{count, plural, one {# match} other {# matches}} added"
+    "activityMatchesBatch": "{count, plural, one {# match} other {# matches}} added",
+    "activityAvailabilityOverride": "{umpire} withdrew availability from {homeTeam} vs {awayTeam} despite being assigned"
   },
   "matches": {
     "pageTitle": "Matches",
@@ -317,7 +318,16 @@
     "couldNotResendCode": "Could not resend code. Please try again later.",
     "useDifferentEmail": "Use a different email",
     "pastDatesToggle": "{count, plural, one {# past date} other {# past dates}}",
-    "allDatesInPast": "All dates in this poll have passed. Your previous responses are shown below."
+    "allDatesInPast": "All dates in this poll have passed. Your previous responses are shown below.",
+    "slotLockedAssigned": "Locked — you're assigned to a match",
+    "assignedToMatch": "You are assigned to {match}",
+    "availabilityLockedError": "You cannot change your availability for slots where you are assigned. Contact the planner if you need to make changes.",
+    "warningDialogTitle": "Changing availability for assigned matches",
+    "warningDialogDescription": "You are about to mark yourself as unavailable for time slots where you have been assigned to matches.",
+    "warningDialogNotice": "The planner will be notified of this change.",
+    "warningDialogCancel": "Go back",
+    "warningDialogProceed": "Proceed anyway",
+    "partialSaveBlocked": "Some changes were blocked because you are assigned to: {matches}. The rest of your changes have been saved."
   },
   "umpires": {
     "pageTitle": "Umpires",
@@ -364,7 +374,15 @@
     "levelLabelTop": "Top",
     "addTeam": "Add team",
     "duplicateTeamName": "A team with this name already exists",
-    "teamError": "Something went wrong. Please try again."
+    "teamError": "Something went wrong. Please try again.",
+    "availabilityLockTitle": "Availability Protection",
+    "availabilityLockDescription": "Choose what happens when an umpire tries to mark themselves as unavailable for a slot where they are already assigned to a match.",
+    "lockModeWarn": "Warn",
+    "lockModeWarnDescription": "Show a warning, but allow the umpire to change their availability. You will be notified on the dashboard.",
+    "lockModeLock": "Lock",
+    "lockModeLockDescription": "Prevent the umpire from changing their availability for assigned slots entirely.",
+    "settingError": "Failed to save setting. Please try again.",
+    "settingReadOnly": "Only planners can edit this setting."
   },
   "landing": {
     "title": "Fluitplanner",

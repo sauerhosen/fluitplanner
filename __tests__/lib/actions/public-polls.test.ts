@@ -37,6 +37,21 @@ vi.mock("@/lib/supabase/server", () => ({
   })),
 }));
 
+const mockServiceFrom = vi.fn(() => ({
+  select: vi.fn().mockReturnThis(),
+  eq: vi.fn().mockReturnThis(),
+  in: vi.fn().mockReturnThis(),
+  single: vi.fn().mockResolvedValue({ data: null, error: null }),
+  insert: vi.fn().mockResolvedValue({ error: null }),
+  maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+}));
+
+vi.mock("@/lib/supabase/service", () => ({
+  createServiceClient: vi.fn(() => ({
+    from: mockServiceFrom,
+  })),
+}));
+
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
 /* ------------------------------------------------------------------ */
@@ -345,14 +360,14 @@ describe("submitResponses", () => {
     ).rejects.toThrow("Poll not found");
   });
 
-  it("returns early when responses array is empty", async () => {
+  it("returns { status: 'saved' } when responses array is empty", async () => {
     const { submitResponses } = await import("@/lib/actions/public-polls");
-    // Should not throw and should not call supabase
-    await submitResponses("poll-1", "ump-1", "Jan", []);
+    const result = await submitResponses("poll-1", "ump-1", "Jan", []);
+    expect(result).toEqual({ status: "saved" });
     expect(mockFrom).not.toHaveBeenCalled();
   });
 
-  it("upserts responses for an open poll", async () => {
+  it("upserts responses and returns { status: 'saved' } for an open poll", async () => {
     // .from("polls").select("status").eq("id", ...).single() → open poll
     mockSingle.mockResolvedValueOnce({
       data: { status: "open" },
@@ -363,12 +378,12 @@ describe("submitResponses", () => {
     mockUpsert.mockResolvedValueOnce({ error: null });
 
     const { submitResponses } = await import("@/lib/actions/public-polls");
-    await submitResponses("poll-1", "ump-1", "Jan", [
+    const result = await submitResponses("poll-1", "ump-1", "Jan", [
       { slotId: "slot-1", response: "yes" },
       { slotId: "slot-2", response: "no" },
     ]);
 
-    // Verify upsert was called
+    expect(result).toEqual({ status: "saved" });
     expect(mockUpsert).toHaveBeenCalled();
   });
 });

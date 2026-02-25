@@ -2,7 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { requireTenantId } from "@/lib/tenant";
-import { format, addDays } from "date-fns";
+import { format, addDays, subDays } from "date-fns";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -16,7 +16,11 @@ export type DashboardStats = {
 };
 
 export type ActionItem = {
-  type: "unassigned_match" | "low_response_poll" | "unpolled_match";
+  type:
+    | "unassigned_match"
+    | "low_response_poll"
+    | "unpolled_match"
+    | "availability_override";
   label: string;
   href: string;
 };
@@ -49,6 +53,14 @@ export type ActivityEvent =
   | {
       type: "matches_batch";
       count: number;
+      timestamp: string;
+    }
+  | {
+      type: "availability_override";
+      umpire: string;
+      homeTeam: string;
+      awayTeam: string;
+      pollTitle: string;
       timestamp: string;
     };
 
@@ -311,6 +323,49 @@ export async function getActionItems(): Promise<ActionItem[]> {
     }
   }
 
+  // 6. Availability override alerts (umpires who changed availability despite being assigned)
+  const sevenDaysAgo = subDays(new Date(), 7).toISOString();
+  const { data: overrides, error: overrideError } = await supabase
+    .from("availability_override_logs")
+    .select("umpire_id, poll_id, umpires(name), polls(title)")
+    .eq("organization_id", tenantId)
+    .not("poll_id", "is", null)
+    .gte("created_at", sevenDaysAgo)
+    .order("created_at", { ascending: false })
+    .limit(50);
+
+  if (overrideError) throw new Error(overrideError.message);
+
+  if (overrides && overrides.length > 0) {
+    // Group by umpire + poll for a cleaner display
+    const overrideByPoll = new Map<
+      string,
+      { umpireNames: Set<string>; pollTitle: string; pollId: string }
+    >();
+    for (const o of overrides) {
+      if (!o.poll_id) continue; // skip orphaned logs where poll was deleted
+      const umpire = Array.isArray(o.umpires) ? o.umpires[0] : o.umpires;
+      const poll = Array.isArray(o.polls) ? o.polls[0] : o.polls;
+      if (!overrideByPoll.has(o.poll_id)) {
+        overrideByPoll.set(o.poll_id, {
+          umpireNames: new Set(),
+          pollTitle: poll?.title ?? "poll",
+          pollId: o.poll_id,
+        });
+      }
+      overrideByPoll.get(o.poll_id)!.umpireNames.add(umpire?.name ?? "Umpire");
+    }
+
+    for (const [, info] of overrideByPoll) {
+      const count = info.umpireNames.size;
+      items.push({
+        type: "availability_override",
+        label: `${count} umpire${count > 1 ? "s" : ""} withdrew availability despite assignment in ${info.pollTitle}`,
+        href: `/protected/polls/${info.pollId}?tab=assignments`,
+      });
+    }
+  }
+
   return items;
 }
 
@@ -464,8 +519,40 @@ export async function getRecentActivity(): Promise<ActivityEvent[]> {
     };
   });
 
+  // 4. Recent availability override logs
+  const { data: overrideLogs, error: overrideLogError } = await supabase
+    .from("availability_override_logs")
+    .select(
+      "created_at, poll_id, umpires(name), matches(home_team, away_team), polls(title)",
+    )
+    .eq("organization_id", tenantId)
+    .not("poll_id", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(50);
+
+  if (overrideLogError) throw new Error(overrideLogError.message);
+
+  const overrideEvents: ActivityEvent[] = (overrideLogs ?? []).map((o) => {
+    const umpire = Array.isArray(o.umpires) ? o.umpires[0] : o.umpires;
+    const match = Array.isArray(o.matches) ? o.matches[0] : o.matches;
+    const poll = Array.isArray(o.polls) ? o.polls[0] : o.polls;
+    return {
+      type: "availability_override" as const,
+      umpire: umpire?.name ?? "Umpire",
+      homeTeam: match?.home_team ?? "?",
+      awayTeam: match?.away_team ?? "?",
+      pollTitle: poll?.title ?? "poll",
+      timestamp: o.created_at,
+    };
+  });
+
   // Merge, sort descending, limit 10
-  const allEvents = [...responseEvents, ...assignmentEvents, ...matchEvents];
+  const allEvents = [
+    ...responseEvents,
+    ...assignmentEvents,
+    ...matchEvents,
+    ...overrideEvents,
+  ];
   allEvents.sort(
     (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
   );

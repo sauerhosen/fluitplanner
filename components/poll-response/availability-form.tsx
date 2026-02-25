@@ -4,9 +4,14 @@ import { useState, useRef, useEffect, useMemo } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { SlotRow } from "@/components/poll-response/slot-row";
 import { StickyDirtyBar } from "@/components/poll-response/sticky-dirty-bar";
+import { AssignmentWarningDialog } from "@/components/poll-response/assignment-warning-dialog";
 import { submitResponses } from "@/lib/actions/public-polls";
 import { useTranslations, useFormatter } from "next-intl";
-import type { PollSlot, AvailabilityResponse } from "@/lib/types/domain";
+import type {
+  PollSlot,
+  AvailabilityResponse,
+  PollAssignmentContext,
+} from "@/lib/types/domain";
 
 type ResponseValue = "yes" | "if_need_be" | "no";
 
@@ -16,6 +21,7 @@ type Props = {
   umpireName: string;
   slots: PollSlot[];
   existingResponses: AvailabilityResponse[];
+  assignmentContext?: PollAssignmentContext | null;
 };
 
 export function AvailabilityForm({
@@ -24,6 +30,7 @@ export function AvailabilityForm({
   umpireName,
   slots,
   existingResponses,
+  assignmentContext,
 }: Props) {
   const t = useTranslations("pollResponse");
   const format = useFormatter();
@@ -91,10 +98,52 @@ export function AvailabilityForm({
   const [showSavedInBar, setShowSavedInBar] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showPastDates, setShowPastDates] = useState(false);
+  const [showOverrideDialog, setShowOverrideDialog] = useState(false);
 
   const [savedBaseline, setSavedBaseline] =
     useState<Record<string, ResponseValue | null>>(initialState);
   const savedTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  // Assignment context derived state
+  const lockMode = assignmentContext?.lockMode ?? "warn";
+  const assignedSlotMap = useMemo(() => {
+    const map = new Map<
+      string,
+      { matchId: string; homeTeam: string; awayTeam: string }[]
+    >();
+    if (!assignmentContext) return map;
+    for (const slot of assignmentContext.assignedSlots) {
+      map.set(slot.slotId, slot.matches);
+    }
+    return map;
+  }, [assignmentContext]);
+
+  // Track which assigned slots are being downgraded (for warnings)
+  const pendingOverrideSlots = useMemo(() => {
+    const overrides = new Set<string>();
+    for (const slotId of assignedSlotMap.keys()) {
+      const saved = savedBaseline[slotId];
+      const current = responses[slotId];
+      const wasAvailable = saved === "yes" || saved === "if_need_be";
+      const isNowNo = current === "no";
+      if (wasAvailable && isNowNo) {
+        overrides.add(slotId);
+      }
+    }
+    return overrides;
+  }, [responses, savedBaseline, assignedSlotMap]);
+
+  // Collect all matches affected by pending overrides (for dialog)
+  const affectedMatches = useMemo(() => {
+    const matches: { homeTeam: string; awayTeam: string }[] = [];
+    for (const slotId of pendingOverrideSlots) {
+      const slotMatches = assignedSlotMap.get(slotId);
+      if (slotMatches) {
+        matches.push(...slotMatches);
+      }
+    }
+    return matches;
+  }, [pendingOverrideSlots, assignedSlotMap]);
 
   // Only track dirty state for future (editable) slots
   const isDirty = useMemo(() => {
@@ -122,6 +171,10 @@ export function AvailabilityForm({
   }, []);
 
   function handleChange(slotId: string, value: ResponseValue | null) {
+    // In lock mode, prevent any changes to assigned slots
+    if (lockMode === "lock" && assignedSlotMap.has(slotId)) {
+      return;
+    }
     setResponses((prev) => ({ ...prev, [slotId]: value }));
     setError(null);
   }
@@ -133,23 +186,61 @@ export function AvailabilityForm({
 
   async function handleSubmit(e?: React.FormEvent) {
     if (e) e.preventDefault();
+
+    // In warn mode, show confirmation dialog if there are pending overrides
+    if (
+      lockMode === "warn" &&
+      pendingOverrideSlots.size > 0 &&
+      !showOverrideDialog
+    ) {
+      setShowOverrideDialog(true);
+      return;
+    }
+
     setSaving(true);
     setError(null);
+    setShowOverrideDialog(false);
     // Only submit responses for future slots
     const toSubmit = Object.entries(responses)
       .filter(([slotId, value]) => value !== null && futureSlotIds.has(slotId))
       .map(([slotId, response]) => ({ slotId, response: response! }));
     try {
-      await submitResponses(pollId, umpireId, umpireName, toSubmit);
-      setSavedBaseline({ ...responses });
-      setShowSavedInBar(true);
-      if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
-      savedTimerRef.current = setTimeout(() => setShowSavedInBar(false), 2000);
+      const result = await submitResponses(
+        pollId,
+        umpireId,
+        umpireName,
+        toSubmit,
+      );
+      if (result.status === "partial_saved") {
+        // Some slots were blocked by lock mode — update baseline for saved slots only
+        const blockedIds = new Set(result.blockedSlots.map((b) => b.slotId));
+        const newBaseline = { ...responses };
+        // Revert blocked slots to their saved baseline values
+        for (const slotId of blockedIds) {
+          newBaseline[slotId] = savedBaseline[slotId];
+        }
+        setResponses(newBaseline);
+        setSavedBaseline(newBaseline);
+        const labels = result.blockedSlots.flatMap((b) => b.matchLabels);
+        setError(t("partialSaveBlocked", { matches: labels.join(", ") }));
+      } else {
+        setSavedBaseline({ ...responses });
+        setShowSavedInBar(true);
+        if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+        savedTimerRef.current = setTimeout(
+          () => setShowSavedInBar(false),
+          2000,
+        );
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : t("failedToSave"));
     } finally {
       setSaving(false);
     }
+  }
+
+  function handleOverrideConfirm() {
+    handleSubmit();
   }
 
   const barVisible = isDirty || saving || showSavedInBar || error !== null;
@@ -165,16 +256,30 @@ export function AvailabilityForm({
           {group.label}
         </div>
         <div className="px-3">
-          {group.slots.map((slot) => (
-            <SlotRow
-              key={slot.id}
-              startTime={slot.start_time}
-              endTime={slot.end_time}
-              value={responses[slot.id]}
-              onChange={(value) => handleChange(slot.id, value)}
-              disabled={disabled}
-            />
-          ))}
+          {group.slots.map((slot) => {
+            const isAssigned = assignedSlotMap.has(slot.id);
+            const isLocked = lockMode === "lock" && isAssigned;
+            const isOverriding =
+              lockMode === "warn" && pendingOverrideSlots.has(slot.id);
+            const slotMatches = assignedSlotMap.get(slot.id);
+            const matchLabels = slotMatches?.map(
+              (m) => `${m.homeTeam} vs ${m.awayTeam}`,
+            );
+
+            return (
+              <SlotRow
+                key={slot.id}
+                startTime={slot.start_time}
+                endTime={slot.end_time}
+                value={responses[slot.id]}
+                onChange={(value) => handleChange(slot.id, value)}
+                disabled={disabled}
+                locked={isLocked}
+                showWarning={isOverriding}
+                assignedMatchLabels={matchLabels}
+              />
+            );
+          })}
         </div>
       </div>
     );
@@ -237,6 +342,14 @@ export function AvailabilityForm({
           />
         </>
       )}
+
+      {/* Override warning dialog (warn mode only) */}
+      <AssignmentWarningDialog
+        open={showOverrideDialog}
+        onOpenChange={setShowOverrideDialog}
+        affectedMatches={affectedMatches}
+        onConfirm={handleOverrideConfirm}
+      />
     </form>
   );
 }

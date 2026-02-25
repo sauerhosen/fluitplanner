@@ -2,6 +2,7 @@ import { getRecentActivity, type ActivityEvent } from "@/lib/actions/dashboard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatDistanceToNow } from "date-fns";
 import { nl } from "date-fns/locale";
+import { AlertTriangle } from "lucide-react";
 import { getTranslations, getLocale } from "next-intl/server";
 
 function formatEvent(
@@ -29,7 +30,17 @@ function formatEvent(
       });
     case "matches_batch":
       return t("activityMatchesBatch", { count: event.count });
+    case "availability_override":
+      return t("activityAvailabilityOverride", {
+        umpire: event.umpire,
+        homeTeam: event.homeTeam,
+        awayTeam: event.awayTeam,
+      });
   }
+}
+
+function isOverrideEvent(event: ActivityEvent): boolean {
+  return event.type === "availability_override";
 }
 
 function getEventKey(event: ActivityEvent): string {
@@ -44,6 +55,8 @@ function getEventKey(event: ActivityEvent): string {
       return `match_added:${event.timestamp}:${event.homeTeam}:${event.awayTeam}`;
     case "matches_batch":
       return `matches_batch:${event.timestamp}:${event.count}`;
+    case "availability_override":
+      return `availability_override:${event.timestamp}:${event.umpire}:${event.homeTeam}:${event.awayTeam}`;
   }
 }
 
@@ -67,9 +80,14 @@ export async function RecentActivitySection() {
             {events.map((event) => (
               <li
                 key={getEventKey(event)}
-                className="flex items-center justify-between text-sm"
+                className={`flex items-center justify-between text-sm ${isOverrideEvent(event) ? "text-orange-600 dark:text-orange-400 font-medium" : ""}`}
               >
-                <span>{formatEvent(event, t)}</span>
+                <span className="flex items-center gap-1.5">
+                  {isOverrideEvent(event) && (
+                    <AlertTriangle className="h-4 w-4 shrink-0" />
+                  )}
+                  {formatEvent(event, t)}
+                </span>
                 <span className="text-muted-foreground text-xs whitespace-nowrap ml-4">
                   {formatDistanceToNow(new Date(event.timestamp), {
                     addSuffix: true,
