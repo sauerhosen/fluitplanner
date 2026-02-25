@@ -18,15 +18,19 @@ Never commit directly to `main`. Always create a feature branch before making an
 ## Commands
 
 ```bash
-npm run dev        # Start dev server (localhost:3000)
-npm run build      # Production build
-npm run lint       # ESLint
-npm run format     # Format all files with Prettier
-npm run format:check # Check formatting without writing
-npm test           # Run unit/component tests (vitest)
-npm run test:watch # Watch mode for TDD red/green cycles
-npm run test:e2e   # Run E2E tests (playwright, starts dev server)
-npm run type-check # TypeScript type checking
+npm run dev            # Start dev server (localhost:3000)
+npm run build          # Production build
+npm run lint           # ESLint
+npm run format         # Format all files with Prettier
+npm run format:check   # Check formatting without writing
+npm test               # Run unit/component tests (vitest)
+npm run test:watch     # Watch mode for TDD red/green cycles
+npm run test:e2e       # Run E2E tests (playwright, starts dev server)
+npm run type-check     # TypeScript type checking
+npm run supabase:start # Start local Supabase (requires Podman)
+npm run supabase:stop  # Stop local Supabase
+npm run supabase:reset # Re-apply migrations + seed data
+npm run supabase:seed  # Dump production data to supabase/seed.sql
 ```
 
 Use red/green TDD per `app_description.md`: write a failing test first, then implement.
@@ -80,14 +84,25 @@ CI (GitHub Actions) runs lint, format check, type check, tests, and build on eve
 - `/auth/*` — login, sign-up, forgot-password, update-password, confirmation
 - `/protected/*` — authenticated pages (layout includes nav with auth button)
 
+### Local Supabase Development
+
+Local dev uses **Podman** (not Docker) to run the full Supabase stack locally. Config: `supabase/config.toml`. Migrations: `supabase/migrations/`.
+
+- **Start**: `npm run supabase:start` (requires Podman machine running)
+- **Seed from production**: `npm run supabase:seed` then `npm run supabase:reset`
+- `supabase/seed.sql` is gitignored (contains production data)
+- Local services: API on `:54321`, DB on `:54322`, Studio on `:54323`, Mailpit (email) on `:54324`
+- If `supabase start` fails with "Cannot connect to Docker daemon", set `export DOCKER_HOST=unix:///var/run/docker.sock`
+- E2E tests and dev server both use the local instance via `.env.local` credentials
+
 ### Environment Variables
 
 Required in `.env.local`:
 
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+- `NEXT_PUBLIC_SUPABASE_URL` — local: `http://127.0.0.1:54321`, remote: `https://<project>.supabase.co`
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` — from `supabase status` (local) or Supabase dashboard (remote)
 - `SUPABASE_SERVICE_ROLE_KEY` — service role key for server-side operations that bypass RLS
-- `SMTP_HOST` — AWS SES SMTP host (e.g. `email-smtp.eu-west-1.amazonaws.com`)
+- `SMTP_HOST` — AWS SES SMTP host (not needed locally — Mailpit captures emails)
 - `SMTP_PORT` — SMTP port (587)
 - `SMTP_USER` — SES SMTP username
 - `SMTP_PASS` — SES SMTP password
