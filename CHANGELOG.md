@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.6.8](https://github.com/sauerhosen/fluitplanner/compare/v2.6.7...v2.6.8) (2026-02-25)
+
+
+### Bug Fixes
+
+* remove type re-export from server action to fix SSR runtime error ([#91](https://github.com/sauerhosen/fluitplanner/issues/91)) ([d0896a6](https://github.com/sauerhosen/fluitplanner/commit/d0896a6a29d7d91e288b709f7b795e96fd0a2c10))
+
 ## [2.6.7](https://github.com/sauerhosen/fluitplanner/compare/v2.6.6...v2.6.7) (2026-02-25)
 
 
