@@ -329,6 +329,7 @@ export async function getActionItems(): Promise<ActionItem[]> {
     .from("availability_override_logs")
     .select("umpire_id, poll_id, umpires(name), polls(title)")
     .eq("organization_id", tenantId)
+    .not("poll_id", "is", null)
     .gte("created_at", sevenDaysAgo)
     .order("created_at", { ascending: false })
     .limit(50);
@@ -522,7 +523,7 @@ export async function getRecentActivity(): Promise<ActivityEvent[]> {
   const { data: overrideLogs, error: overrideLogError } = await supabase
     .from("availability_override_logs")
     .select(
-      "created_at, poll_id, umpires(name), matches(home_team, away_team), polls(title, organization_id)",
+      "created_at, poll_id, umpires(name), matches(home_team, away_team), polls(title)",
     )
     .eq("organization_id", tenantId)
     .not("poll_id", "is", null)
