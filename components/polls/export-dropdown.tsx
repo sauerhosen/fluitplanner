@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Download,
   FileSpreadsheet,
@@ -8,6 +8,7 @@ import {
   Code,
   Copy,
   Check,
+  CalendarDays,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,6 +18,9 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useTranslations, useFormatter, useLocale } from "next-intl";
@@ -31,14 +35,17 @@ import type {
 import {
   prepareResponseExport,
   prepareAssignmentExport,
+  prepareDaySheetExport,
 } from "@/lib/export/prepare-export-data";
 import {
   generateResponseHtml,
   generateAssignmentHtml,
+  generateDaySheetHtml,
 } from "@/lib/export/generators/html";
 import {
   generateResponseMarkdown,
   generateAssignmentMarkdown,
+  generateDaySheetMarkdown,
 } from "@/lib/export/generators/markdown";
 import {
   downloadBlob,
@@ -72,15 +79,6 @@ export function ExportDropdown({
   const locale = useLocale();
   const [copiedMd, setCopiedMd] = useState(false);
 
-  const target: ExportTarget | null =
-    activeTab === "responses"
-      ? "responses"
-      : activeTab === "assignments"
-        ? "assignments"
-        : null;
-
-  if (!target) return null;
-
   function formatDate(iso: string): string {
     return format.dateTime(new Date(iso), {
       weekday: "short",
@@ -96,6 +94,23 @@ export function ExportDropdown({
       hour12: false,
     });
   }
+
+  // Extract unique dates from matches for day sheet sub-menu
+  // Must be before early return to satisfy React hooks rules
+  const uniqueDates = useMemo(() => {
+    const dates = [...new Set(matches.map((m) => m.date))].sort();
+    return dates.map((d) => ({ iso: d, label: formatDate(d) }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [matches]);
+
+  const target: ExportTarget | null =
+    activeTab === "responses"
+      ? "responses"
+      : activeTab === "assignments"
+        ? "assignments"
+        : null;
+
+  if (!target) return null;
 
   const responseLabels = {
     yes: t("availableLabel"),
@@ -116,6 +131,15 @@ export function ExportDropdown({
     umpire1: t("exportUmpire1"),
     umpire2: t("exportUmpire2"),
     count: t("exportCount"),
+    noData: t("noDataToExport"),
+  };
+
+  const daySheetColumnLabels = {
+    time: t("exportTime"),
+    match: t("daySheetMatch"),
+    field: t("exportField"),
+    umpire1: t("exportUmpire1"),
+    umpire2: t("exportUmpire2"),
     noData: t("noDataToExport"),
   };
 
@@ -140,6 +164,18 @@ export function ExportDropdown({
       umpires,
       formatDate,
       formatTime,
+    );
+  }
+
+  function getDaySheetData(filterDate: string) {
+    return prepareDaySheetExport(
+      pollTitle,
+      matches,
+      assignments,
+      umpires,
+      formatDate,
+      formatTime,
+      filterDate,
     );
   }
 
@@ -215,6 +251,57 @@ export function ExportDropdown({
     }
   }
 
+  async function handleDaySheetXlsx(filterDate: string) {
+    try {
+      const { generateDaySheetXlsx } =
+        await import("@/lib/export/generators/xlsx");
+      const data = getDaySheetData(filterDate);
+      const blob = await generateDaySheetXlsx(data, daySheetColumnLabels);
+      downloadBlob(blob, `${fileBase}-daysheet-${filterDate}.xlsx`);
+    } catch {
+      toast.error(t("exportError"));
+    }
+  }
+
+  function handleDaySheetHtml(filterDate: string) {
+    try {
+      const data = getDaySheetData(filterDate);
+      const html = generateDaySheetHtml(data, daySheetColumnLabels, locale);
+      const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+      downloadBlob(blob, `${fileBase}-daysheet-${filterDate}.html`);
+    } catch {
+      toast.error(t("exportError"));
+    }
+  }
+
+  function handleDaySheetMarkdown(filterDate: string) {
+    try {
+      const data = getDaySheetData(filterDate);
+      const md = generateDaySheetMarkdown(data, daySheetColumnLabels);
+      const blob = new Blob([md], { type: "text/markdown;charset=utf-8" });
+      downloadBlob(blob, `${fileBase}-daysheet-${filterDate}.md`);
+    } catch {
+      toast.error(t("exportError"));
+    }
+  }
+
+  async function handleDaySheetCopyMarkdown(filterDate: string) {
+    try {
+      const data = getDaySheetData(filterDate);
+      const md = generateDaySheetMarkdown(data, daySheetColumnLabels);
+      const ok = await copyToClipboard(md);
+      if (ok) {
+        setCopiedMd(true);
+        toast.success(t("copied"));
+        setTimeout(() => setCopiedMd(false), 2000);
+      } else {
+        toast.error(t("copyFailed"));
+      }
+    } catch {
+      toast.error(t("copyFailed"));
+    }
+  }
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -249,6 +336,47 @@ export function ExportDropdown({
           )}
           {copiedMd ? t("copied") : t("copyMarkdown")}
         </DropdownMenuItem>
+        {target === "assignments" && uniqueDates.length > 0 && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel>{t("daySheet")}</DropdownMenuLabel>
+            {uniqueDates.map((date) => (
+              <DropdownMenuSub key={date.iso}>
+                <DropdownMenuSubTrigger>
+                  <CalendarDays className="mr-2 h-4 w-4" />
+                  {date.label}
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  <DropdownMenuItem
+                    onClick={() => handleDaySheetXlsx(date.iso)}
+                  >
+                    <FileSpreadsheet className="mr-2 h-4 w-4" />
+                    {t("exportXlsx")}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => handleDaySheetHtml(date.iso)}
+                  >
+                    <Code className="mr-2 h-4 w-4" />
+                    {t("exportHtml")}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => handleDaySheetMarkdown(date.iso)}
+                  >
+                    <FileText className="mr-2 h-4 w-4" />
+                    {t("exportMarkdown")}
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={() => handleDaySheetCopyMarkdown(date.iso)}
+                  >
+                    <Copy className="mr-2 h-4 w-4" />
+                    {t("copyMarkdown")}
+                  </DropdownMenuItem>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+            ))}
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );

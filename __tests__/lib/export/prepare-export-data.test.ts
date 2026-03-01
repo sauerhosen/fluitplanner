@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   prepareResponseExport,
   prepareAssignmentExport,
+  prepareDaySheetExport,
 } from "@/lib/export/prepare-export-data";
 import type {
   PollSlot,
@@ -447,5 +448,192 @@ describe("prepareAssignmentExport", () => {
     expect(result.rows[0].venue).toBe("");
     expect(result.rows[0].field).toBe("");
     expect(result.rows[0].competition).toBe("");
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  prepareDaySheetExport                                              */
+/* ------------------------------------------------------------------ */
+
+describe("prepareDaySheetExport", () => {
+  const baseMatch: Match = {
+    id: "m1",
+    date: "2026-03-15",
+    start_time: "2026-03-15T14:00:00Z",
+    home_team: "Team A",
+    away_team: "Team B",
+    competition: "League",
+    venue: "Stadium",
+    field: "1",
+    required_level: 1,
+    created_by: "user1",
+    created_at: "",
+    organization_id: "org1",
+  };
+
+  const baseUmpire: Umpire = {
+    id: "u1",
+    auth_user_id: null,
+    name: "Alice",
+    email: "alice@example.com",
+    level: 1,
+    created_at: "",
+    updated_at: "",
+  };
+
+  it("filters matches to the given date", () => {
+    const matches: Match[] = [
+      { ...baseMatch, id: "m1", date: "2026-03-15" },
+      { ...baseMatch, id: "m2", date: "2026-03-16" },
+      { ...baseMatch, id: "m3", date: "2026-03-15" },
+    ];
+
+    const result = prepareDaySheetExport(
+      "Poll",
+      matches,
+      [],
+      [],
+      fmtDate,
+      fmtTime,
+      "2026-03-15",
+    );
+    expect(result.rows).toHaveLength(2);
+  });
+
+  it("returns empty rows when no matches on the given date", () => {
+    const result = prepareDaySheetExport(
+      "Poll",
+      [baseMatch],
+      [],
+      [],
+      fmtDate,
+      fmtTime,
+      "2026-03-20",
+    );
+    expect(result.rows).toHaveLength(0);
+  });
+
+  it("combines home and away teams into match column", () => {
+    const result = prepareDaySheetExport(
+      "Poll",
+      [baseMatch],
+      [],
+      [],
+      fmtDate,
+      fmtTime,
+      "2026-03-15",
+    );
+    expect(result.rows[0].match).toBe("Team A - Team B");
+  });
+
+  it("includes field in output", () => {
+    const result = prepareDaySheetExport(
+      "Poll",
+      [baseMatch],
+      [],
+      [],
+      fmtDate,
+      fmtTime,
+      "2026-03-15",
+    );
+    expect(result.rows[0].field).toBe("1");
+  });
+
+  it("resolves assigned umpire names", () => {
+    const umpires: Umpire[] = [
+      { ...baseUmpire, id: "u1", name: "Alice" },
+      { ...baseUmpire, id: "u2", name: "Bob" },
+    ];
+    const assignments: Assignment[] = [
+      {
+        id: "a1",
+        poll_id: "p1",
+        match_id: "m1",
+        umpire_id: "u2",
+        created_at: "",
+        organization_id: "org1",
+      },
+      {
+        id: "a2",
+        poll_id: "p1",
+        match_id: "m1",
+        umpire_id: "u1",
+        created_at: "",
+        organization_id: "org1",
+      },
+    ];
+
+    const result = prepareDaySheetExport(
+      "Poll",
+      [baseMatch],
+      assignments,
+      umpires,
+      fmtDate,
+      fmtTime,
+      "2026-03-15",
+    );
+    expect(result.rows[0].umpire1).toBe("Alice");
+    expect(result.rows[0].umpire2).toBe("Bob");
+  });
+
+  it("sorts matches by start_time within the day", () => {
+    const matches: Match[] = [
+      {
+        ...baseMatch,
+        id: "m2",
+        start_time: "2026-03-15T16:00:00Z",
+      },
+      {
+        ...baseMatch,
+        id: "m1",
+        start_time: "2026-03-15T10:00:00Z",
+      },
+    ];
+
+    const result = prepareDaySheetExport(
+      "Poll",
+      matches,
+      [],
+      [],
+      fmtDate,
+      fmtTime,
+      "2026-03-15",
+    );
+    expect(result.rows[0].time).toBe("2026-03-15T10:00:00Z");
+    expect(result.rows[1].time).toBe("2026-03-15T16:00:00Z");
+  });
+
+  it("uses formatted date in output", () => {
+    const customFmtDate = () => "Sat 15 Mar";
+    const result = prepareDaySheetExport(
+      "Poll",
+      [baseMatch],
+      [],
+      [],
+      customFmtDate,
+      fmtTime,
+      "2026-03-15",
+    );
+    expect(result.date).toBe("Sat 15 Mar");
+  });
+
+  it("uses empty string for null fields", () => {
+    const match: Match = {
+      ...baseMatch,
+      start_time: null,
+      field: null,
+    };
+
+    const result = prepareDaySheetExport(
+      "Poll",
+      [match],
+      [],
+      [],
+      fmtDate,
+      fmtTime,
+      "2026-03-15",
+    );
+    expect(result.rows[0].time).toBe("");
+    expect(result.rows[0].field).toBe("");
   });
 });

@@ -267,7 +267,9 @@
     "exportCount": "Aantal",
     "exportError": "Exporteren mislukt. Probeer het opnieuw.",
     "copyFailed": "Kopiëren naar klembord mislukt.",
-    "noDataToExport": "Geen gegevens om te exporteren."
+    "noDataToExport": "Geen gegevens om te exporteren.",
+    "daySheet": "Dagblad",
+    "daySheetMatch": "Wedstrijd"
   },
   "pollResponse": {
     "loadingPoll": "Peiling laden...",

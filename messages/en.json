@@ -267,7 +267,9 @@
     "exportCount": "Count",
     "exportError": "Export failed. Please try again.",
     "copyFailed": "Failed to copy to clipboard.",
-    "noDataToExport": "No data to export."
+    "noDataToExport": "No data to export.",
+    "daySheet": "Day sheet",
+    "daySheetMatch": "Match"
   },
   "pollResponse": {
     "loadingPoll": "Loading poll...",
