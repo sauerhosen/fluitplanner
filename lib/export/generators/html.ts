@@ -1,6 +1,8 @@
 import type {
   ResponseExportData,
   AssignmentExportData,
+  DaySheetExportData,
+  DaySheetColumnLabels,
   ResponseCell,
 } from "../prepare-export-data";
 
@@ -214,6 +216,54 @@ export function generateAssignmentHtml(
   return wrapHtml(
     data.pollTitle,
     `<h1>${escapeHtml(data.pollTitle)}</h1>\n<table>\n<thead>\n${headerRow}\n</thead>\n<tbody>\n${bodyRows}\n</tbody>\n</table>`,
+    locale,
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Day sheet export                                                   */
+/* ------------------------------------------------------------------ */
+
+export function generateDaySheetHtml(
+  data: DaySheetExportData,
+  columnLabels: DaySheetColumnLabels,
+  locale = "en",
+): string {
+  if (data.rows.length === 0) {
+    const emptyMsg = columnLabels.noData ?? "No matches.";
+    return wrapHtml(
+      data.pollTitle,
+      `<h1>${escapeHtml(data.pollTitle)}</h1><p>${escapeHtml(emptyMsg)}</p>`,
+      locale,
+    );
+  }
+
+  const headers = [
+    columnLabels.time,
+    columnLabels.match,
+    columnLabels.field,
+    columnLabels.umpire1,
+    columnLabels.umpire2,
+  ];
+
+  const headerRow = `<tr>${headers.map((h) => `<th>${escapeHtml(h)}</th>`).join("")}</tr>`;
+
+  const bodyRowsHtml = data.rows
+    .map(
+      (row) =>
+        `<tr>
+<td>${escapeHtml(row.time)}</td>
+<td>${escapeHtml(row.match)}</td>
+<td>${escapeHtml(row.field)}</td>
+<td>${escapeHtml(row.umpire1)}</td>
+<td>${escapeHtml(row.umpire2)}</td>
+</tr>`,
+    )
+    .join("\n");
+
+  return wrapHtml(
+    data.pollTitle,
+    `<h1>${escapeHtml(data.pollTitle)}</h1>\n<h2>${escapeHtml(data.date)}</h2>\n<table>\n<thead>\n${headerRow}\n</thead>\n<tbody>\n${bodyRowsHtml}\n</tbody>\n</table>`,
     locale,
   );
 }

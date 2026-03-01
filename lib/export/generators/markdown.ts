@@ -1,6 +1,8 @@
 import type {
   ResponseExportData,
   AssignmentExportData,
+  DaySheetExportData,
+  DaySheetColumnLabels,
   ResponseCell,
 } from "../prepare-export-data";
 
@@ -16,6 +18,26 @@ function escapeMdCell(value: string): string {
 
 function padCell(value: string, width: number): string {
   return value.padEnd(width);
+}
+
+function renderMarkdownTable(
+  colHeaders: string[],
+  bodyRows: string[][],
+): string[] {
+  const colWidths = colHeaders.map((h, i) =>
+    Math.max(h.length, ...bodyRows.map((row) => (row[i] ?? "").length), 3),
+  );
+  const lines: string[] = [];
+  lines.push(
+    `| ${colHeaders.map((h, i) => padCell(h, colWidths[i])).join(" | ")} |`,
+  );
+  lines.push(`| ${colWidths.map((w) => "-".repeat(w)).join(" | ")} |`);
+  for (const row of bodyRows) {
+    lines.push(
+      `| ${row.map((cell, i) => padCell(cell, colWidths[i])).join(" | ")} |`,
+    );
+  }
+  return lines;
 }
 
 /* ------------------------------------------------------------------ */
@@ -45,27 +67,7 @@ export function generateResponseMarkdown(
     ...row.cells.map((cell) => (cell ? RESPONSE_SYMBOLS[cell] : "-")),
   ]);
 
-  // Calculate column widths
-  const colWidths = colHeaders.map((h, i) =>
-    Math.max(
-      h.length,
-      ...bodyRows.map((row) => (row[i] ?? "").length),
-      3, // minimum width for separator
-    ),
-  );
-
-  // Header row
-  lines.push(
-    `| ${colHeaders.map((h, i) => padCell(h, colWidths[i])).join(" | ")} |`,
-  );
-  // Separator row
-  lines.push(`| ${colWidths.map((w) => "-".repeat(w)).join(" | ")} |`);
-  // Data rows
-  for (const row of bodyRows) {
-    lines.push(
-      `| ${row.map((cell, i) => padCell(cell, colWidths[i])).join(" | ")} |`,
-    );
-  }
+  lines.push(...renderMarkdownTable(colHeaders, bodyRows));
 
   lines.push("");
   lines.push(
@@ -129,23 +131,47 @@ export function generateAssignmentMarkdown(
     escapeMdCell(row.assignmentCount),
   ]);
 
-  // Calculate column widths
-  const colWidths = colHeaders.map((h, i) =>
-    Math.max(h.length, ...bodyRows.map((row) => (row[i] ?? "").length), 3),
-  );
+  lines.push(...renderMarkdownTable(colHeaders, bodyRows));
 
-  // Header row
-  lines.push(
-    `| ${colHeaders.map((h, i) => padCell(h, colWidths[i])).join(" | ")} |`,
-  );
-  // Separator
-  lines.push(`| ${colWidths.map((w) => "-".repeat(w)).join(" | ")} |`);
-  // Data rows
-  for (const row of bodyRows) {
-    lines.push(
-      `| ${row.map((cell, i) => padCell(cell, colWidths[i])).join(" | ")} |`,
-    );
+  return lines.join("\n");
+}
+
+/* ------------------------------------------------------------------ */
+/*  Day sheet export                                                   */
+/* ------------------------------------------------------------------ */
+
+export function generateDaySheetMarkdown(
+  data: DaySheetExportData,
+  columnLabels: DaySheetColumnLabels,
+): string {
+  const lines: string[] = [];
+
+  lines.push(`# ${data.pollTitle}`);
+  lines.push("");
+  lines.push(`## ${data.date}`);
+  lines.push("");
+
+  if (data.rows.length === 0) {
+    return lines.join("\n");
   }
+
+  const colHeaders = [
+    escapeMdCell(columnLabels.time),
+    escapeMdCell(columnLabels.match),
+    escapeMdCell(columnLabels.field),
+    escapeMdCell(columnLabels.umpire1),
+    escapeMdCell(columnLabels.umpire2),
+  ];
+
+  const bodyRows = data.rows.map((row) => [
+    escapeMdCell(row.time),
+    escapeMdCell(row.match),
+    escapeMdCell(row.field),
+    escapeMdCell(row.umpire1),
+    escapeMdCell(row.umpire2),
+  ]);
+
+  lines.push(...renderMarkdownTable(colHeaders, bodyRows));
 
   return lines.join("\n");
 }

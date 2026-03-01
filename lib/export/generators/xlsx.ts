@@ -1,6 +1,8 @@
 import type {
   ResponseExportData,
   AssignmentExportData,
+  DaySheetExportData,
+  DaySheetColumnLabels,
   ResponseCell,
 } from "../prepare-export-data";
 
@@ -234,6 +236,72 @@ export async function generateAssignmentXlsx(
   const colWidths = [12, 8, 20, 20, 16, 8, 16, 18, 18, 8];
   for (let i = 0; i < colWidths.length; i++) {
     sheet.getColumn(i + 1).width = colWidths[i];
+  }
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  return new Blob([buffer], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
+}
+
+/* ------------------------------------------------------------------ */
+/*  Day sheet export                                                   */
+/* ------------------------------------------------------------------ */
+
+export async function generateDaySheetXlsx(
+  data: DaySheetExportData,
+  columnLabels: DaySheetColumnLabels,
+): Promise<Blob> {
+  const ExcelJS = await import("exceljs");
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet(data.pollTitle.slice(0, 31) || "Export");
+
+  const headers = [
+    columnLabels.time,
+    columnLabels.match,
+    columnLabels.field,
+    columnLabels.umpire1,
+    columnLabels.umpire2,
+  ];
+
+  // Row 1: Poll title (merged)
+  sheet.mergeCells(1, 1, 1, headers.length);
+  const titleCell = sheet.getCell(1, 1);
+  titleCell.value = data.pollTitle;
+  titleCell.font = { bold: true, size: 14 };
+
+  // Row 2: Date (merged)
+  sheet.mergeCells(2, 1, 2, headers.length);
+  const dateCell = sheet.getCell(2, 1);
+  dateCell.value = data.date;
+  dateCell.font = { bold: true, size: 12 };
+
+  // Row 3: Column headers
+  for (let i = 0; i < headers.length; i++) {
+    const cell = sheet.getCell(3, i + 1);
+    cell.value = headers[i];
+    cell.font = { bold: true };
+    cell.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: "FFF9FAFB" },
+    };
+  }
+
+  // Data rows
+  for (let ri = 0; ri < data.rows.length; ri++) {
+    const row = data.rows[ri];
+    const excelRow = ri + 4;
+    const values = [row.time, row.match, row.field, row.umpire1, row.umpire2];
+    for (let ci = 0; ci < values.length; ci++) {
+      sheet.getCell(excelRow, ci + 1).value = values[ci];
+    }
+  }
+
+  // Column widths
+  const daySheetColWidths = [8, 30, 10, 18, 18];
+  for (let i = 0; i < daySheetColWidths.length; i++) {
+    sheet.getColumn(i + 1).width = daySheetColWidths[i];
   }
 
   const buffer = await workbook.xlsx.writeBuffer();

@@ -47,6 +47,60 @@ export type AssignmentExportData = {
   rows: AssignmentExportRow[];
 };
 
+export type DaySheetRow = {
+  time: string;
+  match: string;
+  field: string;
+  umpire1: string;
+  umpire2: string;
+};
+
+export type DaySheetExportData = {
+  pollTitle: string;
+  date: string;
+  rows: DaySheetRow[];
+};
+
+export type DaySheetColumnLabels = {
+  time: string;
+  match: string;
+  field: string;
+  umpire1: string;
+  umpire2: string;
+  noData?: string;
+};
+
+/* ------------------------------------------------------------------ */
+/*  Shared helpers                                                     */
+/* ------------------------------------------------------------------ */
+
+function buildAssignmentsByMatch(
+  assignments: Assignment[],
+  umpires: Umpire[],
+): Map<string, string[]> {
+  const umpireNameMap = new Map<string, string>();
+  for (const u of umpires) {
+    umpireNameMap.set(u.id, u.name);
+  }
+
+  const byMatch = new Map<string, string[]>();
+  for (const a of assignments) {
+    const names = byMatch.get(a.match_id) ?? [];
+    names.push(umpireNameMap.get(a.umpire_id) ?? "");
+    byMatch.set(a.match_id, names);
+  }
+  return byMatch;
+}
+
+function getSortedUmpires(
+  assignmentsByMatch: Map<string, string[]>,
+  matchId: string,
+): string[] {
+  return (assignmentsByMatch.get(matchId) ?? []).sort((a, b) =>
+    a.localeCompare(b),
+  );
+}
+
 /* ------------------------------------------------------------------ */
 /*  Response export                                                    */
 /* ------------------------------------------------------------------ */
@@ -104,6 +158,39 @@ export function prepareResponseExport(
 }
 
 /* ------------------------------------------------------------------ */
+/*  Day sheet export                                                   */
+/* ------------------------------------------------------------------ */
+
+export function prepareDaySheetExport(
+  pollTitle: string,
+  matches: Match[],
+  assignments: Assignment[],
+  umpires: Umpire[],
+  formatDate: (iso: string) => string,
+  formatTime: (iso: string) => string,
+  filterDate: string,
+): DaySheetExportData {
+  const filtered = matches
+    .filter((m) => m.date === filterDate)
+    .sort((a, b) => (a.start_time ?? "").localeCompare(b.start_time ?? ""));
+
+  const assignmentsByMatch = buildAssignmentsByMatch(assignments, umpires);
+
+  const rows: DaySheetRow[] = filtered.map((match) => {
+    const assignedUmpires = getSortedUmpires(assignmentsByMatch, match.id);
+    return {
+      time: match.start_time ? formatTime(match.start_time) : "",
+      match: `${match.home_team} - ${match.away_team}`,
+      field: match.field ?? "",
+      umpire1: assignedUmpires[0] ?? "",
+      umpire2: assignedUmpires[1] ?? "",
+    };
+  });
+
+  return { pollTitle, date: formatDate(filterDate), rows };
+}
+
+/* ------------------------------------------------------------------ */
 /*  Assignment export                                                  */
 /* ------------------------------------------------------------------ */
 
@@ -121,25 +208,10 @@ export function prepareAssignmentExport(
     return (a.start_time ?? "").localeCompare(b.start_time ?? "");
   });
 
-  // Build umpire name lookup
-  const umpireNameMap = new Map<string, string>();
-  for (const u of umpires) {
-    umpireNameMap.set(u.id, u.name);
-  }
-
-  // Group assignments by match_id
-  const assignmentsByMatch = new Map<string, string[]>();
-  for (const a of assignments) {
-    const names = assignmentsByMatch.get(a.match_id) ?? [];
-    const name = umpireNameMap.get(a.umpire_id) ?? "";
-    names.push(name);
-    assignmentsByMatch.set(a.match_id, names);
-  }
+  const assignmentsByMatch = buildAssignmentsByMatch(assignments, umpires);
 
   const rows: AssignmentExportRow[] = sorted.map((match) => {
-    const assignedUmpires = (assignmentsByMatch.get(match.id) ?? []).sort(
-      (a, b) => a.localeCompare(b),
-    );
+    const assignedUmpires = getSortedUmpires(assignmentsByMatch, match.id);
     return {
       date: formatDate(match.date),
       time: match.start_time ? formatTime(match.start_time) : "",
