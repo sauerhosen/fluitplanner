@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.8.0](https://github.com/sauerhosen/fluitplanner/compare/v2.7.0...v2.8.0) (2026-03-01)
+
+
+### Features
+
+* add day sheet export for simplified per-date match overview ([#99](https://github.com/sauerhosen/fluitplanner/issues/99)) ([f568bbb](https://github.com/sauerhosen/fluitplanner/commit/f568bbb633d2547f0deb13c8ccc2fd958ec7d471))
+
 ## [2.7.0](https://github.com/sauerhosen/fluitplanner/compare/v2.6.9...v2.7.0) (2026-02-25)
 
 
