@@ -268,7 +268,7 @@
     "exportError": "Exporteren mislukt. Probeer het opnieuw.",
     "copyFailed": "Kopiëren naar klembord mislukt.",
     "noDataToExport": "Geen gegevens om te exporteren.",
-    "daySheet": "Dagblad",
+    "daySheet": "Dagoverzicht",
     "daySheetMatch": "Wedstrijd"
   },
   "pollResponse": {
