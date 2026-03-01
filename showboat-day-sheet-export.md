@@ -17,7 +17,7 @@ Implementing a simplified 'day sheet' export for the poll detail page. The day s
 - **components/polls/export-dropdown.tsx** — Added day sheet sub-menus per date with all 4 export formats
 - **messages/en.json** — Added `daySheet` and `daySheetMatch` keys
 - **messages/nl.json** — Added `daySheet` and `daySheetMatch` keys
-- ****tests**/lib/export/prepare-export-data.test.ts** — Added 8 tests for `prepareDaySheetExport`
+- \***\*tests**/lib/export/prepare-export-data.test.ts\*\* — Added 8 tests for `prepareDaySheetExport`
 
 ```bash
 npm run type-check 2>&1 && echo '---' && npx eslint components/polls/export-dropdown.tsx lib/export/ __tests__/lib/export/ 2>&1 && echo '---' && npm test 2>&1 | tail -5
