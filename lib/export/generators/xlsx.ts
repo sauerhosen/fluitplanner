@@ -2,6 +2,7 @@ import type {
   ResponseExportData,
   AssignmentExportData,
   DaySheetExportData,
+  DaySheetColumnLabels,
   ResponseCell,
 } from "../prepare-export-data";
 
@@ -249,13 +250,7 @@ export async function generateAssignmentXlsx(
 
 export async function generateDaySheetXlsx(
   data: DaySheetExportData,
-  columnLabels: {
-    time: string;
-    match: string;
-    field: string;
-    umpire1: string;
-    umpire2: string;
-  },
+  columnLabels: DaySheetColumnLabels,
 ): Promise<Blob> {
   const ExcelJS = await import("exceljs");
   const workbook = new ExcelJS.Workbook();

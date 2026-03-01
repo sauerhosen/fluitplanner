@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   Download,
   FileSpreadsheet,
@@ -79,13 +79,15 @@ export function ExportDropdown({
   const locale = useLocale();
   const [copiedMd, setCopiedMd] = useState(false);
 
-  function formatDate(iso: string): string {
-    return format.dateTime(new Date(iso), {
-      weekday: "short",
-      day: "numeric",
-      month: "short",
-    });
-  }
+  const formatDate = useCallback(
+    (iso: string): string =>
+      format.dateTime(new Date(iso), {
+        weekday: "short",
+        day: "numeric",
+        month: "short",
+      }),
+    [format],
+  );
 
   function formatTime(iso: string): string {
     return format.dateTime(new Date(iso), {
@@ -100,8 +102,7 @@ export function ExportDropdown({
   const uniqueDates = useMemo(() => {
     const dates = [...new Set(matches.map((m) => m.date))].sort();
     return dates.map((d) => ({ iso: d, label: formatDate(d) }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [matches]);
+  }, [matches, formatDate]);
 
   const target: ExportTarget | null =
     activeTab === "responses"
@@ -251,54 +252,41 @@ export function ExportDropdown({
     }
   }
 
-  async function handleDaySheetXlsx(filterDate: string) {
-    try {
-      const { generateDaySheetXlsx } =
-        await import("@/lib/export/generators/xlsx");
-      const data = getDaySheetData(filterDate);
-      const blob = await generateDaySheetXlsx(data, daySheetColumnLabels);
-      downloadBlob(blob, `${fileBase}-daysheet-${filterDate}.xlsx`);
-    } catch {
-      toast.error(t("exportError"));
-    }
-  }
-
-  function handleDaySheetHtml(filterDate: string) {
+  async function handleDaySheet(
+    exportFormat: "xlsx" | "html" | "markdown" | "copy",
+    filterDate: string,
+  ) {
     try {
       const data = getDaySheetData(filterDate);
-      const html = generateDaySheetHtml(data, daySheetColumnLabels, locale);
-      const blob = new Blob([html], { type: "text/html;charset=utf-8" });
-      downloadBlob(blob, `${fileBase}-daysheet-${filterDate}.html`);
-    } catch {
-      toast.error(t("exportError"));
-    }
-  }
-
-  function handleDaySheetMarkdown(filterDate: string) {
-    try {
-      const data = getDaySheetData(filterDate);
-      const md = generateDaySheetMarkdown(data, daySheetColumnLabels);
-      const blob = new Blob([md], { type: "text/markdown;charset=utf-8" });
-      downloadBlob(blob, `${fileBase}-daysheet-${filterDate}.md`);
-    } catch {
-      toast.error(t("exportError"));
-    }
-  }
-
-  async function handleDaySheetCopyMarkdown(filterDate: string) {
-    try {
-      const data = getDaySheetData(filterDate);
-      const md = generateDaySheetMarkdown(data, daySheetColumnLabels);
-      const ok = await copyToClipboard(md);
-      if (ok) {
-        setCopiedMd(true);
-        toast.success(t("copied"));
-        setTimeout(() => setCopiedMd(false), 2000);
+      if (exportFormat === "xlsx") {
+        const { generateDaySheetXlsx } =
+          await import("@/lib/export/generators/xlsx");
+        const blob = await generateDaySheetXlsx(data, daySheetColumnLabels);
+        downloadBlob(blob, `${fileBase}-daysheet-${filterDate}.xlsx`);
+      } else if (exportFormat === "html") {
+        const html = generateDaySheetHtml(data, daySheetColumnLabels, locale);
+        const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+        downloadBlob(blob, `${fileBase}-daysheet-${filterDate}.html`);
       } else {
-        toast.error(t("copyFailed"));
+        const md = generateDaySheetMarkdown(data, daySheetColumnLabels);
+        if (exportFormat === "copy") {
+          const ok = await copyToClipboard(md);
+          if (ok) {
+            setCopiedMd(true);
+            toast.success(t("copied"));
+            setTimeout(() => setCopiedMd(false), 2000);
+          } else {
+            toast.error(t("copyFailed"));
+          }
+        } else {
+          const blob = new Blob([md], {
+            type: "text/markdown;charset=utf-8",
+          });
+          downloadBlob(blob, `${fileBase}-daysheet-${filterDate}.md`);
+        }
       }
     } catch {
-      toast.error(t("copyFailed"));
+      toast.error(t("exportError"));
     }
   }
 
@@ -348,26 +336,26 @@ export function ExportDropdown({
                 </DropdownMenuSubTrigger>
                 <DropdownMenuSubContent>
                   <DropdownMenuItem
-                    onClick={() => handleDaySheetXlsx(date.iso)}
+                    onClick={() => handleDaySheet("xlsx", date.iso)}
                   >
                     <FileSpreadsheet className="mr-2 h-4 w-4" />
                     {t("exportXlsx")}
                   </DropdownMenuItem>
                   <DropdownMenuItem
-                    onClick={() => handleDaySheetHtml(date.iso)}
+                    onClick={() => handleDaySheet("html", date.iso)}
                   >
                     <Code className="mr-2 h-4 w-4" />
                     {t("exportHtml")}
                   </DropdownMenuItem>
                   <DropdownMenuItem
-                    onClick={() => handleDaySheetMarkdown(date.iso)}
+                    onClick={() => handleDaySheet("markdown", date.iso)}
                   >
                     <FileText className="mr-2 h-4 w-4" />
                     {t("exportMarkdown")}
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
-                    onClick={() => handleDaySheetCopyMarkdown(date.iso)}
+                    onClick={() => handleDaySheet("copy", date.iso)}
                   >
                     <Copy className="mr-2 h-4 w-4" />
                     {t("copyMarkdown")}

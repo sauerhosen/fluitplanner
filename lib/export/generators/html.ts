@@ -2,6 +2,7 @@ import type {
   ResponseExportData,
   AssignmentExportData,
   DaySheetExportData,
+  DaySheetColumnLabels,
   ResponseCell,
 } from "../prepare-export-data";
 
@@ -225,14 +226,7 @@ export function generateAssignmentHtml(
 
 export function generateDaySheetHtml(
   data: DaySheetExportData,
-  columnLabels: {
-    time: string;
-    match: string;
-    field: string;
-    umpire1: string;
-    umpire2: string;
-    noData?: string;
-  },
+  columnLabels: DaySheetColumnLabels,
   locale = "en",
 ): string {
   if (data.rows.length === 0) {
