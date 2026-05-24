@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.8.2](https://github.com/sauerhosen/fluitplanner/compare/v2.8.1...v2.8.2) (2026-05-24)
+
+
+### Bug Fixes
+
+* **deps:** patch Dependabot security alerts ([cc94e86](https://github.com/sauerhosen/fluitplanner/commit/cc94e8649ca479ca55fd4e80220970d5f8e8cda9))
+* **deps:** patch Dependabot security alerts ([0b8bd4d](https://github.com/sauerhosen/fluitplanner/commit/0b8bd4de9e7d547468f0bb84767c234516bc8671))
+
 ## [2.8.1](https://github.com/sauerhosen/fluitplanner/compare/v2.8.0...v2.8.1) (2026-04-18)
 
 
