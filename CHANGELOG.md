@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.8.3](https://github.com/sauerhosen/fluitplanner/compare/v2.8.2...v2.8.3) (2026-06-13)
+
+
+### Bug Fixes
+
+* **deps:** patch esbuild and tmp security vulnerabilities ([4183e8c](https://github.com/sauerhosen/fluitplanner/commit/4183e8c853eb22afe320e66aa73e8aa3f3838e2b))
+* **deps:** patch esbuild and tmp security vulnerabilities ([d4740e2](https://github.com/sauerhosen/fluitplanner/commit/d4740e20324da569067ce25e5420348617d3870b))
+
 ## [2.8.2](https://github.com/sauerhosen/fluitplanner/compare/v2.8.1...v2.8.2) (2026-05-24)
 
 
