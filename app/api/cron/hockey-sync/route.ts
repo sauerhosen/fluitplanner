@@ -48,13 +48,12 @@ export async function GET(request: Request): Promise<NextResponse> {
     try {
       // Atomic claim — fails closed on DB errors and prevents overlapping
       // runs (e.g. a manual sync racing the cron) for the same org.
-      if (
-        !(await claimSyncSlot(
-          supabase,
-          organizationId,
-          SKIP_IF_SYNCED_WITHIN_MS,
-        ))
-      ) {
+      const lease = await claimSyncSlot(
+        supabase,
+        organizationId,
+        SKIP_IF_SYNCED_WITHIN_MS,
+      );
+      if (!lease) {
         results.push({ organizationId, skipped: true });
         continue;
       }
@@ -65,7 +64,7 @@ export async function GET(request: Request): Promise<NextResponse> {
         );
         results.push({ organizationId, ...result });
       } finally {
-        await releaseSyncSlot(supabase, organizationId).catch(() => {
+        await releaseSyncSlot(supabase, organizationId, lease).catch(() => {
           // lease self-expires; a failed release must not mask the sync error
         });
       }

@@ -44,7 +44,7 @@ beforeEach(() => {
     ],
     error: null,
   });
-  mockClaimSyncSlot.mockResolvedValue(true);
+  mockClaimSyncSlot.mockResolvedValue("lease-token");
   mockReleaseSyncSlot.mockResolvedValue(undefined);
   mockSyncOrganizationMatches.mockResolvedValue({
     inserted: 1,
@@ -114,8 +114,8 @@ describe("GET /api/cron/hockey-sync", () => {
 
   it("skips orgs whose sync slot cannot be claimed", async () => {
     mockClaimSyncSlot
-      .mockResolvedValueOnce(false) // org-1: synced recently
-      .mockResolvedValueOnce(true);
+      .mockResolvedValueOnce(null) // org-1: synced recently
+      .mockResolvedValueOnce("lease-token");
 
     const { GET } = await import("@/app/api/cron/hockey-sync/route");
     const response = await GET(makeRequest("Bearer test-secret"));
@@ -134,7 +134,7 @@ describe("GET /api/cron/hockey-sync", () => {
   it("records an error and continues when claiming a slot fails", async () => {
     mockClaimSyncSlot
       .mockRejectedValueOnce(new Error("db down"))
-      .mockResolvedValueOnce(true);
+      .mockResolvedValueOnce("lease-token");
 
     const { GET } = await import("@/app/api/cron/hockey-sync/route");
     const response = await GET(makeRequest("Bearer test-secret"));

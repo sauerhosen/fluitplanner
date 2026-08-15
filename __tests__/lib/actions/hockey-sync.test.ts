@@ -68,7 +68,7 @@ beforeEach(() => {
     error: null,
   });
   mockIsPlannerRole.mockResolvedValue(true);
-  mockClaimSyncSlot.mockResolvedValue(true);
+  mockClaimSyncSlot.mockResolvedValue("lease-token");
   mockReleaseSyncSlot.mockResolvedValue(undefined);
   mockStateMaybeSingle.mockResolvedValue({ data: null, error: null });
   mockSyncOrganizationMatches.mockResolvedValue({
@@ -100,19 +100,20 @@ describe("syncNow", () => {
   });
 
   it("returns cooldown status when the sync slot is not claimed", async () => {
-    mockClaimSyncSlot.mockResolvedValue(false);
+    mockClaimSyncSlot.mockResolvedValue(null);
 
     const { syncNow } = await import("@/lib/actions/hockey-sync");
     await expect(syncNow()).resolves.toEqual({ status: "cooldown" });
     expect(mockSyncOrganizationMatches).not.toHaveBeenCalled();
   });
 
-  it("releases the lease after a successful run", async () => {
+  it("releases the lease with its token after a successful run", async () => {
     const { syncNow } = await import("@/lib/actions/hockey-sync");
     await syncNow();
     expect(mockReleaseSyncSlot).toHaveBeenCalledWith(
       expect.anything(),
       "test-org-id",
+      "lease-token",
     );
   });
 
@@ -124,6 +125,7 @@ describe("syncNow", () => {
     expect(mockReleaseSyncSlot).toHaveBeenCalledWith(
       expect.anything(),
       "test-org-id",
+      "lease-token",
     );
   });
 

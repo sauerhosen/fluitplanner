@@ -46,7 +46,8 @@ export async function syncNow(): Promise<SyncNowResult> {
 
   // Atomic: concurrent callers (second tab, cron overlap) lose the claim
   // instead of running the engine twice.
-  if (!(await claimSyncSlot(service, tenantId, SYNC_COOLDOWN_MS))) {
+  const lease = await claimSyncSlot(service, tenantId, SYNC_COOLDOWN_MS);
+  if (!lease) {
     return { status: "cooldown" };
   }
 
@@ -60,7 +61,7 @@ export async function syncNow(): Promise<SyncNowResult> {
       tenantId,
     );
   } finally {
-    await releaseSyncSlot(service, tenantId).catch(() => {
+    await releaseSyncSlot(service, tenantId, lease).catch(() => {
       // lease self-expires; a failed release must not mask the sync error
     });
   }

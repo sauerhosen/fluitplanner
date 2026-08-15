@@ -41,13 +41,17 @@ const SYNC_LEASE_MS = 10 * 60 * 1000;
  *    single conditional update — concurrent callers serialize on the row
  *    lock and exactly one wins. A crashed run's lease expires on its own.
  *
- * Callers must releaseSyncSlot() in a finally block. Fails closed on errors.
+ * Returns a lease token (the claimed-until timestamp) on success, null when
+ * the cooldown is active or another run holds the lease. Callers must
+ * releaseSyncSlot() with that token in a finally block — the token fences an
+ * over-deadline run from releasing a lease it no longer owns. Fails closed
+ * on errors.
  */
 export async function claimSyncSlot(
   supabase: SupabaseClient,
   organizationId: string,
   windowMs: number,
-): Promise<boolean> {
+): Promise<string | null> {
   const { error: ensureError } = await supabase
     .from("hockey_sync_state")
     .upsert(
@@ -66,32 +70,38 @@ export async function claimSyncSlot(
     state?.last_synced_at &&
     Date.now() - new Date(state.last_synced_at).getTime() < windowMs
   ) {
-    return false;
+    return null;
   }
 
   // Single conditional update — the column is non-null (epoch default), so
   // no null case exists and no .or() filter is needed (PostgREST rejects
   // logical-operator filters on PATCH).
   const now = Date.now();
+  const leaseToken = new Date(now + SYNC_LEASE_MS).toISOString();
   const { data: claimed, error: claimError } = await supabase
     .from("hockey_sync_state")
-    .update({ sync_claimed_until: new Date(now + SYNC_LEASE_MS).toISOString() })
+    .update({ sync_claimed_until: leaseToken })
     .eq("organization_id", organizationId)
     .lt("sync_claimed_until", new Date(now).toISOString())
     .select("organization_id");
   if (claimError) throw new Error(claimError.message);
-  return (claimed ?? []).length > 0;
+  return (claimed ?? []).length > 0 ? leaseToken : null;
 }
 
-/** Release a claimed run lease. Safe to call even when nothing is claimed. */
+/**
+ * Release a claimed run lease. The token match fences the release: a run
+ * that outlived its lease cannot clear a newer claimant's lease.
+ */
 export async function releaseSyncSlot(
   supabase: SupabaseClient,
   organizationId: string,
+  leaseToken: string,
 ): Promise<void> {
   const { error } = await supabase
     .from("hockey_sync_state")
     .update({ sync_claimed_until: new Date(0).toISOString() })
-    .eq("organization_id", organizationId);
+    .eq("organization_id", organizationId)
+    .eq("sync_claimed_until", leaseToken);
   if (error) throw new Error(error.message);
 }
 

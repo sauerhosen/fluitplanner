@@ -531,7 +531,8 @@ describe("claimSyncSlot", () => {
       lastSyncedAt: new Date(Date.now() - 16 * 60_000).toISOString(),
       leaseRows: [{ organization_id: ORG }],
     });
-    expect(claimed).toBe(true);
+    // returns the claimed-until timestamp as the lease token
+    expect(claimed).toMatch(/^\d{4}-\d{2}-\d{2}T/);
     // ensure row → advisory cooldown read → single conditional lease update
     expect(queries.map((q) => `${q.table}:${q.op}`)).toEqual([
       "hockey_sync_state:upsert",
@@ -554,7 +555,7 @@ describe("claimSyncSlot", () => {
       lastSyncedAt: null,
       leaseRows: [{ organization_id: ORG }],
     });
-    expect(claimed).toBe(true);
+    expect(claimed).not.toBeNull();
   });
 
   it("does not claim within the cooldown window and skips the lease update", async () => {
@@ -562,13 +563,13 @@ describe("claimSyncSlot", () => {
       lastSyncedAt: new Date(Date.now() - 5 * 60_000).toISOString(),
       leaseRows: [{ organization_id: ORG }],
     });
-    expect(claimed).toBe(false);
+    expect(claimed).toBeNull();
     expect(queries.filter((q) => q.op === "update")).toHaveLength(0);
   });
 
   it("does not claim while another run holds the lease", async () => {
     const { claimed } = await runClaim({ lastSyncedAt: null, leaseRows: [] });
-    expect(claimed).toBe(false);
+    expect(claimed).toBeNull();
   });
 
   it("fails closed when the lease update errors", async () => {
@@ -585,15 +586,18 @@ describe("claimSyncSlot", () => {
 });
 
 describe("releaseSyncSlot", () => {
-  it("resets the lease for the org", async () => {
+  it("resets the lease only when the token still matches", async () => {
     const { client, queries } = makeFakeSupabase(() => ({ data: [] }));
     const { releaseSyncSlot } = await import("@/lib/hockey/sync");
-    await releaseSyncSlot(client as never, ORG);
+    const token = "2026-08-15T21:40:00.000Z";
+    await releaseSyncSlot(client as never, ORG, token);
 
     const update = queries.find((q) => q.op === "update");
     expect(update?.payload).toEqual({
       sync_claimed_until: new Date(0).toISOString(),
     });
     expect(update?.filters).toContainEqual(["eq", "organization_id", ORG]);
+    // fencing: an over-deadline run cannot clear a newer claimant's lease
+    expect(update?.filters).toContainEqual(["eq", "sync_claimed_until", token]);
   });
 });
