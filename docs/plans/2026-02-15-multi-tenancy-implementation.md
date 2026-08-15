@@ -426,9 +426,7 @@ Create `lib/tenant-resolver.ts`:
 
 ```typescript
 type TenantResolution =
-  | { type: "tenant"; slug: string }
-  | { type: "root" }
-  | { type: "fallback" };
+  { type: "tenant"; slug: string } | { type: "root" } | { type: "fallback" };
 
 export function resolveTenantFromHost(
   host: string,

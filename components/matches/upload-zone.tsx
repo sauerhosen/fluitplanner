@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { parseCSV } from "@/lib/parsers/csv";
 import { parsePaste } from "@/lib/parsers/paste";
 import { mapKNHBRows, extractHomeTeams } from "@/lib/parsers/knhb-mapper";
@@ -34,7 +34,9 @@ export function UploadZone({
   const [dragOver, setDragOver] = useState(false);
   const [importMode, setImportMode] = useState<"quick" | "advanced">("quick");
   const importModeRef = useRef(importMode);
-  importModeRef.current = importMode;
+  useEffect(() => {
+    importModeRef.current = importMode;
+  }, [importMode]);
   const [fileRows, setFileRows] = useState<RawRow[] | null>(null);
   const [rawRows, setRawRows] = useState<RawRow[] | null>(null);
   const [allHomeTeams, setAllHomeTeams] = useState<string[]>([]);

@@ -36,8 +36,7 @@ export function AvailabilityForm({
   const format = useFormatter();
 
   // Capture "now" once on mount so slots don't shuffle between past/future on re-renders
-  const mountTimeRef = useRef(new Date());
-  const now = mountTimeRef.current;
+  const [now] = useState(() => new Date());
 
   function formatDateHeading(isoString: string): string {
     return format.dateTime(new Date(isoString), {

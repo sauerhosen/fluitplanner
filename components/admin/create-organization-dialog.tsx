@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import type { Organization } from "@/lib/types/domain";
 import { createOrganization, updateOrganization } from "@/lib/actions/admin";
 import {
@@ -48,9 +48,11 @@ export function CreateOrganizationDialog({
   const [slugTouched, setSlugTouched] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [prevOpen, setPrevOpen] = useState(open);
 
-  // Reset form when dialog opens/closes or organization changes
-  useEffect(() => {
+  // Reset form when dialog opens
+  if (open !== prevOpen) {
+    setPrevOpen(open);
     if (open) {
       setName(organization?.name ?? "");
       setSlug(organization?.slug ?? "");
@@ -58,7 +60,7 @@ export function CreateOrganizationDialog({
       setSaving(false);
       setError(null);
     }
-  }, [open, organization, isEditing]);
+  }
 
   function handleNameChange(value: string) {
     setName(value);

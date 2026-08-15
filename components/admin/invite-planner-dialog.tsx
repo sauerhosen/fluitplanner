@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import type { Organization } from "@/lib/types/domain";
 import { invitePlanner } from "@/lib/actions/admin";
 import {
@@ -40,15 +40,17 @@ export function InvitePlannerDialog({
   const [organizationId, setOrganizationId] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [prevOpen, setPrevOpen] = useState(open);
 
-  useEffect(() => {
+  if (open !== prevOpen) {
+    setPrevOpen(open);
     if (open) {
       setEmail(initialEmail ?? "");
       setOrganizationId("");
       setSaving(false);
       setError(null);
     }
-  }, [open, initialEmail]);
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
