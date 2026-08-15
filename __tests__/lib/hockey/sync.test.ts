@@ -59,6 +59,12 @@ function makeFakeSupabase(handler: QueryHandler) {
         query.filters.push(["select", ...args]);
         return c;
       },
+      maybeSingle: () =>
+        Promise.resolve().then(() => ({
+          error: null,
+          data: null,
+          ...handler(query),
+        })),
       then: (
         resolve: (value: unknown) => unknown,
         reject?: (reason: unknown) => unknown,
@@ -503,12 +509,16 @@ describe("syncOrganizationMatches", () => {
 });
 
 describe("claimSyncSlot", () => {
-  async function runClaim(expiredRows: unknown[], neverSyncedRows: unknown[]) {
+  async function runClaim(opts: {
+    lastSyncedAt: string | null;
+    leaseRows: unknown[];
+  }) {
     const { client, queries } = makeFakeSupabase((query) => {
-      if (query.table === "hockey_sync_state" && query.op === "update") {
-        const isNullPath = query.filters.some(([op]) => op === "is");
-        return { data: isNullPath ? neverSyncedRows : expiredRows };
+      if (query.table !== "hockey_sync_state") return {};
+      if (query.op === "select") {
+        return { data: { last_synced_at: opts.lastSyncedAt } };
       }
+      if (query.op === "update") return { data: opts.leaseRows };
       return {};
     });
     const { claimSyncSlot } = await import("@/lib/hockey/sync");
@@ -516,38 +526,74 @@ describe("claimSyncSlot", () => {
     return { claimed, queries };
   }
 
-  it("claims via the expired path and skips the never-synced update", async () => {
-    const { claimed, queries } = await runClaim([{ organization_id: ORG }], []);
+  it("claims the lease when the cooldown has passed", async () => {
+    const { claimed, queries } = await runClaim({
+      lastSyncedAt: new Date(Date.now() - 16 * 60_000).toISOString(),
+      leaseRows: [{ organization_id: ORG }],
+    });
     expect(claimed).toBe(true);
-    // ensures the row exists first, then one conditional update suffices
+    // ensure row → advisory cooldown read → single conditional lease update
     expect(queries.map((q) => `${q.table}:${q.op}`)).toEqual([
       "hockey_sync_state:upsert",
+      "hockey_sync_state:select",
       "hockey_sync_state:update",
     ]);
-    const update = queries[1];
-    expect(update.filters).toContainEqual(["eq", "organization_id", ORG]);
-    expect(update.filters.some(([op]) => op === "lt")).toBe(true);
+    const lease = queries[2];
+    expect(lease.filters).toContainEqual(["eq", "organization_id", ORG]);
+    expect(
+      lease.filters.some(
+        ([op, col]) => op === "lt" && col === "sync_claimed_until",
+      ),
+    ).toBe(true);
+    expect(lease.payload).toHaveProperty("sync_claimed_until");
+    expect(lease.payload).not.toHaveProperty("last_synced_at");
   });
 
-  it("claims via the never-synced path when no row has expired", async () => {
-    const { claimed, queries } = await runClaim([], [{ organization_id: ORG }]);
+  it("claims when the org has never synced", async () => {
+    const { claimed } = await runClaim({
+      lastSyncedAt: null,
+      leaseRows: [{ organization_id: ORG }],
+    });
     expect(claimed).toBe(true);
-    expect(queries.filter((q) => q.op === "update").length).toBe(2);
   });
 
-  it("does not claim when neither conditional update touches a row", async () => {
-    const { claimed } = await runClaim([], []);
+  it("does not claim within the cooldown window and skips the lease update", async () => {
+    const { claimed, queries } = await runClaim({
+      lastSyncedAt: new Date(Date.now() - 5 * 60_000).toISOString(),
+      leaseRows: [{ organization_id: ORG }],
+    });
+    expect(claimed).toBe(false);
+    expect(queries.filter((q) => q.op === "update")).toHaveLength(0);
+  });
+
+  it("does not claim while another run holds the lease", async () => {
+    const { claimed } = await runClaim({ lastSyncedAt: null, leaseRows: [] });
     expect(claimed).toBe(false);
   });
 
-  it("fails closed when the update errors", async () => {
+  it("fails closed when the lease update errors", async () => {
     const { client } = makeFakeSupabase((query) => {
       if (query.op === "update") return { error: { message: "db down" } };
+      if (query.op === "select") return { data: { last_synced_at: null } };
       return {};
     });
     const { claimSyncSlot } = await import("@/lib/hockey/sync");
     await expect(
       claimSyncSlot(client as never, ORG, 15 * 60_000),
     ).rejects.toThrow("db down");
+  });
+});
+
+describe("releaseSyncSlot", () => {
+  it("resets the lease for the org", async () => {
+    const { client, queries } = makeFakeSupabase(() => ({ data: [] }));
+    const { releaseSyncSlot } = await import("@/lib/hockey/sync");
+    await releaseSyncSlot(client as never, ORG);
+
+    const update = queries.find((q) => q.op === "update");
+    expect(update?.payload).toEqual({
+      sync_claimed_until: new Date(0).toISOString(),
+    });
+    expect(update?.filters).toContainEqual(["eq", "organization_id", ORG]);
   });
 });

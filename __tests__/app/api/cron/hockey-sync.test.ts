@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const mockSyncOrganizationMatches = vi.fn();
 const mockClaimSyncSlot = vi.fn();
+const mockReleaseSyncSlot = vi.fn();
 const mockTrackedSelect = vi.fn();
 
 vi.mock("@/lib/supabase/service", () => ({
@@ -15,6 +16,7 @@ vi.mock("@/lib/supabase/service", () => ({
 vi.mock("@/lib/hockey/sync", () => ({
   syncOrganizationMatches: mockSyncOrganizationMatches,
   claimSyncSlot: mockClaimSyncSlot,
+  releaseSyncSlot: mockReleaseSyncSlot,
 }));
 
 vi.mock("@/lib/hockey/client", () => ({
@@ -43,6 +45,7 @@ beforeEach(() => {
     error: null,
   });
   mockClaimSyncSlot.mockResolvedValue(true);
+  mockReleaseSyncSlot.mockResolvedValue(undefined);
   mockSyncOrganizationMatches.mockResolvedValue({
     inserted: 1,
     updated: 0,
@@ -105,6 +108,8 @@ describe("GET /api/cron/hockey-sync", () => {
     expect(body.results).toHaveLength(2);
     expect(body.results[0]).toMatchObject({ error: "boom" });
     expect(body.results[1]).toMatchObject({ inserted: 3 });
+    // the failed org's lease is still released
+    expect(mockReleaseSyncSlot).toHaveBeenCalledTimes(2);
   });
 
   it("skips orgs whose sync slot cannot be claimed", async () => {

@@ -98,6 +98,10 @@ CREATE TABLE IF NOT EXISTS public.hockey_sync_state (
   last_updated integer NOT NULL DEFAULT 0,
   last_flagged integer NOT NULL DEFAULT 0,
   awaiting_time_count integer NOT NULL DEFAULT 0,
+  -- Short-lived run lease: claimed by advancing it into the future, released
+  -- by resetting to now, self-expiring if a run crashes. Non-null (epoch
+  -- default) so claiming is a single conditional update.
+  sync_claimed_until timestamptz NOT NULL DEFAULT 'epoch',
   updated_at timestamptz DEFAULT now() NOT NULL
 );
 

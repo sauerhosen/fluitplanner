@@ -9,6 +9,7 @@ import { createHockeyClient } from "@/lib/hockey/client";
 import { createDbCredentialStore } from "@/lib/hockey/credential-store";
 import {
   claimSyncSlot,
+  releaseSyncSlot,
   syncOrganizationMatches,
   type SyncResult,
 } from "@/lib/hockey/sync";
@@ -49,13 +50,20 @@ export async function syncNow(): Promise<SyncNowResult> {
     return { status: "cooldown" };
   }
 
-  const result = await syncOrganizationMatches(
-    {
-      supabase: service,
-      client: createHockeyClient({ store: createDbCredentialStore(service) }),
-    },
-    tenantId,
-  );
+  let result: SyncResult;
+  try {
+    result = await syncOrganizationMatches(
+      {
+        supabase: service,
+        client: createHockeyClient({ store: createDbCredentialStore(service) }),
+      },
+      tenantId,
+    );
+  } finally {
+    await releaseSyncSlot(service, tenantId).catch(() => {
+      // lease self-expires; a failed release must not mask the sync error
+    });
+  }
 
   revalidatePath("/protected/matches");
   return { status: "synced", ...result };

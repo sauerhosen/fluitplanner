@@ -2,7 +2,11 @@ import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { createHockeyClient } from "@/lib/hockey/client";
 import { createDbCredentialStore } from "@/lib/hockey/credential-store";
-import { claimSyncSlot, syncOrganizationMatches } from "@/lib/hockey/sync";
+import {
+  claimSyncSlot,
+  releaseSyncSlot,
+  syncOrganizationMatches,
+} from "@/lib/hockey/sync";
 
 export const maxDuration = 300;
 
@@ -54,11 +58,17 @@ export async function GET(request: Request): Promise<NextResponse> {
         results.push({ organizationId, skipped: true });
         continue;
       }
-      const result = await syncOrganizationMatches(
-        { supabase, client, pause: jitterPause },
-        organizationId,
-      );
-      results.push({ organizationId, ...result });
+      try {
+        const result = await syncOrganizationMatches(
+          { supabase, client, pause: jitterPause },
+          organizationId,
+        );
+        results.push({ organizationId, ...result });
+      } finally {
+        await releaseSyncSlot(supabase, organizationId).catch(() => {
+          // lease self-expires; a failed release must not mask the sync error
+        });
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       results.push({ organizationId, error: message });

@@ -4,6 +4,7 @@ const mockGetUser = vi.fn();
 const mockIsPlannerRole = vi.fn();
 const mockSyncOrganizationMatches = vi.fn();
 const mockClaimSyncSlot = vi.fn();
+const mockReleaseSyncSlot = vi.fn();
 const mockRevalidatePath = vi.fn();
 
 const mockStateMaybeSingle = vi.fn();
@@ -49,6 +50,7 @@ vi.mock("@/lib/actions/organization-settings", () => ({
 vi.mock("@/lib/hockey/sync", () => ({
   syncOrganizationMatches: mockSyncOrganizationMatches,
   claimSyncSlot: mockClaimSyncSlot,
+  releaseSyncSlot: mockReleaseSyncSlot,
 }));
 
 vi.mock("@/lib/hockey/client", () => ({
@@ -67,6 +69,7 @@ beforeEach(() => {
   });
   mockIsPlannerRole.mockResolvedValue(true);
   mockClaimSyncSlot.mockResolvedValue(true);
+  mockReleaseSyncSlot.mockResolvedValue(undefined);
   mockStateMaybeSingle.mockResolvedValue({ data: null, error: null });
   mockSyncOrganizationMatches.mockResolvedValue({
     inserted: 2,
@@ -102,6 +105,26 @@ describe("syncNow", () => {
     const { syncNow } = await import("@/lib/actions/hockey-sync");
     await expect(syncNow()).resolves.toEqual({ status: "cooldown" });
     expect(mockSyncOrganizationMatches).not.toHaveBeenCalled();
+  });
+
+  it("releases the lease after a successful run", async () => {
+    const { syncNow } = await import("@/lib/actions/hockey-sync");
+    await syncNow();
+    expect(mockReleaseSyncSlot).toHaveBeenCalledWith(
+      expect.anything(),
+      "test-org-id",
+    );
+  });
+
+  it("releases the lease when the engine throws", async () => {
+    mockSyncOrganizationMatches.mockRejectedValue(new Error("engine boom"));
+
+    const { syncNow } = await import("@/lib/actions/hockey-sync");
+    await expect(syncNow()).rejects.toThrow("engine boom");
+    expect(mockReleaseSyncSlot).toHaveBeenCalledWith(
+      expect.anything(),
+      "test-org-id",
+    );
   });
 
   it("rejects non-planner users", async () => {

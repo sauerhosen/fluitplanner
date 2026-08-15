@@ -28,11 +28,20 @@ export type SyncDeps = {
 
 const MAX_TRACKED_TEAMS = 50;
 
+/** How long a claimed run lease lasts before it self-expires (crash safety). */
+const SYNC_LEASE_MS = 10 * 60 * 1000;
+
 /**
- * Atomically claim the right to sync an organization by advancing
- * last_synced_at, but only when the previous sync is older than windowMs.
- * Concurrent callers serialize on the row lock: exactly one sees a row
- * updated and wins; the others get false. Fails closed on query errors.
+ * Claim the right to sync an organization. Two layers:
+ *
+ * 1. Cooldown (advisory read): last_synced_at within windowMs → no claim.
+ *    Only the engine's final state upsert advances last_synced_at, so a run
+ *    that throws mid-way does not count as a completed sync.
+ * 2. Lease (atomic): sync_claimed_until is advanced into the future with a
+ *    single conditional update — concurrent callers serialize on the row
+ *    lock and exactly one wins. A crashed run's lease expires on its own.
+ *
+ * Callers must releaseSyncSlot() in a finally block. Fails closed on errors.
  */
 export async function claimSyncSlot(
   supabase: SupabaseClient,
@@ -47,29 +56,43 @@ export async function claimSyncSlot(
     );
   if (ensureError) throw new Error(ensureError.message);
 
-  // Two conditional updates instead of one with .or(): PostgREST rejects
-  // logical-operator filters on PATCH. Each update is individually atomic,
-  // and a concurrent claimer makes both match zero rows.
-  const cutoff = new Date(Date.now() - windowMs).toISOString();
-  const nowIso = new Date().toISOString();
-
-  const { data: expired, error: expiredError } = await supabase
+  const { data: state, error: stateError } = await supabase
     .from("hockey_sync_state")
-    .update({ last_synced_at: nowIso })
+    .select("last_synced_at")
     .eq("organization_id", organizationId)
-    .lt("last_synced_at", cutoff)
-    .select("organization_id");
-  if (expiredError) throw new Error(expiredError.message);
-  if ((expired ?? []).length > 0) return true;
+    .maybeSingle();
+  if (stateError) throw new Error(stateError.message);
+  if (
+    state?.last_synced_at &&
+    Date.now() - new Date(state.last_synced_at).getTime() < windowMs
+  ) {
+    return false;
+  }
 
-  const { data: neverSynced, error: neverError } = await supabase
+  // Single conditional update — the column is non-null (epoch default), so
+  // no null case exists and no .or() filter is needed (PostgREST rejects
+  // logical-operator filters on PATCH).
+  const now = Date.now();
+  const { data: claimed, error: claimError } = await supabase
     .from("hockey_sync_state")
-    .update({ last_synced_at: nowIso })
+    .update({ sync_claimed_until: new Date(now + SYNC_LEASE_MS).toISOString() })
     .eq("organization_id", organizationId)
-    .is("last_synced_at", null)
+    .lt("sync_claimed_until", new Date(now).toISOString())
     .select("organization_id");
-  if (neverError) throw new Error(neverError.message);
-  return (neverSynced ?? []).length > 0;
+  if (claimError) throw new Error(claimError.message);
+  return (claimed ?? []).length > 0;
+}
+
+/** Release a claimed run lease. Safe to call even when nothing is claimed. */
+export async function releaseSyncSlot(
+  supabase: SupabaseClient,
+  organizationId: string,
+): Promise<void> {
+  const { error } = await supabase
+    .from("hockey_sync_state")
+    .update({ sync_claimed_until: new Date(0).toISOString() })
+    .eq("organization_id", organizationId);
+  if (error) throw new Error(error.message);
 }
 
 /** Matches already played or in an unusable state — never imported. */
