@@ -28,6 +28,50 @@ export type SyncDeps = {
 
 const MAX_TRACKED_TEAMS = 50;
 
+/**
+ * Atomically claim the right to sync an organization by advancing
+ * last_synced_at, but only when the previous sync is older than windowMs.
+ * Concurrent callers serialize on the row lock: exactly one sees a row
+ * updated and wins; the others get false. Fails closed on query errors.
+ */
+export async function claimSyncSlot(
+  supabase: SupabaseClient,
+  organizationId: string,
+  windowMs: number,
+): Promise<boolean> {
+  const { error: ensureError } = await supabase
+    .from("hockey_sync_state")
+    .upsert(
+      { organization_id: organizationId },
+      { onConflict: "organization_id", ignoreDuplicates: true },
+    );
+  if (ensureError) throw new Error(ensureError.message);
+
+  // Two conditional updates instead of one with .or(): PostgREST rejects
+  // logical-operator filters on PATCH. Each update is individually atomic,
+  // and a concurrent claimer makes both match zero rows.
+  const cutoff = new Date(Date.now() - windowMs).toISOString();
+  const nowIso = new Date().toISOString();
+
+  const { data: expired, error: expiredError } = await supabase
+    .from("hockey_sync_state")
+    .update({ last_synced_at: nowIso })
+    .eq("organization_id", organizationId)
+    .lt("last_synced_at", cutoff)
+    .select("organization_id");
+  if (expiredError) throw new Error(expiredError.message);
+  if ((expired ?? []).length > 0) return true;
+
+  const { data: neverSynced, error: neverError } = await supabase
+    .from("hockey_sync_state")
+    .update({ last_synced_at: nowIso })
+    .eq("organization_id", organizationId)
+    .is("last_synced_at", null)
+    .select("organization_id");
+  if (neverError) throw new Error(neverError.message);
+  return (neverSynced ?? []).length > 0;
+}
+
 /** Matches already played or in an unusable state — never imported. */
 const SKIPPED_STATUSES = new Set([
   "final",
@@ -92,11 +136,17 @@ export async function syncOrganizationMatches(
     .from("tracked_teams")
     .select("*")
     .eq("organization_id", organizationId)
+    .order("created_at")
     .limit(MAX_TRACKED_TEAMS);
   if (trackedError) throw new Error(trackedError.message);
 
   if (!trackedTeams || trackedTeams.length === 0) {
     return result;
+  }
+  if (trackedTeams.length === MAX_TRACKED_TEAMS) {
+    result.errors.push(
+      `Tracked team limit reached: only the first ${MAX_TRACKED_TEAMS} teams are synced`,
+    );
   }
 
   const levelByManagedId = await loadRequiredLevels(supabase, trackedTeams);
@@ -191,6 +241,7 @@ export async function syncOrganizationMatches(
     organizationId,
     collected.map(({ fixture }) => fixture.matchId),
     trackedTeams as TrackedTeam[],
+    today,
   );
 
   function findExisting(fixture: NormalizedFixture): ExistingMatchRow | null {
@@ -347,11 +398,15 @@ async function loadRequiredLevels(
   return levels;
 }
 
+const EXISTING_MATCH_COLUMNS =
+  "id, date, start_time, venue, field, external_id, cancelled_upstream, needs_review, review_reasons, home_team, away_team";
+
 async function loadExistingMatches(
   supabase: SupabaseClient,
   organizationId: string,
   externalIds: number[],
   trackedTeams: TrackedTeam[],
+  fromDate: string,
 ): Promise<{
   byExternal: Map<number, ExistingMatchRow>;
   byNatural: Map<string, ExistingMatchRow>;
@@ -362,7 +417,7 @@ async function loadExistingMatches(
 
   const { data: externalRows, error: externalError } = await supabase
     .from("matches")
-    .select("*")
+    .select(EXISTING_MATCH_COLUMNS)
     .eq("organization_id", organizationId)
     .in("external_id", externalIds);
   if (externalError) throw new Error(externalError.message);
@@ -370,14 +425,16 @@ async function loadExistingMatches(
     if (row.external_id != null) byExternal.set(row.external_id, row);
   }
 
+  // Natural-key adoption only targets future fixtures — bound the query.
   const teamNames = Array.from(
     new Set(trackedTeams.map((team) => team.team_name)),
   );
   const { data: naturalRows, error: naturalError } = await supabase
     .from("matches")
-    .select("*")
+    .select(EXISTING_MATCH_COLUMNS)
     .eq("organization_id", organizationId)
     .is("external_id", null)
+    .gte("date", fromDate)
     .in("home_team", teamNames);
   if (naturalError) throw new Error(naturalError.message);
   for (const row of (naturalRows ?? []) as ExistingMatchRow[]) {

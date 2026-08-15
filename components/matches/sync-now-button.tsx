@@ -23,6 +23,10 @@ export function SyncNowButton({ initialState, onSynced }: Props) {
     setSyncing(true);
     try {
       const result = await syncNow();
+      if (result.status === "cooldown") {
+        toast.error(t("syncCooldown"));
+        return;
+      }
       toast.success(
         t("syncSuccess", {
           inserted: result.inserted,
@@ -36,12 +40,8 @@ export function SyncNowButton({ initialState, onSynced }: Props) {
       } catch {
         // status line refresh failure is non-critical
       }
-    } catch (error) {
-      const message =
-        error instanceof Error && error.message === "SYNC_COOLDOWN"
-          ? t("syncCooldown")
-          : t("syncError");
-      toast.error(message);
+    } catch {
+      toast.error(t("syncError"));
     } finally {
       setSyncing(false);
     }

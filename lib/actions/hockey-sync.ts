@@ -7,10 +7,25 @@ import { requireTenantId } from "@/lib/tenant";
 import { isPlannerRole } from "@/lib/actions/organization-settings";
 import { createHockeyClient } from "@/lib/hockey/client";
 import { createDbCredentialStore } from "@/lib/hockey/credential-store";
-import { syncOrganizationMatches, type SyncResult } from "@/lib/hockey/sync";
+import {
+  claimSyncSlot,
+  syncOrganizationMatches,
+  type SyncResult,
+} from "@/lib/hockey/sync";
 import type { HockeySyncState } from "@/lib/types/domain";
 
 const SYNC_COOLDOWN_MS = 15 * 60 * 1000;
+
+/**
+ * Cooldown is a returned state, not a thrown error: Next.js replaces thrown
+ * server-action error messages with a generic digest in production, which
+ * would break client-side sentinel matching.
+ */
+export type SyncNowResult =
+  | ({ status: "synced" } & SyncResult)
+  | {
+      status: "cooldown";
+    };
 
 async function requireAuth() {
   const supabase = await createClient();
@@ -21,23 +36,17 @@ async function requireAuth() {
   return { supabase, user };
 }
 
-export async function syncNow(): Promise<SyncResult> {
+export async function syncNow(): Promise<SyncNowResult> {
   await requireAuth();
   const tenantId = await requireTenantId();
   if (!(await isPlannerRole())) throw new Error("NOT_PLANNER");
 
   const service = createServiceClient();
 
-  const { data: state } = await service
-    .from("hockey_sync_state")
-    .select("last_synced_at")
-    .eq("organization_id", tenantId)
-    .maybeSingle();
-  if (
-    state?.last_synced_at &&
-    Date.now() - new Date(state.last_synced_at).getTime() < SYNC_COOLDOWN_MS
-  ) {
-    throw new Error("SYNC_COOLDOWN");
+  // Atomic: concurrent callers (second tab, cron overlap) lose the claim
+  // instead of running the engine twice.
+  if (!(await claimSyncSlot(service, tenantId, SYNC_COOLDOWN_MS))) {
+    return { status: "cooldown" };
   }
 
   const result = await syncOrganizationMatches(
@@ -49,7 +58,7 @@ export async function syncNow(): Promise<SyncResult> {
   );
 
   revalidatePath("/protected/matches");
-  return result;
+  return { status: "synced", ...result };
 }
 
 export async function getSyncState(): Promise<HockeySyncState | null> {

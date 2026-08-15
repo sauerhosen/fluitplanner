@@ -184,12 +184,36 @@ export async function getMatches(
   }));
 }
 
-export async function createMatch(
-  match: Omit<
-    Match,
-    "id" | "created_by" | "created_at" | "organization_id" | MatchSyncField
-  >,
-): Promise<Match> {
+type MatchFormInput = Omit<
+  Match,
+  "id" | "created_by" | "created_at" | "organization_id" | MatchSyncField
+>;
+
+// Server actions are network endpoints — the Omit above is compile-time only,
+// so form fields must also be allowlisted at runtime to keep callers from
+// writing engine-managed sync columns (external_id, needs_review, …).
+const MATCH_FORM_FIELDS = [
+  "date",
+  "start_time",
+  "home_team",
+  "away_team",
+  "competition",
+  "venue",
+  "field",
+  "required_level",
+] as const satisfies readonly (keyof MatchFormInput)[];
+
+function pickMatchFormFields(
+  input: Partial<MatchFormInput>,
+): Partial<MatchFormInput> {
+  const picked: Record<string, unknown> = {};
+  for (const key of MATCH_FORM_FIELDS) {
+    if (key in input) picked[key] = input[key];
+  }
+  return picked as Partial<MatchFormInput>;
+}
+
+export async function createMatch(match: MatchFormInput): Promise<Match> {
   const supabase = await createClient();
   const {
     data: { user },
@@ -199,7 +223,11 @@ export async function createMatch(
 
   const { data, error } = await supabase
     .from("matches")
-    .insert({ ...match, created_by: user.id, organization_id: tenantId })
+    .insert({
+      ...pickMatchFormFields(match),
+      created_by: user.id,
+      organization_id: tenantId,
+    })
     .select()
     .single();
 
@@ -209,12 +237,7 @@ export async function createMatch(
 
 export async function updateMatch(
   id: string,
-  updates: Partial<
-    Omit<
-      Match,
-      "id" | "created_by" | "created_at" | "organization_id" | MatchSyncField
-    >
-  >,
+  updates: Partial<MatchFormInput>,
 ): Promise<Match> {
   const supabase = await createClient();
   const {
@@ -225,7 +248,7 @@ export async function updateMatch(
 
   const { data, error } = await supabase
     .from("matches")
-    .update(updates)
+    .update(pickMatchFormFields(updates))
     .eq("id", id)
     .eq("organization_id", tenantId)
     .select()

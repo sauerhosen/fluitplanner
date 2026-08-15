@@ -45,18 +45,46 @@ CREATE INDEX idx_tracked_teams_created_by ON public.tracked_teams (created_by);
 
 ALTER TABLE public.tracked_teams ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Tenant isolation for tracked_teams"
-  ON public.tracked_teams FOR ALL TO authenticated
+-- Members can read; only planners can change tracking config.
+CREATE POLICY "Members can select tracked_teams"
+  ON public.tracked_teams FOR SELECT TO authenticated
   USING (
     organization_id IN (
       SELECT organization_id FROM public.organization_members
       WHERE user_id = (SELECT auth.uid())
     )
+  );
+
+CREATE POLICY "Planners can insert tracked_teams"
+  ON public.tracked_teams FOR INSERT TO authenticated
+  WITH CHECK (
+    organization_id IN (
+      SELECT organization_id FROM public.organization_members
+      WHERE user_id = (SELECT auth.uid()) AND role = 'planner'
+    )
+  );
+
+CREATE POLICY "Planners can update tracked_teams"
+  ON public.tracked_teams FOR UPDATE TO authenticated
+  USING (
+    organization_id IN (
+      SELECT organization_id FROM public.organization_members
+      WHERE user_id = (SELECT auth.uid()) AND role = 'planner'
+    )
   )
   WITH CHECK (
     organization_id IN (
       SELECT organization_id FROM public.organization_members
-      WHERE user_id = (SELECT auth.uid())
+      WHERE user_id = (SELECT auth.uid()) AND role = 'planner'
+    )
+  );
+
+CREATE POLICY "Planners can delete tracked_teams"
+  ON public.tracked_teams FOR DELETE TO authenticated
+  USING (
+    organization_id IN (
+      SELECT organization_id FROM public.organization_members
+      WHERE user_id = (SELECT auth.uid()) AND role = 'planner'
     )
   );
 

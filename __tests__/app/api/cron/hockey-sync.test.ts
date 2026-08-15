@@ -1,22 +1,20 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const mockSyncOrganizationMatches = vi.fn();
+const mockClaimSyncSlot = vi.fn();
 const mockTrackedSelect = vi.fn();
-const mockStateIn = vi.fn();
 
 vi.mock("@/lib/supabase/service", () => ({
   createServiceClient: vi.fn(() => ({
-    from: vi.fn((table: string) => ({
-      select: vi.fn(() => {
-        if (table === "tracked_teams") return mockTrackedSelect();
-        return { in: mockStateIn };
-      }),
+    from: vi.fn(() => ({
+      select: vi.fn(() => mockTrackedSelect()),
     })),
   })),
 }));
 
 vi.mock("@/lib/hockey/sync", () => ({
   syncOrganizationMatches: mockSyncOrganizationMatches,
+  claimSyncSlot: mockClaimSyncSlot,
 }));
 
 vi.mock("@/lib/hockey/client", () => ({
@@ -44,7 +42,7 @@ beforeEach(() => {
     ],
     error: null,
   });
-  mockStateIn.mockResolvedValue({ data: [], error: null });
+  mockClaimSyncSlot.mockResolvedValue(true);
   mockSyncOrganizationMatches.mockResolvedValue({
     inserted: 1,
     updated: 0,
@@ -73,11 +71,12 @@ describe("GET /api/cron/hockey-sync", () => {
     expect(response.status).toBe(401);
   });
 
-  it("syncs each org with tracked teams exactly once", async () => {
+  it("claims a slot and syncs each org with tracked teams exactly once", async () => {
     const { GET } = await import("@/app/api/cron/hockey-sync/route");
     const response = await GET(makeRequest("Bearer test-secret"));
 
     expect(response.status).toBe(200);
+    expect(mockClaimSyncSlot).toHaveBeenCalledTimes(2);
     expect(mockSyncOrganizationMatches).toHaveBeenCalledTimes(2);
     const orgs = mockSyncOrganizationMatches.mock.calls.map(
       ([, orgId]) => orgId,
@@ -108,20 +107,10 @@ describe("GET /api/cron/hockey-sync", () => {
     expect(body.results[1]).toMatchObject({ inserted: 3 });
   });
 
-  it("skips orgs synced within the last six hours", async () => {
-    mockStateIn.mockResolvedValue({
-      data: [
-        {
-          organization_id: "org-1",
-          last_synced_at: new Date(Date.now() - 60 * 60_000).toISOString(),
-        },
-        {
-          organization_id: "org-2",
-          last_synced_at: new Date(Date.now() - 20 * 3600_000).toISOString(),
-        },
-      ],
-      error: null,
-    });
+  it("skips orgs whose sync slot cannot be claimed", async () => {
+    mockClaimSyncSlot
+      .mockResolvedValueOnce(false) // org-1: synced recently
+      .mockResolvedValueOnce(true);
 
     const { GET } = await import("@/app/api/cron/hockey-sync/route");
     const response = await GET(makeRequest("Bearer test-secret"));
@@ -135,5 +124,22 @@ describe("GET /api/cron/hockey-sync", () => {
     expect(body.results).toContainEqual(
       expect.objectContaining({ organizationId: "org-1", skipped: true }),
     );
+  });
+
+  it("records an error and continues when claiming a slot fails", async () => {
+    mockClaimSyncSlot
+      .mockRejectedValueOnce(new Error("db down"))
+      .mockResolvedValueOnce(true);
+
+    const { GET } = await import("@/app/api/cron/hockey-sync/route");
+    const response = await GET(makeRequest("Bearer test-secret"));
+    const body = await response.json();
+
+    // Fails closed: the org with the failed claim is not synced
+    expect(mockSyncOrganizationMatches).toHaveBeenCalledTimes(1);
+    expect(body.results[0]).toMatchObject({
+      organizationId: "org-1",
+      error: "db down",
+    });
   });
 });

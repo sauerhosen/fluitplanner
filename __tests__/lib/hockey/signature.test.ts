@@ -24,6 +24,12 @@ describe("sanitizeForSignature", () => {
     expect(path).toBe("/clubs/HH11PD0");
   });
 
+  it("strips characters outside the allowed set from the path", () => {
+    // percent-encoded and special characters are removed, not decoded
+    const { path } = sanitizeForSignature("/clubs/A_B.C%20D");
+    expect(path).toBe("/clubs/ABC20D");
+  });
+
   it("preserves query pair order", () => {
     const { query } = sanitizeForSignature("/x?b=2&a=1");
     expect(query).toBe("b=2a=1");

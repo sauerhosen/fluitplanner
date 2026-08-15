@@ -39,12 +39,24 @@ function makeFakeSupabase(handler: QueryHandler) {
         query.filters.push(["is", ...args]);
         return c;
       },
+      gte: (...args: unknown[]) => {
+        query.filters.push(["gte", ...args]);
+        return c;
+      },
+      lt: (...args: unknown[]) => {
+        query.filters.push(["lt", ...args]);
+        return c;
+      },
       limit: (...args: unknown[]) => {
         query.filters.push(["limit", ...args]);
         return c;
       },
       order: (...args: unknown[]) => {
         query.filters.push(["order", ...args]);
+        return c;
+      },
+      select: (...args: unknown[]) => {
+        query.filters.push(["select", ...args]);
         return c;
       },
       then: (
@@ -487,5 +499,55 @@ describe("syncOrganizationMatches", () => {
     const { result } = await runSync(defaultHandler({ trackedTeams: [] }));
     expect(result).toMatchObject({ inserted: 0, updated: 0, errors: [] });
     expect(mockFetchClubDetail).not.toHaveBeenCalled();
+  });
+});
+
+describe("claimSyncSlot", () => {
+  async function runClaim(expiredRows: unknown[], neverSyncedRows: unknown[]) {
+    const { client, queries } = makeFakeSupabase((query) => {
+      if (query.table === "hockey_sync_state" && query.op === "update") {
+        const isNullPath = query.filters.some(([op]) => op === "is");
+        return { data: isNullPath ? neverSyncedRows : expiredRows };
+      }
+      return {};
+    });
+    const { claimSyncSlot } = await import("@/lib/hockey/sync");
+    const claimed = await claimSyncSlot(client as never, ORG, 15 * 60_000);
+    return { claimed, queries };
+  }
+
+  it("claims via the expired path and skips the never-synced update", async () => {
+    const { claimed, queries } = await runClaim([{ organization_id: ORG }], []);
+    expect(claimed).toBe(true);
+    // ensures the row exists first, then one conditional update suffices
+    expect(queries.map((q) => `${q.table}:${q.op}`)).toEqual([
+      "hockey_sync_state:upsert",
+      "hockey_sync_state:update",
+    ]);
+    const update = queries[1];
+    expect(update.filters).toContainEqual(["eq", "organization_id", ORG]);
+    expect(update.filters.some(([op]) => op === "lt")).toBe(true);
+  });
+
+  it("claims via the never-synced path when no row has expired", async () => {
+    const { claimed, queries } = await runClaim([], [{ organization_id: ORG }]);
+    expect(claimed).toBe(true);
+    expect(queries.filter((q) => q.op === "update").length).toBe(2);
+  });
+
+  it("does not claim when neither conditional update touches a row", async () => {
+    const { claimed } = await runClaim([], []);
+    expect(claimed).toBe(false);
+  });
+
+  it("fails closed when the update errors", async () => {
+    const { client } = makeFakeSupabase((query) => {
+      if (query.op === "update") return { error: { message: "db down" } };
+      return {};
+    });
+    const { claimSyncSlot } = await import("@/lib/hockey/sync");
+    await expect(
+      claimSyncSlot(client as never, ORG, 15 * 60_000),
+    ).rejects.toThrow("db down");
   });
 });

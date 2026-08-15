@@ -44,6 +44,7 @@ export function HockeyTeamPickerDialog({
   const [loadingTeams, setLoadingTeams] = useState(false);
   const [trackingId, setTrackingId] = useState<number | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchSeqRef = useRef(0);
 
   function handleOpenChange(nextOpen: boolean) {
     if (!nextOpen) {
@@ -61,19 +62,25 @@ export function HockeyTeamPickerDialog({
     setQuery(value);
     if (debounceRef.current) clearTimeout(debounceRef.current);
     if (value.trim().length < 2) {
+      searchSeqRef.current++;
       setClubs([]);
       setSearched(false);
       return;
     }
     debounceRef.current = setTimeout(async () => {
+      // Guard against an earlier in-flight request resolving after this one
+      const seq = ++searchSeqRef.current;
       setSearching(true);
       try {
-        setClubs(await searchClubs(value));
+        const results = await searchClubs(value);
+        if (seq !== searchSeqRef.current) return;
+        setClubs(results);
         setSearched(true);
       } catch {
-        toast.error(t("hockeySyncSearchError"));
+        if (seq === searchSeqRef.current)
+          toast.error(t("hockeySyncSearchError"));
       } finally {
-        setSearching(false);
+        if (seq === searchSeqRef.current) setSearching(false);
       }
     }, 400);
   }

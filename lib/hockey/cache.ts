@@ -22,6 +22,7 @@ export async function getCachedJson<T>(
   }
 
   const fresh = await fetcher();
+  // A cache-write failure must not fail the caller — the fetched data is good.
   const { error } = await supabase.from("hockey_api_cache").upsert(
     {
       cache_key: key,
@@ -30,6 +31,8 @@ export async function getCachedJson<T>(
     },
     { onConflict: "cache_key" },
   );
-  if (error) throw new Error(error.message);
+  if (error) {
+    console.warn(`hockey_api_cache write failed for ${key}: ${error.message}`);
+  }
   return fresh;
 }

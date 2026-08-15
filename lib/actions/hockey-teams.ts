@@ -147,8 +147,20 @@ export async function trackTeam(input: {
       })
       .select()
       .single();
-    if (createError) throw new Error(createError.message);
-    managedTeamId = created.id;
+    if (createError) {
+      if (createError.code !== "23505") throw new Error(createError.message);
+      // Lost a create race — reuse the row the concurrent request made.
+      const { data: raced, error: racedError } = await supabase
+        .from("managed_teams")
+        .select("id")
+        .eq("organization_id", tenantId)
+        .eq("name", input.teamName)
+        .single();
+      if (racedError) throw new Error(racedError.message);
+      managedTeamId = raced.id;
+    } else {
+      managedTeamId = created.id;
+    }
   }
 
   const { data, error } = await supabase

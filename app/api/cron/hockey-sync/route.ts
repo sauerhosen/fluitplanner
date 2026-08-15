@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { createHockeyClient } from "@/lib/hockey/client";
 import { createDbCredentialStore } from "@/lib/hockey/credential-store";
-import { syncOrganizationMatches } from "@/lib/hockey/sync";
+import { claimSyncSlot, syncOrganizationMatches } from "@/lib/hockey/sync";
 
 export const maxDuration = 300;
 
@@ -36,32 +36,24 @@ export async function GET(request: Request): Promise<NextResponse> {
     new Set((trackedRows ?? []).map((row) => row.organization_id as string)),
   );
 
-  const lastSyncedByOrg = new Map<string, string | null>();
-  if (organizationIds.length > 0) {
-    const { data: states } = await supabase
-      .from("hockey_sync_state")
-      .select("organization_id, last_synced_at")
-      .in("organization_id", organizationIds);
-    for (const state of states ?? []) {
-      lastSyncedByOrg.set(state.organization_id, state.last_synced_at);
-    }
-  }
-
   const results: Array<Record<string, unknown>> = [];
 
   // Sequential on purpose: keeps upstream request volume low, and the shared
   // 15-minute poule cache dedupes teams tracked by multiple orgs.
   for (const organizationId of organizationIds) {
-    const lastSyncedAt = lastSyncedByOrg.get(organizationId);
-    if (
-      lastSyncedAt &&
-      Date.now() - new Date(lastSyncedAt).getTime() < SKIP_IF_SYNCED_WITHIN_MS
-    ) {
-      results.push({ organizationId, skipped: true });
-      continue;
-    }
-
     try {
+      // Atomic claim — fails closed on DB errors and prevents overlapping
+      // runs (e.g. a manual sync racing the cron) for the same org.
+      if (
+        !(await claimSyncSlot(
+          supabase,
+          organizationId,
+          SKIP_IF_SYNCED_WITHIN_MS,
+        ))
+      ) {
+        results.push({ organizationId, skipped: true });
+        continue;
+      }
       const result = await syncOrganizationMatches(
         { supabase, client, pause: jitterPause },
         organizationId,

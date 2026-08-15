@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const mockGetUser = vi.fn();
 const mockIsPlannerRole = vi.fn();
 const mockSyncOrganizationMatches = vi.fn();
+const mockClaimSyncSlot = vi.fn();
 const mockRevalidatePath = vi.fn();
 
 const mockStateMaybeSingle = vi.fn();
@@ -47,6 +48,7 @@ vi.mock("@/lib/actions/organization-settings", () => ({
 
 vi.mock("@/lib/hockey/sync", () => ({
   syncOrganizationMatches: mockSyncOrganizationMatches,
+  claimSyncSlot: mockClaimSyncSlot,
 }));
 
 vi.mock("@/lib/hockey/client", () => ({
@@ -64,6 +66,7 @@ beforeEach(() => {
     error: null,
   });
   mockIsPlannerRole.mockResolvedValue(true);
+  mockClaimSyncSlot.mockResolvedValue(true);
   mockStateMaybeSingle.mockResolvedValue({ data: null, error: null });
   mockSyncOrganizationMatches.mockResolvedValue({
     inserted: 2,
@@ -80,35 +83,25 @@ describe("syncNow", () => {
     const { syncNow } = await import("@/lib/actions/hockey-sync");
     const result = await syncNow();
 
+    expect(mockClaimSyncSlot).toHaveBeenCalledWith(
+      expect.anything(),
+      "test-org-id",
+      15 * 60 * 1000,
+    );
     expect(mockSyncOrganizationMatches).toHaveBeenCalledWith(
       expect.objectContaining({ supabase: expect.anything() }),
       "test-org-id",
     );
-    expect(result.inserted).toBe(2);
+    expect(result).toMatchObject({ status: "synced", inserted: 2 });
     expect(mockRevalidatePath).toHaveBeenCalledWith("/protected/matches");
   });
 
-  it("throws SYNC_COOLDOWN when synced less than 15 minutes ago", async () => {
-    mockStateMaybeSingle.mockResolvedValue({
-      data: { last_synced_at: new Date(Date.now() - 5 * 60_000).toISOString() },
-      error: null,
-    });
+  it("returns cooldown status when the sync slot is not claimed", async () => {
+    mockClaimSyncSlot.mockResolvedValue(false);
 
     const { syncNow } = await import("@/lib/actions/hockey-sync");
-    await expect(syncNow()).rejects.toThrow("SYNC_COOLDOWN");
+    await expect(syncNow()).resolves.toEqual({ status: "cooldown" });
     expect(mockSyncOrganizationMatches).not.toHaveBeenCalled();
-  });
-
-  it("allows a sync when the last one is older than the cooldown", async () => {
-    mockStateMaybeSingle.mockResolvedValue({
-      data: {
-        last_synced_at: new Date(Date.now() - 16 * 60_000).toISOString(),
-      },
-      error: null,
-    });
-
-    const { syncNow } = await import("@/lib/actions/hockey-sync");
-    await expect(syncNow()).resolves.toMatchObject({ inserted: 2 });
   });
 
   it("rejects non-planner users", async () => {
