@@ -1,18 +1,22 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
 import { Check, Copy, Share2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+const subscribeNoop = () => () => {};
+const getCanShare = () => !!navigator.share;
+const getCanShareServer = () => false;
+
 export function SharePollButton({ token }: { token: string }) {
   const [copied, setCopied] = useState(false);
-  const [canShare, setCanShare] = useState(false);
+  const canShare = useSyncExternalStore(
+    subscribeNoop,
+    getCanShare,
+    getCanShareServer,
+  );
   const t = useTranslations("polls");
-
-  useEffect(() => {
-    setCanShare(!!navigator.share);
-  }, []);
 
   function getPollUrl() {
     return `${window.location.origin}/poll/${token}`;

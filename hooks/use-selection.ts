@@ -1,19 +1,19 @@
 "use client";
 
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback } from "react";
 
 export function useSelection<T>(items: T[], getId: (item: T) => string) {
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [rawSelectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
-  // Clean up stale selections when items change
-  useEffect(() => {
-    const validIds = new Set(items.map(getId));
-    setSelectedIds((prev) => {
-      const cleaned = new Set([...prev].filter((id) => validIds.has(id)));
-      if (cleaned.size !== prev.size) return cleaned;
-      return prev;
-    });
-  }, [items, getId]);
+  // Derive cleaned selections — remove stale IDs when items change
+  const validIds = useMemo(() => new Set(items.map(getId)), [items, getId]);
+  const selectedIds = useMemo(() => {
+    const cleaned = new Set(
+      [...rawSelectedIds].filter((id) => validIds.has(id)),
+    );
+    if (cleaned.size !== rawSelectedIds.size) return cleaned;
+    return rawSelectedIds;
+  }, [rawSelectedIds, validIds]);
 
   const toggleSelection = useCallback((id: string) => {
     setSelectedIds((prev) => {

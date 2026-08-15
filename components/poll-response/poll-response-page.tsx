@@ -128,7 +128,10 @@ export function PollResponsePage({
           if (!cancelled) setAssignmentContext(null);
         });
     } else {
-      setAssignmentContext(null);
+      // Reset handled via callback to avoid synchronous setState in effect
+      Promise.resolve().then(() => {
+        if (!cancelled) setAssignmentContext(null);
+      });
     }
     return () => {
       cancelled = true;

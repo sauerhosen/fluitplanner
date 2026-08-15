@@ -12,22 +12,23 @@ async function PollDetailLoader({
 }) {
   const { id } = await params;
 
-  try {
-    const [poll, availableMatches, umpires] = await Promise.all([
-      getPoll(id),
-      getAvailableMatches(id),
-      getUmpiresForPoll(id),
-    ]);
-    return (
-      <PollDetailClient
-        initialPoll={poll}
-        availableMatches={availableMatches}
-        umpires={umpires}
-      />
-    );
-  } catch {
+  const [poll, availableMatches, umpires] = await Promise.all([
+    getPoll(id).catch(() => null),
+    getAvailableMatches(id).catch(() => []),
+    getUmpiresForPoll(id).catch(() => []),
+  ]);
+
+  if (!poll) {
     notFound();
   }
+
+  return (
+    <PollDetailClient
+      initialPoll={poll}
+      availableMatches={availableMatches}
+      umpires={umpires}
+    />
+  );
 }
 
 export default function PollDetailPage({
