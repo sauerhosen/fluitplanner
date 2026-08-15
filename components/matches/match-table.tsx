@@ -3,6 +3,8 @@
 import { Fragment, useState } from "react";
 import type { MatchWithPoll } from "@/lib/actions/matches";
 import { deleteMatch, deleteMatches } from "@/lib/actions/matches";
+import { clearMatchReviewFlags } from "@/lib/actions/hockey-sync";
+import type { MatchReviewReason } from "@/lib/types/domain";
 import Link from "next/link";
 import {
   Table,
@@ -28,6 +30,7 @@ import {
   ChevronDown,
   ChevronRight,
   Inbox,
+  BadgeCheck,
 } from "lucide-react";
 import { useTranslations, useFormatter } from "next-intl";
 import { useSelection } from "@/hooks/use-selection";
@@ -105,6 +108,24 @@ export function MatchTable({
     2: t("levelLabelExperienced"),
     3: t("levelLabelTop"),
   };
+
+  const REVIEW_REASON_LABELS: Record<MatchReviewReason, string> = {
+    time_changed: t("reviewReasonTimeChanged"),
+    date_changed: t("reviewReasonDateChanged"),
+    venue_changed: t("reviewReasonVenueChanged"),
+    cancelled: t("reviewReasonCancelled"),
+  };
+
+  function reviewTooltip(match: MatchWithPoll): string {
+    return match.review_reasons
+      .map((reason) => REVIEW_REASON_LABELS[reason] ?? reason)
+      .join(", ");
+  }
+
+  async function handleDismissReview(id: string) {
+    await clearMatchReviewFlags(id);
+    onDeleted();
+  }
 
   function toggleDate(date: string) {
     setCollapsedDates((prev) => {
@@ -233,10 +254,52 @@ export function MatchTable({
                           />
                         </TableCell>
                         <TableCell className="font-mono">
-                          {formatTime(match.start_time)}
+                          <span
+                            className={
+                              match.cancelled_upstream ? "line-through" : ""
+                            }
+                          >
+                            {formatTime(match.start_time)}
+                          </span>
                         </TableCell>
-                        <TableCell>{match.home_team}</TableCell>
-                        <TableCell>{match.away_team}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={
+                                match.cancelled_upstream
+                                  ? "text-muted-foreground line-through"
+                                  : ""
+                              }
+                            >
+                              {match.home_team}
+                            </span>
+                            {match.cancelled_upstream && (
+                              <Badge variant="destructive">
+                                {t("cancelledBadge")}
+                              </Badge>
+                            )}
+                            {match.needs_review && (
+                              <Badge
+                                variant="outline"
+                                className="border-amber-500 text-amber-600 dark:text-amber-400"
+                                title={reviewTooltip(match)}
+                              >
+                                {t("reviewBadge")}
+                              </Badge>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <span
+                            className={
+                              match.cancelled_upstream
+                                ? "text-muted-foreground line-through"
+                                : ""
+                            }
+                          >
+                            {match.away_team}
+                          </span>
+                        </TableCell>
                         <TableCell>{match.field ?? "—"}</TableCell>
                         <TableCell>{match.venue ?? "—"}</TableCell>
                         <TableCell>
@@ -273,6 +336,14 @@ export function MatchTable({
                                 <Pencil className="mr-2 h-4 w-4" />
                                 {t("edit")}
                               </DropdownMenuItem>
+                              {match.needs_review && (
+                                <DropdownMenuItem
+                                  onClick={() => handleDismissReview(match.id)}
+                                >
+                                  <BadgeCheck className="mr-2 h-4 w-4" />
+                                  {t("reviewDismiss")}
+                                </DropdownMenuItem>
+                              )}
                               <DropdownMenuItem
                                 onClick={() => handleDelete(match.id)}
                                 disabled={deletingId === match.id}

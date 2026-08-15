@@ -177,7 +177,21 @@
     "removing": "Removing...",
     "addToPollError": "Failed to add matches to poll",
     "removeFromPollError": "Failed to remove matches from poll",
-    "createPollError": "Failed to create poll"
+    "createPollError": "Failed to create poll",
+    "syncNow": "Sync now",
+    "syncing": "Syncing…",
+    "syncSuccess": "Sync complete: {inserted} added, {updated} updated, {flagged} flagged for review",
+    "syncCooldown": "Recently synced — please wait a few minutes before syncing again.",
+    "syncError": "Sync failed. Please try again later.",
+    "syncLastSynced": "Last synced {time}",
+    "syncAwaitingTime": "{count, plural, one {# match awaiting a confirmed time} other {# matches awaiting a confirmed time}}",
+    "reviewBadge": "Review",
+    "reviewReasonTimeChanged": "time changed",
+    "reviewReasonDateChanged": "date changed",
+    "reviewReasonVenueChanged": "venue or field changed",
+    "reviewReasonCancelled": "cancelled upstream",
+    "reviewDismiss": "Dismiss review flag",
+    "cancelledBadge": "Cancelled"
   },
   "polls": {
     "pageTitle": "Polls",

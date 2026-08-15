@@ -31,7 +31,7 @@ export function normalizeMatch(m: ApiMatchSummary): NormalizedFixture {
 }
 
 /** Calendar date of an instant in Europe/Amsterdam, as YYYY-MM-DD. */
-function amsterdamDateOf(iso: string): string {
+export function amsterdamDateOf(iso: string): string {
   // en-CA formats as YYYY-MM-DD
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: "Europe/Amsterdam",

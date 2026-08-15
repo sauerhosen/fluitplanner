@@ -177,7 +177,21 @@
     "removing": "Verwijderen...",
     "addToPollError": "Wedstrijden toevoegen aan peiling mislukt",
     "removeFromPollError": "Wedstrijden verwijderen uit peiling mislukt",
-    "createPollError": "Peiling aanmaken mislukt"
+    "createPollError": "Peiling aanmaken mislukt",
+    "syncNow": "Nu synchroniseren",
+    "syncing": "Synchroniseren…",
+    "syncSuccess": "Synchronisatie voltooid: {inserted} toegevoegd, {updated} bijgewerkt, {flagged} gemarkeerd voor controle",
+    "syncCooldown": "Onlangs gesynchroniseerd — wacht enkele minuten voordat je opnieuw synchroniseert.",
+    "syncError": "Synchronisatie mislukt. Probeer het later opnieuw.",
+    "syncLastSynced": "Laatst gesynchroniseerd {time}",
+    "syncAwaitingTime": "{count, plural, one {# wedstrijd wacht op een bevestigde aanvangstijd} other {# wedstrijden wachten op een bevestigde aanvangstijd}}",
+    "reviewBadge": "Controleren",
+    "reviewReasonTimeChanged": "tijd gewijzigd",
+    "reviewReasonDateChanged": "datum gewijzigd",
+    "reviewReasonVenueChanged": "locatie of veld gewijzigd",
+    "reviewReasonCancelled": "afgelast door de bond",
+    "reviewDismiss": "Controlemarkering verwijderen",
+    "cancelledBadge": "Afgelast"
   },
   "polls": {
     "pageTitle": "Peilingen",
