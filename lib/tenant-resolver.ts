@@ -1,7 +1,5 @@
 type TenantResolution =
-  | { type: "tenant"; slug: string }
-  | { type: "root" }
-  | { type: "fallback" };
+  { type: "tenant"; slug: string } | { type: "root" } | { type: "fallback" };
 
 const VALID_SLUG = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/;
 

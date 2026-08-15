@@ -26,8 +26,7 @@ export type VerifyCodeResult =
   | { error: "expired" };
 
 export type VerifyMagicLinkResult =
-  | { umpire: Umpire }
-  | { error: "invalid_or_expired" };
+  { umpire: Umpire } | { error: "invalid_or_expired" };
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
