@@ -4,6 +4,7 @@ import { render } from "@/__tests__/helpers/render";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { PollActionButtons } from "../poll-action-buttons";
 import type { MatchWithPoll } from "@/lib/actions/matches";
+import { matchSyncDefaults } from "@/__tests__/helpers/fixtures";
 import { toast } from "sonner";
 
 vi.mock("sonner", () => ({
@@ -27,6 +28,7 @@ const mockAddMatchesToPoll = vi.mocked(addMatchesToPoll);
 const mockRemoveMatchesFromPolls = vi.mocked(removeMatchesFromPolls);
 
 const matchBase: Omit<MatchWithPoll, "id" | "poll"> = {
+  ...matchSyncDefaults,
   date: "2026-02-15",
   start_time: "2026-02-15T14:00:00Z",
   home_team: "Team A",

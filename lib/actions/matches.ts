@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireTenantId } from "@/lib/tenant";
-import type { Match } from "@/lib/types/domain";
+import type { Match, MatchSyncField } from "@/lib/types/domain";
 import type { ParsedMatch } from "@/lib/parsers/types";
 
 async function requireAuth() {
@@ -185,7 +185,10 @@ export async function getMatches(
 }
 
 export async function createMatch(
-  match: Omit<Match, "id" | "created_by" | "created_at" | "organization_id">,
+  match: Omit<
+    Match,
+    "id" | "created_by" | "created_at" | "organization_id" | MatchSyncField
+  >,
 ): Promise<Match> {
   const supabase = await createClient();
   const {
@@ -207,7 +210,10 @@ export async function createMatch(
 export async function updateMatch(
   id: string,
   updates: Partial<
-    Omit<Match, "id" | "created_by" | "created_at" | "organization_id">
+    Omit<
+      Match,
+      "id" | "created_by" | "created_at" | "organization_id" | MatchSyncField
+    >
   >,
 ): Promise<Match> {
   const supabase = await createClient();
