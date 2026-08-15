@@ -109,3 +109,4 @@ Required in `.env.local`:
 - `SMTP_PASS` — SES SMTP password
 - `SMTP_FROM` — sender address (e.g. `Fluitplanner <noreply@fluitplanner.nl>`)
 - `NEXT_PUBLIC_SITE_URL` — base URL for magic links (e.g. `https://fluitplanner.nl`)
+- `CRON_SECRET` — shared secret for Vercel cron routes (`/api/cron/*`); Vercel sends it automatically as a Bearer token when set

@@ -4,6 +4,12 @@ import { hasEnvVars } from "../utils";
 import { resolveTenantFromHost } from "@/lib/tenant-resolver";
 
 export async function updateSession(request: NextRequest) {
+  // Cron routes authenticate via CRON_SECRET and run without a user session
+  // or tenant context — skip auth/tenant handling entirely.
+  if (request.nextUrl.pathname.startsWith("/api/cron")) {
+    return NextResponse.next({ request });
+  }
+
   let supabaseResponse = NextResponse.next({
     request,
   });
