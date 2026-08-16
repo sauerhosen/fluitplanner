@@ -69,4 +69,13 @@ describe("requirePlanner", () => {
     const { requirePlanner } = await import("@/lib/auth");
     await expect(requirePlanner()).rejects.toThrow("NOT_PLANNER");
   });
+
+  it("throws the query error when the membership lookup fails", async () => {
+    mockMembershipMaybeSingle.mockResolvedValue({
+      data: null,
+      error: { message: "db down" },
+    });
+    const { requirePlanner } = await import("@/lib/auth");
+    await expect(requirePlanner()).rejects.toThrow("db down");
+  });
 });

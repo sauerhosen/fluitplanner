@@ -329,12 +329,20 @@ export async function syncOrganizationMatches(
   );
   result.awaitingTime = collected.length - cancelled.length - importable.length;
 
+  // Cancellations may be observed after match day, so the natural-key window
+  // must reach back to the earliest collected cancellation — otherwise a
+  // past-dated cancellation reissued under a new match id resolves nowhere.
+  const naturalFromDate = cancelled.reduce((earliest, { fixture }) => {
+    const date = amsterdamDateOf(fixture.start);
+    return date < earliest ? date : earliest;
+  }, today);
+
   const { byExternal, byNatural } = await loadExistingMatches(
     supabase,
     organizationId,
     collected.map(({ fixture }) => fixture.matchId),
     trackedTeams as TrackedTeam[],
-    today,
+    naturalFromDate,
   );
 
   function findExisting(fixture: NormalizedFixture): ExistingMatchRow | null {

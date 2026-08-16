@@ -592,6 +592,54 @@ describe("syncOrganizationMatches", () => {
     expect(result.cancelled).toBe(1);
   });
 
+  it("resolves a past-dated cancellation with a reissued match id via the widened natural-key window", async () => {
+    mockFetchTeamPoule.mockResolvedValue({
+      poule: {
+        id: 500,
+        matches: [
+          // cancelled yesterday AND reissued under a new upstream id
+          apiMatch({
+            id: 9600,
+            status: "cancelled",
+            date: "2026-08-14T12:45:00+02:00",
+          }),
+        ],
+      },
+    });
+
+    const existing = {
+      id: "m-1",
+      date: "2026-08-14",
+      start_time: "2026-08-14T10:45:00+00:00",
+      home_team: "VVV D1",
+      away_team: "AMVJ D1",
+      venue: "Sportpark X",
+      field: "Veld 2",
+      competition: "Hoofdklasse",
+      external_id: 9001, // stale id — byExternal misses
+      cancelled_upstream: false,
+      review_reasons: [],
+    };
+
+    const { result, queries } = await runSync(
+      defaultHandler({ matchesNatural: [existing] }),
+    );
+
+    // the natural-key query's date bound reaches back to the cancellation
+    const naturalSelect = queries.find(
+      (q) =>
+        q.table === "matches" &&
+        q.op === "select" &&
+        q.filters.some(([op]) => op === "gte"),
+    );
+    expect(naturalSelect?.filters).toContainEqual([
+      "gte",
+      "date",
+      "2026-08-14",
+    ]);
+    expect(result.cancelled).toBe(1);
+  });
+
   it("re-adopts a row when upstream reissued the fixture under a new match id", async () => {
     mockFetchTeamPoule.mockResolvedValue({
       poule: { id: 500, matches: [apiMatch({ id: 9500 })] },
