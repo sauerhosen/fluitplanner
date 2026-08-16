@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireTenantId } from "@/lib/tenant";
-import type { Match, MatchSyncField } from "@/lib/types/domain";
+import type { Match } from "@/lib/types/domain";
 import type { ParsedMatch } from "@/lib/parsers/types";
 
 async function requireAuth() {
@@ -45,7 +45,7 @@ export async function upsertMatches(
 
     const { data: existing } = await supabase
       .from("matches")
-      .select("id")
+      .select("id, source")
       .eq("date", match.date)
       .eq("home_team", match.home_team)
       .eq("away_team", match.away_team)
@@ -53,20 +53,29 @@ export async function upsertMatches(
       .maybeSingle();
 
     if (existing) {
+      // Sync-owned rows: the Match Center is the authority on schedule
+      // fields; a file import may only adjust required_level. Otherwise the
+      // import and the nightly sync would flap over the same columns.
+      const updates =
+        existing.source === "hockey_sync"
+          ? { required_level: row.required_level }
+          : {
+              start_time: row.start_time,
+              venue: row.venue,
+              field: row.field,
+              required_level: row.required_level,
+              competition: row.competition,
+            };
       const { error } = await supabase
         .from("matches")
-        .update({
-          start_time: row.start_time,
-          venue: row.venue,
-          field: row.field,
-          required_level: row.required_level,
-          competition: row.competition,
-        })
+        .update(updates)
         .eq("id", existing.id);
       if (error) throw new Error(error.message);
       updated++;
     } else {
-      const { error } = await supabase.from("matches").insert(row);
+      const { error } = await supabase
+        .from("matches")
+        .insert({ ...row, source: "file_import" });
       if (error) throw new Error(error.message);
       inserted++;
     }
@@ -184,14 +193,10 @@ export async function getMatches(
   }));
 }
 
-type MatchFormInput = Omit<
-  Match,
-  "id" | "created_by" | "created_at" | "organization_id" | MatchSyncField
->;
-
-// Server actions are network endpoints — the Omit above is compile-time only,
-// so form fields must also be allowlisted at runtime to keep callers from
-// writing engine-managed sync columns (external_id, needs_review, …).
+// Server actions are network endpoints — a type alone cannot stop callers
+// from sending engine-managed sync columns (external_id, needs_review, …),
+// so the runtime allowlist is the single source of truth and the input type
+// is derived from it.
 const MATCH_FORM_FIELDS = [
   "date",
   "start_time",
@@ -201,7 +206,9 @@ const MATCH_FORM_FIELDS = [
   "venue",
   "field",
   "required_level",
-] as const satisfies readonly (keyof MatchFormInput)[];
+] as const;
+
+type MatchFormInput = Pick<Match, (typeof MATCH_FORM_FIELDS)[number]>;
 
 function pickMatchFormFields(
   input: Partial<MatchFormInput>,

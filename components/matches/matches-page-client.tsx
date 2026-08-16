@@ -36,12 +36,14 @@ export function MatchesPageClient({
   polls,
   syncState = null,
   showSync = false,
+  isPlanner = false,
 }: {
   initialMatches: MatchWithPoll[];
   managedTeams: ManagedTeam[];
   polls: { id: string; title: string | null; status: string }[];
   syncState?: HockeySyncState | null;
   showSync?: boolean;
+  isPlanner?: boolean;
 }) {
   const [matches, setMatches] = useState(initialMatches);
   const [currentPolls, setCurrentPolls] = useState(polls);
@@ -186,6 +188,7 @@ export function MatchesPageClient({
         matches={matches}
         onEdit={(match) => setEditingMatch(match)}
         onDeleted={refreshMatches}
+        canDismissReview={isPlanner}
         toolbarActions={(selectedIds, clearSelection) => (
           <PollActionButtons
             selectedIds={selectedIds}

@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const mockGetUser = vi.fn();
 const mockInsert = vi.fn();
 const mockUpdate = vi.fn();
+const mockUpsertLookup = vi.fn();
 
 vi.mock("@/lib/tenant", () => ({
   requireTenantId: vi.fn(async () => "test-org-id"),
@@ -16,6 +17,15 @@ vi.mock("@/lib/supabase/server", () => ({
     from: vi.fn(() => ({
       insert: mockInsert,
       update: mockUpdate,
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({ maybeSingle: mockUpsertLookup }),
+            }),
+          }),
+        }),
+      }),
     })),
     auth: { getUser: mockGetUser },
   })),
@@ -85,5 +95,68 @@ describe("updateMatch", () => {
     expect(mockUpdate).toHaveBeenCalledWith({
       start_time: "2026-09-27T14:00:00+02:00",
     });
+  });
+});
+
+describe("upsertMatches", () => {
+  const parsed = {
+    date: "2026-09-27",
+    start_time: "2026-09-27T12:45:00+02:00",
+    home_team: "VVV D1",
+    away_team: "AMVJ D1",
+    venue: "Sportpark X",
+    field: "1",
+    competition: null,
+    required_level: 2 as const,
+  };
+
+  it("inserts new rows with source file_import", async () => {
+    mockUpsertLookup.mockResolvedValue({ data: null, error: null });
+    const { upsertMatches } = await import("@/lib/actions/matches");
+    const result = await upsertMatches([parsed]);
+
+    expect(mockInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        home_team: "VVV D1",
+        source: "file_import",
+        organization_id: "test-org-id",
+      }),
+    );
+    expect(result).toEqual({ inserted: 1, updated: 0 });
+  });
+
+  it("updates schedule fields on rows it owns", async () => {
+    mockUpsertLookup.mockResolvedValue({
+      data: { id: "m-1", source: "file_import" },
+      error: null,
+    });
+    const eqId = vi.fn().mockResolvedValue({ error: null });
+    mockUpdate.mockReturnValue({ eq: eqId });
+
+    const { upsertMatches } = await import("@/lib/actions/matches");
+    const result = await upsertMatches([parsed]);
+
+    expect(mockUpdate).toHaveBeenCalledWith({
+      start_time: parsed.start_time,
+      venue: parsed.venue,
+      field: parsed.field,
+      required_level: parsed.required_level,
+      competition: parsed.competition,
+    });
+    expect(result).toEqual({ inserted: 0, updated: 1 });
+  });
+
+  it("only updates required_level on sync-owned rows so imports cannot flap with the sync engine", async () => {
+    mockUpsertLookup.mockResolvedValue({
+      data: { id: "m-1", source: "hockey_sync" },
+      error: null,
+    });
+    const eqId = vi.fn().mockResolvedValue({ error: null });
+    mockUpdate.mockReturnValue({ eq: eqId });
+
+    const { upsertMatches } = await import("@/lib/actions/matches");
+    await upsertMatches([parsed]);
+
+    expect(mockUpdate).toHaveBeenCalledWith({ required_level: 2 });
   });
 });

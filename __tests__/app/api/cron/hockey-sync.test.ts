@@ -1,30 +1,23 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
-const mockSyncOrganizationMatches = vi.fn();
-const mockClaimSyncSlot = vi.fn();
-const mockReleaseSyncSlot = vi.fn();
-const mockTrackedSelect = vi.fn();
+const mockSyncWithLease = vi.fn();
+const mockRange = vi.fn();
 
-vi.mock("@/lib/supabase/service", () => ({
-  createServiceClient: vi.fn(() => ({
-    from: vi.fn(() => ({
-      select: vi.fn(() => mockTrackedSelect()),
-    })),
+vi.mock("@/lib/hockey/deps", () => ({
+  createHockeyDeps: vi.fn(() => ({
+    supabase: {
+      from: vi.fn(() => ({
+        select: vi.fn().mockReturnValue({
+          order: vi.fn().mockReturnValue({ range: mockRange }),
+        }),
+      })),
+    },
+    client: { get: vi.fn() },
   })),
 }));
 
 vi.mock("@/lib/hockey/sync", () => ({
-  syncOrganizationMatches: mockSyncOrganizationMatches,
-  claimSyncSlot: mockClaimSyncSlot,
-  releaseSyncSlot: mockReleaseSyncSlot,
-}));
-
-vi.mock("@/lib/hockey/client", () => ({
-  createHockeyClient: vi.fn(() => ({ get: vi.fn() })),
-}));
-
-vi.mock("@/lib/hockey/credential-store", () => ({
-  createDbCredentialStore: vi.fn(() => ({})),
+  syncWithLease: mockSyncWithLease,
 }));
 
 function makeRequest(authorization?: string): Request {
@@ -36,7 +29,7 @@ function makeRequest(authorization?: string): Request {
 beforeEach(() => {
   vi.resetAllMocks();
   vi.stubEnv("CRON_SECRET", "test-secret");
-  mockTrackedSelect.mockResolvedValue({
+  mockRange.mockResolvedValue({
     data: [
       { organization_id: "org-1" },
       { organization_id: "org-2" },
@@ -44,9 +37,7 @@ beforeEach(() => {
     ],
     error: null,
   });
-  mockClaimSyncSlot.mockResolvedValue("lease-token");
-  mockReleaseSyncSlot.mockResolvedValue(undefined);
-  mockSyncOrganizationMatches.mockResolvedValue({
+  mockSyncWithLease.mockResolvedValue({
     inserted: 1,
     updated: 0,
     flagged: 0,
@@ -65,7 +56,7 @@ describe("GET /api/cron/hockey-sync", () => {
     const { GET } = await import("@/app/api/cron/hockey-sync/route");
     const response = await GET(makeRequest());
     expect(response.status).toBe(401);
-    expect(mockSyncOrganizationMatches).not.toHaveBeenCalled();
+    expect(mockSyncWithLease).not.toHaveBeenCalled();
   });
 
   it("returns 401 with a wrong secret", async () => {
@@ -74,21 +65,45 @@ describe("GET /api/cron/hockey-sync", () => {
     expect(response.status).toBe(401);
   });
 
-  it("claims a slot and syncs each org with tracked teams exactly once", async () => {
+  it("runs a leased sync per org with the 6h skip window", async () => {
     const { GET } = await import("@/app/api/cron/hockey-sync/route");
     const response = await GET(makeRequest("Bearer test-secret"));
 
     expect(response.status).toBe(200);
-    expect(mockClaimSyncSlot).toHaveBeenCalledTimes(2);
-    expect(mockSyncOrganizationMatches).toHaveBeenCalledTimes(2);
-    const orgs = mockSyncOrganizationMatches.mock.calls.map(
-      ([, orgId]) => orgId,
+    expect(mockSyncWithLease).toHaveBeenCalledTimes(2);
+    expect(mockSyncWithLease).toHaveBeenCalledWith(
+      expect.anything(),
+      "org-1",
+      6 * 60 * 60 * 1000,
     );
+    const orgs = mockSyncWithLease.mock.calls.map(([, orgId]) => orgId);
     expect(orgs).toEqual(["org-1", "org-2"]);
   });
 
+  it("pages through tracked_teams beyond the PostgREST row cap", async () => {
+    const page = Array.from({ length: 1000 }, (_, i) => ({
+      organization_id: `org-${i}`,
+    }));
+    mockRange
+      .mockResolvedValueOnce({ data: page, error: null })
+      .mockResolvedValueOnce({
+        data: [{ organization_id: "org-last" }],
+        error: null,
+      });
+    mockSyncWithLease.mockResolvedValue(null); // all skipped, keep it fast
+
+    const { GET } = await import("@/app/api/cron/hockey-sync/route");
+    const response = await GET(makeRequest("Bearer test-secret"));
+    const body = await response.json();
+
+    expect(mockRange).toHaveBeenCalledTimes(2);
+    expect(mockRange).toHaveBeenNthCalledWith(1, 0, 999);
+    expect(mockRange).toHaveBeenNthCalledWith(2, 1000, 1999);
+    expect(body.organizations).toBe(1001);
+  });
+
   it("continues with other orgs when one fails", async () => {
-    mockSyncOrganizationMatches
+    mockSyncWithLease
       .mockRejectedValueOnce(new Error("boom"))
       .mockResolvedValueOnce({
         inserted: 3,
@@ -104,47 +119,39 @@ describe("GET /api/cron/hockey-sync", () => {
     const body = await response.json();
 
     expect(response.status).toBe(200);
-    expect(mockSyncOrganizationMatches).toHaveBeenCalledTimes(2);
+    expect(mockSyncWithLease).toHaveBeenCalledTimes(2);
     expect(body.results).toHaveLength(2);
     expect(body.results[0]).toMatchObject({ error: "boom" });
     expect(body.results[1]).toMatchObject({ inserted: 3 });
-    // the failed org's lease is still released
-    expect(mockReleaseSyncSlot).toHaveBeenCalledTimes(2);
   });
 
-  it("skips orgs whose sync slot cannot be claimed", async () => {
-    mockClaimSyncSlot
+  it("reports orgs whose sync slot was not claimed as skipped", async () => {
+    mockSyncWithLease
       .mockResolvedValueOnce(null) // org-1: synced recently
-      .mockResolvedValueOnce("lease-token");
+      .mockResolvedValueOnce({
+        inserted: 0,
+        updated: 0,
+        flagged: 0,
+        cancelled: 0,
+        awaitingTime: 0,
+        errors: [],
+      });
 
     const { GET } = await import("@/app/api/cron/hockey-sync/route");
     const response = await GET(makeRequest("Bearer test-secret"));
     const body = await response.json();
 
-    expect(mockSyncOrganizationMatches).toHaveBeenCalledTimes(1);
-    expect(mockSyncOrganizationMatches).toHaveBeenCalledWith(
-      expect.anything(),
-      "org-2",
-    );
     expect(body.results).toContainEqual(
       expect.objectContaining({ organizationId: "org-1", skipped: true }),
     );
   });
 
-  it("records an error and continues when claiming a slot fails", async () => {
-    mockClaimSyncSlot
-      .mockRejectedValueOnce(new Error("db down"))
-      .mockResolvedValueOnce("lease-token");
+  it("returns 500 when the org enumeration fails", async () => {
+    mockRange.mockResolvedValue({ data: null, error: { message: "db down" } });
 
     const { GET } = await import("@/app/api/cron/hockey-sync/route");
     const response = await GET(makeRequest("Bearer test-secret"));
-    const body = await response.json();
-
-    // Fails closed: the org with the failed claim is not synced
-    expect(mockSyncOrganizationMatches).toHaveBeenCalledTimes(1);
-    expect(body.results[0]).toMatchObject({
-      organizationId: "org-1",
-      error: "db down",
-    });
+    expect(response.status).toBe(500);
+    expect(mockSyncWithLease).not.toHaveBeenCalled();
   });
 });

@@ -19,12 +19,9 @@ export function normalizeMatch(m: ApiMatchSummary): NormalizedFixture {
     start: m.date,
     timeConfirmed: isTimeConfirmed(m),
     status: m.status,
-    homeTeamId: m.home.id,
     homeTeamName: m.home.name,
-    awayTeamId: m.away.id,
     awayTeamName: m.away.name,
     competition: m.competition_name ?? null,
-    pouleId: m.poule_id ?? null,
     venue: m.location?.facility?.name ?? null,
     field: m.location?.field?.name ?? null,
   };

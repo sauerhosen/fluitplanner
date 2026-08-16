@@ -1,77 +1,59 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const mockGetUser = vi.fn();
-const mockIsPlannerRole = vi.fn();
-const mockSyncOrganizationMatches = vi.fn();
-const mockClaimSyncSlot = vi.fn();
-const mockReleaseSyncSlot = vi.fn();
+const mockRequirePlanner = vi.fn();
+const mockRequireAuthContext = vi.fn();
+const mockSyncWithLease = vi.fn();
 const mockRevalidatePath = vi.fn();
 
 const mockStateMaybeSingle = vi.fn();
 const mockMatchesUpdate = vi.fn();
 
+const userSupabase = {
+  from: vi.fn(() => ({
+    update: mockMatchesUpdate,
+    select: vi.fn().mockReturnValue({
+      eq: vi.fn().mockReturnValue({ maybeSingle: mockStateMaybeSingle }),
+    }),
+  })),
+};
+
+vi.mock("@/lib/auth", () => ({
+  requirePlanner: mockRequirePlanner,
+  requireAuthContext: mockRequireAuthContext,
+}));
+
 vi.mock("@/lib/tenant", () => ({
   requireTenantId: vi.fn(async () => "test-org-id"),
-  getTenantId: vi.fn(async () => "test-org-id"),
-  getTenantSlug: vi.fn(async () => "test"),
-  isRootDomain: vi.fn(async () => false),
 }));
 
 vi.mock("next/cache", () => ({
   revalidatePath: mockRevalidatePath,
 }));
 
-vi.mock("@/lib/supabase/server", () => ({
-  createClient: vi.fn(async () => ({
-    from: vi.fn(() => ({
-      update: mockMatchesUpdate,
-      select: vi.fn().mockReturnValue({
-        eq: vi.fn().mockReturnValue({ maybeSingle: mockStateMaybeSingle }),
-      }),
-    })),
-    auth: { getUser: mockGetUser },
+vi.mock("@/lib/hockey/deps", () => ({
+  createHockeyDeps: vi.fn(() => ({
+    supabase: { service: true },
+    client: { get: vi.fn() },
   })),
-}));
-
-vi.mock("@/lib/supabase/service", () => ({
-  createServiceClient: vi.fn(() => ({
-    from: vi.fn(() => ({
-      select: vi.fn().mockReturnValue({
-        eq: vi.fn().mockReturnValue({ maybeSingle: mockStateMaybeSingle }),
-      }),
-    })),
-  })),
-}));
-
-vi.mock("@/lib/actions/organization-settings", () => ({
-  isPlannerRole: mockIsPlannerRole,
 }));
 
 vi.mock("@/lib/hockey/sync", () => ({
-  syncOrganizationMatches: mockSyncOrganizationMatches,
-  claimSyncSlot: mockClaimSyncSlot,
-  releaseSyncSlot: mockReleaseSyncSlot,
-}));
-
-vi.mock("@/lib/hockey/client", () => ({
-  createHockeyClient: vi.fn(() => ({ get: vi.fn() })),
-}));
-
-vi.mock("@/lib/hockey/credential-store", () => ({
-  createDbCredentialStore: vi.fn(() => ({})),
+  syncWithLease: mockSyncWithLease,
 }));
 
 beforeEach(() => {
   vi.resetAllMocks();
-  mockGetUser.mockResolvedValue({
-    data: { user: { id: "user-1" } },
-    error: null,
+  mockRequirePlanner.mockResolvedValue({
+    supabase: userSupabase,
+    user: { id: "user-1" },
+    tenantId: "test-org-id",
   });
-  mockIsPlannerRole.mockResolvedValue(true);
-  mockClaimSyncSlot.mockResolvedValue("lease-token");
-  mockReleaseSyncSlot.mockResolvedValue(undefined);
+  mockRequireAuthContext.mockResolvedValue({
+    supabase: userSupabase,
+    user: { id: "user-1" },
+  });
   mockStateMaybeSingle.mockResolvedValue({ data: null, error: null });
-  mockSyncOrganizationMatches.mockResolvedValue({
+  mockSyncWithLease.mockResolvedValue({
     inserted: 2,
     updated: 1,
     flagged: 1,
@@ -82,58 +64,32 @@ beforeEach(() => {
 });
 
 describe("syncNow", () => {
-  it("runs the engine for the current org and revalidates the matches page", async () => {
+  it("runs the leased sync for the current org and revalidates the matches page", async () => {
     const { syncNow } = await import("@/lib/actions/hockey-sync");
     const result = await syncNow();
 
-    expect(mockClaimSyncSlot).toHaveBeenCalledWith(
-      expect.anything(),
-      "test-org-id",
-      15 * 60 * 1000,
-    );
-    expect(mockSyncOrganizationMatches).toHaveBeenCalledWith(
+    expect(mockSyncWithLease).toHaveBeenCalledWith(
       expect.objectContaining({ supabase: expect.anything() }),
       "test-org-id",
+      15 * 60 * 1000,
     );
     expect(result).toMatchObject({ status: "synced", inserted: 2 });
     expect(mockRevalidatePath).toHaveBeenCalledWith("/protected/matches");
   });
 
   it("returns cooldown status when the sync slot is not claimed", async () => {
-    mockClaimSyncSlot.mockResolvedValue(null);
+    mockSyncWithLease.mockResolvedValue(null);
 
     const { syncNow } = await import("@/lib/actions/hockey-sync");
     await expect(syncNow()).resolves.toEqual({ status: "cooldown" });
-    expect(mockSyncOrganizationMatches).not.toHaveBeenCalled();
+    expect(mockRevalidatePath).not.toHaveBeenCalled();
   });
 
-  it("releases the lease with its token after a successful run", async () => {
-    const { syncNow } = await import("@/lib/actions/hockey-sync");
-    await syncNow();
-    expect(mockReleaseSyncSlot).toHaveBeenCalledWith(
-      expect.anything(),
-      "test-org-id",
-      "lease-token",
-    );
-  });
-
-  it("releases the lease when the engine throws", async () => {
-    mockSyncOrganizationMatches.mockRejectedValue(new Error("engine boom"));
-
-    const { syncNow } = await import("@/lib/actions/hockey-sync");
-    await expect(syncNow()).rejects.toThrow("engine boom");
-    expect(mockReleaseSyncSlot).toHaveBeenCalledWith(
-      expect.anything(),
-      "test-org-id",
-      "lease-token",
-    );
-  });
-
-  it("rejects non-planner users", async () => {
-    mockIsPlannerRole.mockResolvedValue(false);
+  it("rejects non-planner users without syncing", async () => {
+    mockRequirePlanner.mockRejectedValue(new Error("NOT_PLANNER"));
     const { syncNow } = await import("@/lib/actions/hockey-sync");
     await expect(syncNow()).rejects.toThrow("NOT_PLANNER");
-    expect(mockSyncOrganizationMatches).not.toHaveBeenCalled();
+    expect(mockSyncWithLease).not.toHaveBeenCalled();
   });
 });
 
@@ -155,7 +111,7 @@ describe("clearMatchReviewFlags", () => {
   });
 
   it("rejects non-planner users", async () => {
-    mockIsPlannerRole.mockResolvedValue(false);
+    mockRequirePlanner.mockRejectedValue(new Error("NOT_PLANNER"));
     const { clearMatchReviewFlags } = await import("@/lib/actions/hockey-sync");
     await expect(clearMatchReviewFlags("m-1")).rejects.toThrow("NOT_PLANNER");
   });

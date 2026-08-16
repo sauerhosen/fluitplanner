@@ -191,7 +191,9 @@
     "reviewReasonVenueChanged": "venue or field changed",
     "reviewReasonCancelled": "cancelled upstream",
     "reviewDismiss": "Dismiss review flag",
-    "cancelledBadge": "Cancelled"
+    "cancelledBadge": "Cancelled",
+    "syncPartial": "Sync finished with {problems, plural, one {# problem} other {# problems}}: {inserted} added, {updated} updated, {flagged} flagged. Some teams may not have been fetched — try again later.",
+    "reviewDismissError": "Failed to dismiss the review flag. Please try again."
   },
   "polls": {
     "pageTitle": "Polls",

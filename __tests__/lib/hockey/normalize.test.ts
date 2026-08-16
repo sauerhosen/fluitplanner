@@ -65,12 +65,9 @@ describe("normalizeMatch", () => {
       start: "2026-09-27T12:45:00+02:00",
       timeConfirmed: true,
       status: "scheduled",
-      homeTeamId: 774,
       homeTeamName: "VVV D1",
-      awayTeamId: 812,
       awayTeamName: "AMVJ D1",
       competition: "Hoofdklasse Dames",
-      pouleId: 180863,
       venue: "Sportpark Kees Boekelaan",
       field: "Veld 2",
     });
@@ -87,7 +84,6 @@ describe("normalizeMatch", () => {
     expect(f.venue).toBeNull();
     expect(f.field).toBeNull();
     expect(f.competition).toBeNull();
-    expect(f.pouleId).toBeNull();
   });
 });
 

@@ -64,7 +64,7 @@ CI (GitHub Actions) runs lint, format check, type check, tests, and build on eve
 
 - **Server**: `import { createClient } from "@/lib/supabase/server"` — always `await createClient()` fresh per request (never store in a global due to Fluid Compute)
 - **Client**: `import { createClient } from "@/lib/supabase/client"` — browser client
-- **Proxy** (`proxy.ts`): refreshes auth sessions, redirects unauthenticated users to `/auth/login` (except `/` and `/auth/*` routes)
+- **Proxy** (`proxy.ts`): refreshes auth sessions, redirects unauthenticated users to `/auth/login` (except `/`, `/auth/*`, `/poll/*`, `/no-access`, `/privacy`, and `/api/cron/*` — cron routes skip session/tenant handling entirely and self-authenticate via `CRON_SECRET`)
 
 ### i18n (next-intl)
 

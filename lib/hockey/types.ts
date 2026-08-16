@@ -71,12 +71,9 @@ export type NormalizedFixture = {
   start: string;
   timeConfirmed: boolean;
   status: string;
-  homeTeamId: number;
   homeTeamName: string;
-  awayTeamId: number;
   awayTeamName: string;
   competition: string | null;
-  pouleId: number | null;
   venue: string | null;
   field: string | null;
 };

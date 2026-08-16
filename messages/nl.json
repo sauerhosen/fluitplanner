@@ -191,7 +191,9 @@
     "reviewReasonVenueChanged": "locatie of veld gewijzigd",
     "reviewReasonCancelled": "afgelast door de bond",
     "reviewDismiss": "Controlemarkering verwijderen",
-    "cancelledBadge": "Afgelast"
+    "cancelledBadge": "Afgelast",
+    "syncPartial": "Synchronisatie voltooid met {problems, plural, one {# probleem} other {# problemen}}: {inserted} toegevoegd, {updated} bijgewerkt, {flagged} gemarkeerd. Mogelijk zijn niet alle teams opgehaald — probeer het later opnieuw.",
+    "reviewDismissError": "Controlemarkering verwijderen mislukt. Probeer het opnieuw."
   },
   "polls": {
     "pageTitle": "Peilingen",

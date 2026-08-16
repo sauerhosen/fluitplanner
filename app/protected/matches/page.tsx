@@ -14,18 +14,20 @@ async function MatchesLoader() {
   const today = new Date();
   const twoMonthsAhead = addMonths(today, 2);
 
-  const [matches, managedTeams, polls, trackedTeams, syncState, canSync] =
-    await Promise.all([
-      getMatches({
-        dateFrom: format(today, "yyyy-MM-dd"),
-        dateTo: format(twoMonthsAhead, "yyyy-MM-dd"),
-      }),
-      getManagedTeams(),
-      getPollOptions(),
-      getTrackedTeams(),
-      getSyncState(),
-      isPlannerRole(),
-    ]);
+  const [matches, managedTeams, polls, isPlanner] = await Promise.all([
+    getMatches({
+      dateFrom: format(today, "yyyy-MM-dd"),
+      dateTo: format(twoMonthsAhead, "yyyy-MM-dd"),
+    }),
+    getManagedTeams(),
+    getPollOptions(),
+    isPlannerRole(),
+  ]);
+
+  // Sync UI is planner-only — spare everyone else the two extra queries.
+  const [trackedTeams, syncState] = isPlanner
+    ? await Promise.all([getTrackedTeams(), getSyncState()])
+    : [[], null];
 
   return (
     <MatchesPageClient
@@ -33,7 +35,8 @@ async function MatchesLoader() {
       managedTeams={managedTeams}
       polls={polls}
       syncState={syncState}
-      showSync={canSync && trackedTeams.length > 0}
+      showSync={isPlanner && trackedTeams.length > 0}
+      isPlanner={isPlanner}
     />
   );
 }

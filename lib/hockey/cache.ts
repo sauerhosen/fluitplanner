@@ -10,6 +10,8 @@ export async function getCachedJson<T>(
   key: string,
   ttlMs: number,
   fetcher: () => Promise<T>,
+  /** Awaited only after an actual upstream fetch — cache hits never pause. */
+  pause?: () => Promise<void>,
 ): Promise<T> {
   const { data } = await supabase
     .from("hockey_api_cache")
@@ -34,5 +36,6 @@ export async function getCachedJson<T>(
   if (error) {
     console.warn(`hockey_api_cache write failed for ${key}: ${error.message}`);
   }
+  if (pause) await pause();
   return fresh;
 }

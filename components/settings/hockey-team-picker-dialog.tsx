@@ -49,9 +49,13 @@ export function HockeyTeamPickerDialog({
   function handleOpenChange(nextOpen: boolean) {
     if (!nextOpen) {
       if (debounceRef.current) clearTimeout(debounceRef.current);
+      // Invalidate any in-flight search so it cannot repopulate the
+      // cleared state after the dialog closes.
+      searchSeqRef.current++;
       setQuery("");
       setClubs([]);
       setSearched(false);
+      setSearching(false);
       setSelectedClub(null);
       setTeams([]);
     }
@@ -65,6 +69,9 @@ export function HockeyTeamPickerDialog({
       searchSeqRef.current++;
       setClubs([]);
       setSearched(false);
+      // An invalidated in-flight request skips its own cleanup — do it here
+      // so the spinner cannot get stuck.
+      setSearching(false);
       return;
     }
     debounceRef.current = setTimeout(async () => {

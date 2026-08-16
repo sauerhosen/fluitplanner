@@ -10,6 +10,8 @@ import type {
 export type DiscoveryDeps = {
   client: HockeyClient;
   supabase: SupabaseClient;
+  /** Optional jitter between real upstream fetches (cache hits skip it). */
+  pause?: () => Promise<void>;
 };
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -27,6 +29,7 @@ export async function fetchAllClubs(
     "clubs",
     CLUBS_TTL_MS,
     () => deps.client.get<ApiClubSummary[]>("/clubs"),
+    deps.pause,
   );
   return clubs.filter((club) => club.type !== "business");
 }
@@ -42,6 +45,7 @@ export async function fetchClubDetail(
     CLUB_DETAIL_TTL_MS,
     () =>
       deps.client.get<ApiClubDetail>(`/clubs/${encodeURIComponent(clubId)}`),
+    deps.pause,
   );
 }
 
@@ -62,5 +66,6 @@ export async function fetchTeamPoule(
       deps.client.get<ApiTeamPouleResponse>(
         `/poules/${pouleId}/teams/${teamId}`,
       ),
+    deps.pause,
   );
 }

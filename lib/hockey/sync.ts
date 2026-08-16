@@ -52,22 +52,25 @@ export async function claimSyncSlot(
   organizationId: string,
   windowMs: number,
 ): Promise<string | null> {
-  const { error: ensureError } = await supabase
-    .from("hockey_sync_state")
-    .upsert(
-      { organization_id: organizationId },
-      { onConflict: "organization_id", ignoreDuplicates: true },
-    );
-  if (ensureError) throw new Error(ensureError.message);
-
   const { data: state, error: stateError } = await supabase
     .from("hockey_sync_state")
     .select("last_synced_at")
     .eq("organization_id", organizationId)
     .maybeSingle();
   if (stateError) throw new Error(stateError.message);
-  if (
-    state?.last_synced_at &&
+
+  if (!state) {
+    // First claim for this org — create the row (a write we skip on the
+    // steady-state path).
+    const { error: ensureError } = await supabase
+      .from("hockey_sync_state")
+      .upsert(
+        { organization_id: organizationId },
+        { onConflict: "organization_id", ignoreDuplicates: true },
+      );
+    if (ensureError) throw new Error(ensureError.message);
+  } else if (
+    state.last_synced_at &&
     Date.now() - new Date(state.last_synced_at).getTime() < windowMs
   ) {
     return null;
@@ -105,6 +108,28 @@ export async function releaseSyncSlot(
   if (error) throw new Error(error.message);
 }
 
+/**
+ * Claim → sync → release in one place, so the lease invariants (token-fenced
+ * release, in a finally, release errors never masking sync errors) live in
+ * code instead of at every call site. Returns null when the slot could not
+ * be claimed (cooldown active or another run in progress).
+ */
+export async function syncWithLease(
+  deps: SyncDeps,
+  organizationId: string,
+  windowMs: number,
+): Promise<SyncResult | null> {
+  const lease = await claimSyncSlot(deps.supabase, organizationId, windowMs);
+  if (!lease) return null;
+  try {
+    return await syncOrganizationMatches(deps, organizationId);
+  } finally {
+    await releaseSyncSlot(deps.supabase, organizationId, lease).catch(() => {
+      // lease self-expires; a failed release must not mask the sync error
+    });
+  }
+}
+
 /** Matches already played or in an unusable state — never imported. */
 const SKIPPED_STATUSES = new Set([
   "final",
@@ -137,9 +162,9 @@ type ExistingMatchRow = {
   start_time: string | null;
   venue: string | null;
   field: string | null;
+  competition: string | null;
   external_id: number | null;
   cancelled_upstream: boolean;
-  needs_review: boolean;
   review_reasons: unknown;
   home_team: string;
   away_team: string;
@@ -184,7 +209,9 @@ export async function syncOrganizationMatches(
 
   const levelByManagedId = await loadRequiredLevels(supabase, trackedTeams);
 
-  const discovery = { client, supabase };
+  // The pause fires inside the cache layer, only when an upstream fetch
+  // actually happens — cache hits don't sleep.
+  const discovery = { client, supabase, pause: deps.pause };
   const today = amsterdamDateOf(now.toISOString());
   const collected: Array<{ fixture: NormalizedFixture; team: TrackedTeam }> =
     [];
@@ -245,10 +272,16 @@ export async function syncOrganizationMatches(
           if (match.home?.id !== team.hockey_team_id) continue;
           if (SKIPPED_STATUSES.has(match.status)) continue;
           const fixture = normalizeMatch(match);
+          let fixtureDate: string;
           try {
-            if (amsterdamDateOf(fixture.start) < today) continue;
+            fixtureDate = amsterdamDateOf(fixture.start);
           } catch {
             continue; // unparseable upstream date
+          }
+          // Past matches are skipped — except cancellations, which must
+          // still flag an imported row even when observed after match day.
+          if (fixtureDate < today && !CANCELLED_STATUSES.has(fixture.status)) {
+            continue;
           }
           collected.push({ fixture, team });
         }
@@ -256,7 +289,6 @@ export async function syncOrganizationMatches(
         const message = error instanceof Error ? error.message : String(error);
         result.errors.push(`Team ${team.team_name}: ${message}`);
       }
-      if (deps.pause) await deps.pause();
     }
   }
 
@@ -285,6 +317,7 @@ export async function syncOrganizationMatches(
   }
 
   const unchangedIds: string[] = [];
+  const toInsert: Array<Record<string, unknown>> = [];
 
   for (const { fixture, team } of importable) {
     const requiredLevel = team.managed_team_id
@@ -294,18 +327,13 @@ export async function syncOrganizationMatches(
     const existing = findExisting(fixture);
 
     if (!existing) {
-      const { error } = await supabase.from("matches").insert({
+      toInsert.push({
         ...row,
         source: "hockey_sync",
         created_by: team.created_by,
         organization_id: organizationId,
         last_synced_at: syncedAt,
       });
-      if (error) {
-        result.errors.push(`Match ${fixture.matchId}: ${error.message}`);
-      } else {
-        result.inserted++;
-      }
       continue;
     }
 
@@ -320,9 +348,15 @@ export async function syncOrganizationMatches(
     ) {
       reasons.push("venue_changed");
     }
+    // Competition renames (season phase changes) update silently — cosmetic,
+    // no review needed.
+    const competitionChanged =
+      (existing.competition ?? null) !== row.competition;
 
-    const adopting = existing.external_id == null;
-    if (reasons.length === 0 && !adopting) {
+    // Also adopts rows whose external id changed (upstream reissued the
+    // fixture under a new match id with the same natural key).
+    const adopting = existing.external_id !== fixture.matchId;
+    if (reasons.length === 0 && !adopting && !competitionChanged) {
       unchangedIds.push(existing.id);
       continue;
     }
@@ -353,6 +387,30 @@ export async function syncOrganizationMatches(
     } else if (reasons.length > 0) {
       result.updated++;
       result.flagged++;
+    } else if (competitionChanged) {
+      result.updated++;
+    }
+  }
+
+  if (toInsert.length > 0) {
+    // One bulk insert; per-row fallback only on failure so individual
+    // errors stay attributable.
+    const { error } = await supabase.from("matches").insert(toInsert);
+    if (!error) {
+      result.inserted += toInsert.length;
+    } else {
+      for (const insertRow of toInsert) {
+        const { error: rowError } = await supabase
+          .from("matches")
+          .insert(insertRow);
+        if (rowError) {
+          result.errors.push(
+            `Match ${insertRow.external_id}: ${rowError.message}`,
+          );
+        } else {
+          result.inserted++;
+        }
+      }
     }
   }
 
@@ -432,7 +490,7 @@ async function loadRequiredLevels(
 }
 
 const EXISTING_MATCH_COLUMNS =
-  "id, date, start_time, venue, field, external_id, cancelled_upstream, needs_review, review_reasons, home_team, away_team";
+  "id, date, start_time, venue, field, competition, external_id, cancelled_upstream, review_reasons, home_team, away_team";
 
 async function loadExistingMatches(
   supabase: SupabaseClient,
@@ -459,6 +517,9 @@ async function loadExistingMatches(
   }
 
   // Natural-key adoption only targets future fixtures — bound the query.
+  // Rows with a (stale) external_id are included so a fixture reissued
+  // upstream under a new match id re-adopts the existing row instead of
+  // colliding with the natural-key unique constraint.
   const teamNames = Array.from(
     new Set(trackedTeams.map((team) => team.team_name)),
   );
@@ -466,7 +527,6 @@ async function loadExistingMatches(
     .from("matches")
     .select(EXISTING_MATCH_COLUMNS)
     .eq("organization_id", organizationId)
-    .is("external_id", null)
     .gte("date", fromDate)
     .in("home_team", teamNames);
   if (naturalError) throw new Error(naturalError.message);

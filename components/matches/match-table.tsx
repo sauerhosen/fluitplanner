@@ -33,6 +33,7 @@ import {
   BadgeCheck,
 } from "lucide-react";
 import { useTranslations, useFormatter } from "next-intl";
+import { toast } from "sonner";
 import { useSelection } from "@/hooks/use-selection";
 import { SelectionToolbar } from "@/components/shared/selection-toolbar";
 
@@ -58,6 +59,7 @@ export function MatchTable({
   onEdit,
   onDeleted,
   toolbarActions,
+  canDismissReview = false,
 }: {
   matches: MatchWithPoll[];
   onEdit: (match: MatchWithPoll) => void;
@@ -66,6 +68,7 @@ export function MatchTable({
     selectedIds: Set<string>,
     clearSelection: () => void,
   ) => React.ReactNode;
+  canDismissReview?: boolean;
 }) {
   const [collapsedDates, setCollapsedDates] = useState<Set<string>>(new Set());
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -123,8 +126,12 @@ export function MatchTable({
   }
 
   async function handleDismissReview(id: string) {
-    await clearMatchReviewFlags(id);
-    onDeleted();
+    try {
+      await clearMatchReviewFlags(id);
+      onDeleted();
+    } catch {
+      toast.error(t("reviewDismissError"));
+    }
   }
 
   function toggleDate(date: string) {
@@ -336,7 +343,7 @@ export function MatchTable({
                                 <Pencil className="mr-2 h-4 w-4" />
                                 {t("edit")}
                               </DropdownMenuItem>
-                              {match.needs_review && (
+                              {match.needs_review && canDismissReview && (
                                 <DropdownMenuItem
                                   onClick={() => handleDismissReview(match.id)}
                                 >

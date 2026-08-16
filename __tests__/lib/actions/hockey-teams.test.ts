@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const mockGetUser = vi.fn();
-const mockIsPlannerRole = vi.fn();
+const mockRequirePlanner = vi.fn();
+const mockRequireAuthContext = vi.fn();
 const mockFetchAllClubs = vi.fn();
 const mockFetchClubDetail = vi.fn();
 
@@ -13,26 +13,24 @@ function tableMock(name: string) {
   return tables[name];
 }
 
+const supabaseMock = {
+  from: vi.fn((table: string) => tableMock(table)()),
+};
+
+vi.mock("@/lib/auth", () => ({
+  requirePlanner: mockRequirePlanner,
+  requireAuthContext: mockRequireAuthContext,
+}));
+
 vi.mock("@/lib/tenant", () => ({
   requireTenantId: vi.fn(async () => "test-org-id"),
-  getTenantId: vi.fn(async () => "test-org-id"),
-  getTenantSlug: vi.fn(async () => "test"),
-  isRootDomain: vi.fn(async () => false),
 }));
 
-vi.mock("@/lib/supabase/server", () => ({
-  createClient: vi.fn(async () => ({
-    from: vi.fn((table: string) => tableMock(table)()),
-    auth: { getUser: mockGetUser },
+vi.mock("@/lib/hockey/deps", () => ({
+  createHockeyDeps: vi.fn(() => ({
+    supabase: { service: true },
+    client: { get: vi.fn() },
   })),
-}));
-
-vi.mock("@/lib/supabase/service", () => ({
-  createServiceClient: vi.fn(() => ({})),
-}));
-
-vi.mock("@/lib/actions/organization-settings", () => ({
-  isPlannerRole: mockIsPlannerRole,
 }));
 
 vi.mock("@/lib/hockey/discovery", () => ({
@@ -40,22 +38,18 @@ vi.mock("@/lib/hockey/discovery", () => ({
   fetchClubDetail: mockFetchClubDetail,
 }));
 
-vi.mock("@/lib/hockey/client", () => ({
-  createHockeyClient: vi.fn(() => ({ get: vi.fn() })),
-}));
-
-vi.mock("@/lib/hockey/credential-store", () => ({
-  createDbCredentialStore: vi.fn(() => ({})),
-}));
-
 beforeEach(() => {
   vi.resetAllMocks();
   for (const key of Object.keys(tables)) delete tables[key];
-  mockGetUser.mockResolvedValue({
-    data: { user: { id: "user-1" } },
-    error: null,
+  mockRequirePlanner.mockResolvedValue({
+    supabase: supabaseMock,
+    user: { id: "user-1" },
+    tenantId: "test-org-id",
   });
-  mockIsPlannerRole.mockResolvedValue(true);
+  mockRequireAuthContext.mockResolvedValue({
+    supabase: supabaseMock,
+    user: { id: "user-1" },
+  });
 });
 
 describe("searchClubs", () => {
@@ -83,6 +77,30 @@ describe("searchClubs", () => {
     expect(results).toEqual([{ id: "A1", name: "VVV", city: "Amsterdam" }]);
   });
 
+  it("tolerates null fields in untrusted upstream club records", async () => {
+    mockFetchAllClubs.mockResolvedValue([
+      {
+        federation_reference_id: "A1",
+        name: null,
+        friendly_name: "VVV",
+        city: null,
+        type: "regular",
+      },
+      {
+        federation_reference_id: "C3",
+        name: "Broken",
+        friendly_name: null,
+        city: null,
+        type: "regular",
+      },
+    ]);
+
+    const { searchClubs } = await import("@/lib/actions/hockey-teams");
+    const results = await searchClubs("vvv");
+
+    expect(results).toEqual([{ id: "A1", name: "VVV", city: "" }]);
+  });
+
   it("returns empty for queries shorter than 2 characters without hitting the API", async () => {
     const { searchClubs } = await import("@/lib/actions/hockey-teams");
     const results = await searchClubs("v");
@@ -91,9 +109,10 @@ describe("searchClubs", () => {
   });
 
   it("rejects non-planner users", async () => {
-    mockIsPlannerRole.mockResolvedValue(false);
+    mockRequirePlanner.mockRejectedValue(new Error("NOT_PLANNER"));
     const { searchClubs } = await import("@/lib/actions/hockey-teams");
     await expect(searchClubs("vvv")).rejects.toThrow("NOT_PLANNER");
+    expect(mockFetchAllClubs).not.toHaveBeenCalled();
   });
 });
 
@@ -139,6 +158,42 @@ describe("getClubTeams", () => {
         tracked: true,
       },
     ]);
+  });
+
+  it("rejects non-planner users without calling the API", async () => {
+    mockRequirePlanner.mockRejectedValue(new Error("NOT_PLANNER"));
+    const { getClubTeams } = await import("@/lib/actions/hockey-teams");
+    await expect(getClubTeams("A1")).rejects.toThrow("NOT_PLANNER");
+    expect(mockFetchClubDetail).not.toHaveBeenCalled();
+  });
+});
+
+describe("getTrackedTeams", () => {
+  it("returns the org's tracked teams ordered by club and team name", async () => {
+    const rows = [
+      { id: "tt-1", club_name: "AMVJ", team_name: "AMVJ D1" },
+      { id: "tt-2", club_name: "VVV", team_name: "VVV D1" },
+    ];
+    const orderTeam = vi.fn().mockResolvedValue({ data: rows, error: null });
+    const orderClub = vi.fn().mockReturnValue({ order: orderTeam });
+    const mockEq = vi.fn().mockReturnValue({ order: orderClub });
+    tableMock("tracked_teams").mockReturnValue({
+      select: vi.fn().mockReturnValue({ eq: mockEq }),
+    });
+
+    const { getTrackedTeams } = await import("@/lib/actions/hockey-teams");
+    const result = await getTrackedTeams();
+
+    expect(mockEq).toHaveBeenCalledWith("organization_id", "test-org-id");
+    expect(orderClub).toHaveBeenCalledWith("club_name");
+    expect(orderTeam).toHaveBeenCalledWith("team_name");
+    expect(result).toEqual(rows);
+  });
+
+  it("throws when not authenticated", async () => {
+    mockRequireAuthContext.mockRejectedValue(new Error("Not authenticated"));
+    const { getTrackedTeams } = await import("@/lib/actions/hockey-teams");
+    await expect(getTrackedTeams()).rejects.toThrow("Not authenticated");
   });
 });
 
@@ -219,6 +274,18 @@ describe("trackTeam", () => {
     expect(result).toEqual({ id: "tt-1", managed_team_id: "mt-new" });
   });
 
+  it("trims the upstream team name before creating the managed team", async () => {
+    const { managedInsert } = setupManagedTeams(null);
+    setupTrackedInsert({ data: { id: "tt-1" }, error: null });
+
+    const { trackTeam } = await import("@/lib/actions/hockey-teams");
+    await trackTeam({ ...input, teamName: "  VVV D1  " });
+
+    expect(managedInsert).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "VVV D1" }),
+    );
+  });
+
   it("reuses an existing managed team with the same name", async () => {
     const { managedInsert } = setupManagedTeams({ id: "mt-existing" });
     setupTrackedInsert({
@@ -232,64 +299,7 @@ describe("trackTeam", () => {
     expect(managedInsert).not.toHaveBeenCalled();
   });
 
-  it("throws ALREADY_TRACKED on unique violation", async () => {
-    setupManagedTeams({ id: "mt-existing" });
-    setupTrackedInsert({
-      data: null,
-      error: { code: "23505", message: "duplicate" },
-    });
-
-    const { trackTeam } = await import("@/lib/actions/hockey-teams");
-    await expect(trackTeam(input)).rejects.toThrow("ALREADY_TRACKED");
-  });
-
-  it("rejects non-planner users", async () => {
-    mockIsPlannerRole.mockResolvedValue(false);
-    const { trackTeam } = await import("@/lib/actions/hockey-teams");
-    await expect(trackTeam(input)).rejects.toThrow("NOT_PLANNER");
-  });
-});
-
-describe("getTrackedTeams", () => {
-  it("returns the org's tracked teams ordered by club and team name", async () => {
-    const rows = [
-      { id: "tt-1", club_name: "AMVJ", team_name: "AMVJ D1" },
-      { id: "tt-2", club_name: "VVV", team_name: "VVV D1" },
-    ];
-    const orderTeam = vi.fn().mockResolvedValue({ data: rows, error: null });
-    const orderClub = vi.fn().mockReturnValue({ order: orderTeam });
-    const mockEq = vi.fn().mockReturnValue({ order: orderClub });
-    tableMock("tracked_teams").mockReturnValue({
-      select: vi.fn().mockReturnValue({ eq: mockEq }),
-    });
-
-    const { getTrackedTeams } = await import("@/lib/actions/hockey-teams");
-    const result = await getTrackedTeams();
-
-    expect(mockEq).toHaveBeenCalledWith("organization_id", "test-org-id");
-    expect(result).toEqual(rows);
-  });
-
-  it("throws when not authenticated", async () => {
-    mockGetUser.mockResolvedValue({ data: { user: null }, error: null });
-    const { getTrackedTeams } = await import("@/lib/actions/hockey-teams");
-    await expect(getTrackedTeams()).rejects.toThrow("Not authenticated");
-  });
-});
-
-describe("getClubTeams gating", () => {
-  it("rejects non-planner users without calling the API", async () => {
-    mockIsPlannerRole.mockResolvedValue(false);
-    const { getClubTeams } = await import("@/lib/actions/hockey-teams");
-    await expect(getClubTeams("A1")).rejects.toThrow("NOT_PLANNER");
-    expect(mockFetchClubDetail).not.toHaveBeenCalled();
-  });
-});
-
-describe("trackTeam managed-team race", () => {
   it("reuses the concurrently created managed team on a 23505 insert error", async () => {
-    // First lookup finds nothing; insert hits the unique constraint;
-    // the retry lookup finds the row created by the concurrent request.
     const maybeSingle = vi.fn().mockResolvedValue({ data: null, error: null });
     const racedSingle = vi.fn().mockResolvedValue({
       data: { id: "mt-raced" },
@@ -327,18 +337,28 @@ describe("trackTeam managed-team race", () => {
     tableMock("tracked_teams").mockReturnValue({ insert: trackedInsert });
 
     const { trackTeam } = await import("@/lib/actions/hockey-teams");
-    await trackTeam({
-      clubId: "A1",
-      clubName: "VVV",
-      teamId: 774,
-      teamName: "VVV D1",
-      hockeyType: "VE",
-      recentPouleId: 500,
-    });
+    await trackTeam(input);
 
     expect(trackedInsert).toHaveBeenCalledWith(
       expect.objectContaining({ managed_team_id: "mt-raced" }),
     );
+  });
+
+  it("throws ALREADY_TRACKED on unique violation", async () => {
+    setupManagedTeams({ id: "mt-existing" });
+    setupTrackedInsert({
+      data: null,
+      error: { code: "23505", message: "duplicate" },
+    });
+
+    const { trackTeam } = await import("@/lib/actions/hockey-teams");
+    await expect(trackTeam(input)).rejects.toThrow("ALREADY_TRACKED");
+  });
+
+  it("rejects non-planner users", async () => {
+    mockRequirePlanner.mockRejectedValue(new Error("NOT_PLANNER"));
+    const { trackTeam } = await import("@/lib/actions/hockey-teams");
+    await expect(trackTeam(input)).rejects.toThrow("NOT_PLANNER");
   });
 });
 

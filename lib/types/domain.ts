@@ -3,15 +3,6 @@ export type MatchSource = "manual" | "file_import" | "hockey_sync";
 export type MatchReviewReason =
   "time_changed" | "date_changed" | "venue_changed" | "cancelled";
 
-/** Columns managed by the hockey sync engine — excluded from form inputs. */
-export type MatchSyncField =
-  | "external_id"
-  | "source"
-  | "cancelled_upstream"
-  | "needs_review"
-  | "review_reasons"
-  | "last_synced_at";
-
 export type Match = {
   id: string;
   date: string;

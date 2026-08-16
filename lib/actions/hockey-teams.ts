@@ -1,13 +1,9 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
-import { createServiceClient } from "@/lib/supabase/service";
+import { requireAuthContext, requirePlanner } from "@/lib/auth";
 import { requireTenantId } from "@/lib/tenant";
-import { isPlannerRole } from "@/lib/actions/organization-settings";
-import { createHockeyClient } from "@/lib/hockey/client";
-import { createDbCredentialStore } from "@/lib/hockey/credential-store";
+import { createHockeyDeps } from "@/lib/hockey/deps";
 import { fetchAllClubs, fetchClubDetail } from "@/lib/hockey/discovery";
-import type { DiscoveryDeps } from "@/lib/hockey/discovery";
 import type { TrackedTeam } from "@/lib/types/domain";
 
 export type ClubSearchResult = {
@@ -24,33 +20,8 @@ export type ClubTeamOption = {
   tracked: boolean;
 };
 
-async function requireAuth() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
-  return { supabase, user };
-}
-
-/**
- * All hockey-team actions are planner-gated — including read-only search —
- * so the app cannot be used as an open proxy to the upstream API.
- */
-async function requirePlanner() {
-  const auth = await requireAuth();
-  const tenantId = await requireTenantId();
-  if (!(await isPlannerRole())) throw new Error("NOT_PLANNER");
-  return { ...auth, tenantId };
-}
-
-function discoveryDeps(): DiscoveryDeps {
-  const service = createServiceClient();
-  return {
-    supabase: service,
-    client: createHockeyClient({ store: createDbCredentialStore(service) }),
-  };
-}
+// All club/team discovery is planner-gated — including read-only search —
+// so the app cannot be used as an open proxy to the upstream API.
 
 export async function searchClubs(query: string): Promise<ClubSearchResult[]> {
   await requirePlanner();
@@ -58,26 +29,26 @@ export async function searchClubs(query: string): Promise<ClubSearchResult[]> {
   const trimmed = query.trim().toLowerCase();
   if (trimmed.length < 2) return [];
 
-  const clubs = await fetchAllClubs(discoveryDeps());
+  // Upstream fields are untrusted: any of them can be null (API doc §17).
+  const clubs = await fetchAllClubs(createHockeyDeps());
   return clubs
-    .filter(
-      (club) =>
-        club.friendly_name.toLowerCase().includes(trimmed) ||
-        club.name.toLowerCase().includes(trimmed) ||
-        club.city.toLowerCase().includes(trimmed),
+    .filter((club) =>
+      [club.friendly_name, club.name, club.city].some((value) =>
+        (value ?? "").toLowerCase().includes(trimmed),
+      ),
     )
     .slice(0, 20)
     .map((club) => ({
       id: club.federation_reference_id,
-      name: club.friendly_name,
-      city: club.city,
+      name: club.friendly_name ?? club.name ?? club.federation_reference_id,
+      city: club.city ?? "",
     }));
 }
 
 export async function getClubTeams(clubId: string): Promise<ClubTeamOption[]> {
   const { supabase, tenantId } = await requirePlanner();
 
-  const detail = await fetchClubDetail(discoveryDeps(), clubId);
+  const detail = await fetchClubDetail(createHockeyDeps(), clubId);
 
   const { data: tracked, error } = await supabase
     .from("tracked_teams")
@@ -101,7 +72,7 @@ export async function getClubTeams(clubId: string): Promise<ClubTeamOption[]> {
 }
 
 export async function getTrackedTeams(): Promise<TrackedTeam[]> {
-  const { supabase } = await requireAuth();
+  const { supabase } = await requireAuthContext();
   const tenantId = await requireTenantId();
 
   const { data, error } = await supabase
@@ -125,13 +96,17 @@ export async function trackTeam(input: {
 }): Promise<TrackedTeam> {
   const { supabase, user, tenantId } = await requirePlanner();
 
+  // Trimmed like createManagedTeam trims, so an upstream name with stray
+  // whitespace cannot split into two managed teams.
+  const teamName = input.teamName.trim();
+
   // Reuse an existing managed team with the same name, or create one so the
   // existing name-based import/required-level logic applies to synced matches.
   const { data: existing, error: findError } = await supabase
     .from("managed_teams")
     .select("id")
     .eq("organization_id", tenantId)
-    .eq("name", input.teamName)
+    .eq("name", teamName)
     .maybeSingle();
   if (findError) throw new Error(findError.message);
 
@@ -140,7 +115,7 @@ export async function trackTeam(input: {
     const { data: created, error: createError } = await supabase
       .from("managed_teams")
       .insert({
-        name: input.teamName,
+        name: teamName,
         required_level: 1,
         created_by: user.id,
         organization_id: tenantId,
@@ -154,7 +129,7 @@ export async function trackTeam(input: {
         .from("managed_teams")
         .select("id")
         .eq("organization_id", tenantId)
-        .eq("name", input.teamName)
+        .eq("name", teamName)
         .single();
       if (racedError) throw new Error(racedError.message);
       managedTeamId = raced.id;
@@ -170,7 +145,7 @@ export async function trackTeam(input: {
       club_federation_reference_id: input.clubId,
       club_name: input.clubName,
       hockey_team_id: input.teamId,
-      team_name: input.teamName,
+      team_name: teamName,
       hockey_type: input.hockeyType,
       recent_poule_id: input.recentPouleId,
       managed_team_id: managedTeamId,

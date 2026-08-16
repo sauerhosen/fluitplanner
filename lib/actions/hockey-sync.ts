@@ -1,18 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
-import { createServiceClient } from "@/lib/supabase/service";
+import { requireAuthContext, requirePlanner } from "@/lib/auth";
 import { requireTenantId } from "@/lib/tenant";
-import { isPlannerRole } from "@/lib/actions/organization-settings";
-import { createHockeyClient } from "@/lib/hockey/client";
-import { createDbCredentialStore } from "@/lib/hockey/credential-store";
-import {
-  claimSyncSlot,
-  releaseSyncSlot,
-  syncOrganizationMatches,
-  type SyncResult,
-} from "@/lib/hockey/sync";
+import { createHockeyDeps } from "@/lib/hockey/deps";
+import { syncWithLease, type SyncResult } from "@/lib/hockey/sync";
 import type { HockeySyncState } from "@/lib/types/domain";
 
 const SYNC_COOLDOWN_MS = 15 * 60 * 1000;
@@ -28,42 +20,16 @@ export type SyncNowResult =
       status: "cooldown";
     };
 
-async function requireAuth() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
-  return { supabase, user };
-}
-
 export async function syncNow(): Promise<SyncNowResult> {
-  await requireAuth();
-  const tenantId = await requireTenantId();
-  if (!(await isPlannerRole())) throw new Error("NOT_PLANNER");
+  const { tenantId } = await requirePlanner();
 
-  const service = createServiceClient();
-
-  // Atomic: concurrent callers (second tab, cron overlap) lose the claim
-  // instead of running the engine twice.
-  const lease = await claimSyncSlot(service, tenantId, SYNC_COOLDOWN_MS);
-  if (!lease) {
+  const result = await syncWithLease(
+    createHockeyDeps(),
+    tenantId,
+    SYNC_COOLDOWN_MS,
+  );
+  if (result === null) {
     return { status: "cooldown" };
-  }
-
-  let result: SyncResult;
-  try {
-    result = await syncOrganizationMatches(
-      {
-        supabase: service,
-        client: createHockeyClient({ store: createDbCredentialStore(service) }),
-      },
-      tenantId,
-    );
-  } finally {
-    await releaseSyncSlot(service, tenantId, lease).catch(() => {
-      // lease self-expires; a failed release must not mask the sync error
-    });
   }
 
   revalidatePath("/protected/matches");
@@ -71,7 +37,7 @@ export async function syncNow(): Promise<SyncNowResult> {
 }
 
 export async function getSyncState(): Promise<HockeySyncState | null> {
-  const { supabase } = await requireAuth();
+  const { supabase } = await requireAuthContext();
   const tenantId = await requireTenantId();
 
   const { data, error } = await supabase
@@ -84,9 +50,7 @@ export async function getSyncState(): Promise<HockeySyncState | null> {
 }
 
 export async function clearMatchReviewFlags(matchId: string): Promise<void> {
-  const { supabase } = await requireAuth();
-  const tenantId = await requireTenantId();
-  if (!(await isPlannerRole())) throw new Error("NOT_PLANNER");
+  const { supabase, tenantId } = await requirePlanner();
 
   // cancelled_upstream stays set so the match keeps its cancelled styling
   // until the planner deletes it.

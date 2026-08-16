@@ -177,7 +177,7 @@ function defaultHandler(data: TableData): QueryHandler {
       };
     }
     if (query.table === "matches" && query.op === "select") {
-      const isNaturalLookup = query.filters.some(([f]) => f === "is");
+      const isNaturalLookup = query.filters.some(([f]) => f === "gte");
       return {
         data: isNaturalLookup
           ? (data.matchesNatural ?? [])
@@ -237,22 +237,25 @@ describe("syncOrganizationMatches", () => {
     const inserts = queries.filter(
       (q) => q.table === "matches" && q.op === "insert",
     );
+    // one bulk insert carrying all new rows
     expect(inserts).toHaveLength(1);
-    expect(inserts[0].payload).toEqual({
-      date: "2026-09-27",
-      start_time: "2026-09-27T12:45:00+02:00",
-      home_team: "VVV D1",
-      away_team: "AMVJ D1",
-      venue: "Sportpark X",
-      field: "Veld 2",
-      competition: "Hoofdklasse",
-      required_level: 2,
-      external_id: 9001,
-      source: "hockey_sync",
-      created_by: "user-1",
-      organization_id: ORG,
-      last_synced_at: expect.any(String),
-    });
+    expect(inserts[0].payload).toEqual([
+      {
+        date: "2026-09-27",
+        start_time: "2026-09-27T12:45:00+02:00",
+        home_team: "VVV D1",
+        away_team: "AMVJ D1",
+        venue: "Sportpark X",
+        field: "Veld 2",
+        competition: "Hoofdklasse",
+        required_level: 2,
+        external_id: 9001,
+        source: "hockey_sync",
+        created_by: "user-1",
+        organization_id: ORG,
+        last_synced_at: expect.any(String),
+      },
+    ]);
     expect(result.inserted).toBe(1);
     expect(result.errors).toEqual([]);
   });
@@ -270,6 +273,7 @@ describe("syncOrganizationMatches", () => {
       away_team: "AMVJ D1",
       venue: "Sportpark X",
       field: "Veld 2",
+      competition: "Hoofdklasse",
       external_id: null,
       cancelled_upstream: false,
       needs_review: false,
@@ -313,6 +317,7 @@ describe("syncOrganizationMatches", () => {
       away_team: "AMVJ D1",
       venue: "Sportpark X",
       field: "Veld 2",
+      competition: "Hoofdklasse",
       external_id: 9001,
       cancelled_upstream: false,
       needs_review: false,
@@ -356,6 +361,7 @@ describe("syncOrganizationMatches", () => {
       away_team: "AMVJ D1",
       venue: "Sportpark X",
       field: "Veld 2",
+      competition: "Hoofdklasse",
       external_id: 9001,
       cancelled_upstream: false,
       needs_review: false,
@@ -392,6 +398,7 @@ describe("syncOrganizationMatches", () => {
       away_team: "AMVJ D1",
       venue: "Sportpark X",
       field: "Veld 2",
+      competition: "Hoofdklasse",
       external_id: 9001,
       cancelled_upstream: true,
       needs_review: false, // planner already dismissed the flag
@@ -506,6 +513,173 @@ describe("syncOrganizationMatches", () => {
     expect(result).toMatchObject({ inserted: 0, updated: 0, errors: [] });
     expect(mockFetchClubDetail).not.toHaveBeenCalled();
   });
+
+  it("persists a competition-only change without flagging for review", async () => {
+    mockFetchTeamPoule.mockResolvedValue({
+      poule: {
+        id: 500,
+        matches: [apiMatch({ competition_name: "Promotieklasse" })],
+      },
+    });
+
+    const existing = {
+      id: "m-1",
+      date: "2026-09-27",
+      start_time: "2026-09-27T10:45:00+00:00",
+      home_team: "VVV D1",
+      away_team: "AMVJ D1",
+      venue: "Sportpark X",
+      field: "Veld 2",
+      competition: "Hoofdklasse",
+      external_id: 9001,
+      cancelled_upstream: false,
+      review_reasons: [],
+    };
+
+    const { result, queries } = await runSync(
+      defaultHandler({ matchesByExternal: [existing] }),
+    );
+
+    const updates = queries.filter(
+      (q) => q.table === "matches" && q.op === "update",
+    );
+    expect(updates).toHaveLength(1);
+    expect(updates[0].payload).toMatchObject({
+      competition: "Promotieklasse",
+    });
+    expect(updates[0].payload).not.toHaveProperty("needs_review");
+    expect(result.updated).toBe(1);
+    expect(result.flagged).toBe(0);
+  });
+
+  it("flags a cancellation observed after the match date has passed", async () => {
+    mockFetchTeamPoule.mockResolvedValue({
+      poule: {
+        id: 500,
+        matches: [
+          // NOW is 2026-08-15; the match was yesterday and got cancelled
+          apiMatch({ status: "cancelled", date: "2026-08-14T12:45:00+02:00" }),
+        ],
+      },
+    });
+
+    const existing = {
+      id: "m-1",
+      date: "2026-08-14",
+      start_time: "2026-08-14T10:45:00+00:00",
+      home_team: "VVV D1",
+      away_team: "AMVJ D1",
+      venue: "Sportpark X",
+      field: "Veld 2",
+      competition: "Hoofdklasse",
+      external_id: 9001,
+      cancelled_upstream: false,
+      review_reasons: [],
+    };
+
+    const { result, queries } = await runSync(
+      defaultHandler({ matchesByExternal: [existing] }),
+    );
+
+    const updates = queries.filter(
+      (q) => q.table === "matches" && q.op === "update",
+    );
+    expect(updates).toHaveLength(1);
+    expect(updates[0].payload).toMatchObject({
+      cancelled_upstream: true,
+      needs_review: true,
+    });
+    expect(result.cancelled).toBe(1);
+  });
+
+  it("re-adopts a row when upstream reissued the fixture under a new match id", async () => {
+    mockFetchTeamPoule.mockResolvedValue({
+      poule: { id: 500, matches: [apiMatch({ id: 9500 })] },
+    });
+
+    // Existing row holds a stale external id from the deleted upstream match
+    const existing = {
+      id: "m-1",
+      date: "2026-09-27",
+      start_time: "2026-09-27T10:45:00+00:00",
+      home_team: "VVV D1",
+      away_team: "AMVJ D1",
+      venue: "Sportpark X",
+      field: "Veld 2",
+      competition: "Hoofdklasse",
+      external_id: 9001,
+      cancelled_upstream: false,
+      review_reasons: [],
+    };
+
+    const { result, queries } = await runSync(
+      defaultHandler({ matchesNatural: [existing] }),
+    );
+
+    // no duplicate insert that would hit the natural-key unique constraint
+    expect(
+      queries.filter((q) => q.table === "matches" && q.op === "insert"),
+    ).toHaveLength(0);
+    const updates = queries.filter(
+      (q) => q.table === "matches" && q.op === "update",
+    );
+    expect(updates).toHaveLength(1);
+    expect(updates[0].payload).toMatchObject({ external_id: 9500 });
+    expect(result.errors).toEqual([]);
+  });
+});
+
+describe("syncWithLease", () => {
+  it("returns null without running the engine when the slot is not claimed", async () => {
+    const { client } = makeFakeSupabase((query) => {
+      if (query.table === "hockey_sync_state" && query.op === "select") {
+        return { data: { last_synced_at: new Date().toISOString() } };
+      }
+      return { data: [] };
+    });
+    const { syncWithLease } = await import("@/lib/hockey/sync");
+    const result = await syncWithLease(
+      { supabase: client as never, client: { get: vi.fn() } },
+      ORG,
+      15 * 60_000,
+    );
+    expect(result).toBeNull();
+    expect(mockFetchClubDetail).not.toHaveBeenCalled();
+  });
+
+  it("claims, runs the engine, and releases the lease with its token", async () => {
+    mockFetchTeamPoule.mockResolvedValue({ poule: { id: 500, matches: [] } });
+    const handler = defaultHandler({});
+    const { client, queries } = makeFakeSupabase((query) => {
+      if (query.table === "hockey_sync_state" && query.op === "select") {
+        return { data: { last_synced_at: null } };
+      }
+      if (query.table === "hockey_sync_state" && query.op === "update") {
+        return { data: [{ organization_id: ORG }] };
+      }
+      return handler(query);
+    });
+    const { syncWithLease } = await import("@/lib/hockey/sync");
+    const result = await syncWithLease(
+      { supabase: client as never, client: { get: vi.fn() }, now: NOW },
+      ORG,
+      15 * 60_000,
+    );
+    expect(result).not.toBeNull();
+    // last state-table update is the token-fenced lease release
+    const stateUpdates = queries.filter(
+      (q) => q.table === "hockey_sync_state" && q.op === "update",
+    );
+    const release = stateUpdates.at(-1);
+    expect(release?.payload).toEqual({
+      sync_claimed_until: new Date(0).toISOString(),
+    });
+    expect(
+      release?.filters.some(
+        ([op, col]) => op === "eq" && col === "sync_claimed_until",
+      ),
+    ).toBe(true);
+  });
 });
 
 describe("claimSyncSlot", () => {
@@ -533,13 +707,12 @@ describe("claimSyncSlot", () => {
     });
     // returns the claimed-until timestamp as the lease token
     expect(claimed).toMatch(/^\d{4}-\d{2}-\d{2}T/);
-    // ensure row → advisory cooldown read → single conditional lease update
+    // cooldown read first; the ensure-upsert is skipped when the row exists
     expect(queries.map((q) => `${q.table}:${q.op}`)).toEqual([
-      "hockey_sync_state:upsert",
       "hockey_sync_state:select",
       "hockey_sync_state:update",
     ]);
-    const lease = queries[2];
+    const lease = queries[1];
     expect(lease.filters).toContainEqual(["eq", "organization_id", ORG]);
     expect(
       lease.filters.some(
@@ -550,7 +723,26 @@ describe("claimSyncSlot", () => {
     expect(lease.payload).not.toHaveProperty("last_synced_at");
   });
 
-  it("claims when the org has never synced", async () => {
+  it("claims when the org has never synced, creating the state row first", async () => {
+    const { client, queries } = makeFakeSupabase((query) => {
+      if (query.table !== "hockey_sync_state") return {};
+      if (query.op === "select") return { data: null }; // no row yet
+      if (query.op === "update") {
+        return { data: [{ organization_id: ORG }] };
+      }
+      return {};
+    });
+    const { claimSyncSlot } = await import("@/lib/hockey/sync");
+    const claimed = await claimSyncSlot(client as never, ORG, 15 * 60_000);
+    expect(claimed).not.toBeNull();
+    expect(queries.map((q) => `${q.table}:${q.op}`)).toEqual([
+      "hockey_sync_state:select",
+      "hockey_sync_state:upsert",
+      "hockey_sync_state:update",
+    ]);
+  });
+
+  it("claims when the row exists but has never completed a sync", async () => {
     const { claimed } = await runClaim({
       lastSyncedAt: null,
       leaseRows: [{ organization_id: ORG }],
