@@ -1,5 +1,27 @@
 # Changelog
 
+## [2.9.0](https://github.com/sauerhosen/fluitplanner/compare/v2.8.3...v2.9.0) (2026-08-16)
+
+
+### Features
+
+* add daily Vercel cron for hockey match sync ([126d440](https://github.com/sauerhosen/fluitplanner/commit/126d440a726d7bebca22602ec08a2004ce354509))
+* add hockey.nl match center schema and signed API client ([43b0af0](https://github.com/sauerhosen/fluitplanner/commit/43b0af0cf41cb0c7d1a2bb9166198efb95b4d4c0))
+* add match sync engine with manual sync and review flags ([a2dac94](https://github.com/sauerhosen/fluitplanner/commit/a2dac9493de97325feb101d713d0dbd79624fda8))
+* add tracked-teams settings with club/team picker ([a94ec3f](https://github.com/sauerhosen/fluitplanner/commit/a94ec3f19664be213b4ab76c1ef9e5cf7172a135))
+* sync matches from the Hockey.nl Match Center API ([b3fc13a](https://github.com/sauerhosen/fluitplanner/commit/b3fc13a1a83f0c00f32518f578ce5b7829f2cb83))
+
+
+### Bug Fixes
+
+* address code-review findings across the hockey sync feature ([1d29a52](https://github.com/sauerhosen/fluitplanner/commit/1d29a529d27989f947be2f0afd1b5e88331b4753))
+* address Codex review findings on the sync engine and cron ([da94915](https://github.com/sauerhosen/fluitplanner/commit/da94915d4e54efed7bbbac111610c42ba544e9a8))
+* address review findings on hockey sync ([9fc9c69](https://github.com/sauerhosen/fluitplanner/commit/9fc9c69d2b47c9d3bf2a458e539c42f910331b63))
+* fence lease release with a per-claim token ([dab90ae](https://github.com/sauerhosen/fluitplanner/commit/dab90ae916bd53628d323eb56255b5ef15de392f))
+* re-check the sync cooldown under the lease ([c1979a4](https://github.com/sauerhosen/fluitplanner/commit/c1979a4e57bd3cf1c24393416ea5110546a8d7d0))
+* separate run lease from sync cooldown ([0d5a27f](https://github.com/sauerhosen/fluitplanner/commit/0d5a27fa6cfe931baa9c5ca0ba708d7310c76c82))
+* widen natural-key window to reach past-dated cancellations ([4cc4a30](https://github.com/sauerhosen/fluitplanner/commit/4cc4a3017d4073e02912c5a63a11658dc718342d))
+
 ## [2.8.3](https://github.com/sauerhosen/fluitplanner/compare/v2.8.2...v2.8.3) (2026-06-13)
 
 
