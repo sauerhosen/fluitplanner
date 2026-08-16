@@ -41,11 +41,33 @@ export async function GET(request: Request): Promise<NextResponse> {
     if (!data || data.length < ORG_PAGE_SIZE) break;
   }
 
+  // Stalest orgs first: if the run hits the maxDuration ceiling, the orgs
+  // that were cut off sort to the front of the next run instead of being
+  // starved behind the same predecessors every day.
+  const lastSyncedByOrg = new Map<string, string | null>();
+  for (let from = 0; ; from += ORG_PAGE_SIZE) {
+    const { data, error } = await supabase
+      .from("hockey_sync_state")
+      .select("organization_id, last_synced_at")
+      .order("organization_id")
+      .range(from, from + ORG_PAGE_SIZE - 1);
+    if (error) break; // ordering is best-effort; claims still gate each org
+    for (const row of data ?? []) {
+      lastSyncedByOrg.set(row.organization_id as string, row.last_synced_at);
+    }
+    if (!data || data.length < ORG_PAGE_SIZE) break;
+  }
+  const orderedOrgIds = Array.from(organizationIds).sort((a, b) => {
+    const aTime = lastSyncedByOrg.get(a) ?? "";
+    const bTime = lastSyncedByOrg.get(b) ?? "";
+    return aTime < bTime ? -1 : aTime > bTime ? 1 : 0;
+  });
+
   const results: Array<Record<string, unknown>> = [];
 
   // Sequential on purpose: keeps upstream request volume low, and the shared
   // 15-minute poule cache dedupes teams tracked by multiple orgs.
-  for (const organizationId of organizationIds) {
+  for (const organizationId of orderedOrgIds) {
     try {
       const result = await syncWithLease(
         { ...deps, pause: jitterPause },

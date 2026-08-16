@@ -218,18 +218,20 @@ export async function syncOrganizationMatches(
     errors: [],
   };
 
-  const { data: trackedTeams, error: trackedError } = await supabase
+  // Fetch one extra row so exactly MAX teams is not misreported as truncation.
+  const { data: trackedRows, error: trackedError } = await supabase
     .from("tracked_teams")
     .select("*")
     .eq("organization_id", organizationId)
     .order("created_at")
-    .limit(MAX_TRACKED_TEAMS);
+    .limit(MAX_TRACKED_TEAMS + 1);
   if (trackedError) throw new Error(trackedError.message);
 
-  if (!trackedTeams || trackedTeams.length === 0) {
+  if (!trackedRows || trackedRows.length === 0) {
     return result;
   }
-  if (trackedTeams.length === MAX_TRACKED_TEAMS) {
+  const trackedTeams = trackedRows.slice(0, MAX_TRACKED_TEAMS);
+  if (trackedRows.length > MAX_TRACKED_TEAMS) {
     result.errors.push(
       `Tracked team limit reached: only the first ${MAX_TRACKED_TEAMS} teams are synced`,
     );
@@ -447,6 +449,35 @@ export async function syncOrganizationMatches(
           result.inserted++;
         }
       }
+    }
+  }
+
+  // A previously confirmed time can be retracted upstream (back to
+  // "announced" at midnight). The stale time must not stand unflagged —
+  // planners would staff a match on a withdrawn time. Clear it and flag;
+  // an already-null start_time keeps subsequent syncs idempotent.
+  const awaiting = collected.filter(
+    ({ fixture }) =>
+      !CANCELLED_STATUSES.has(fixture.status) && !fixture.timeConfirmed,
+  );
+  for (const { fixture } of awaiting) {
+    const existing = byExternal.get(fixture.matchId);
+    if (!existing || existing.start_time === null) continue;
+
+    const { error } = await supabase
+      .from("matches")
+      .update({
+        start_time: null,
+        needs_review: true,
+        review_reasons: mergeReasons(existing.review_reasons, ["time_changed"]),
+        last_synced_at: syncedAt,
+      })
+      .eq("id", existing.id);
+    if (error) {
+      result.errors.push(`Match ${fixture.matchId}: ${error.message}`);
+    } else {
+      result.updated++;
+      result.flagged++;
     }
   }
 

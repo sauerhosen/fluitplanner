@@ -592,6 +592,82 @@ describe("syncOrganizationMatches", () => {
     expect(result.cancelled).toBe(1);
   });
 
+  it("clears and flags the time when a confirmed fixture reverts to TBD", async () => {
+    mockFetchTeamPoule.mockResolvedValue({
+      poule: {
+        id: 500,
+        matches: [
+          // previously confirmed, now announced with a midnight placeholder
+          apiMatch({ status: "announced", date: "2026-09-27T00:00:00+02:00" }),
+        ],
+      },
+    });
+
+    const existing = {
+      id: "m-1",
+      date: "2026-09-27",
+      start_time: "2026-09-27T10:45:00+00:00", // the retracted confirmed time
+      home_team: "VVV D1",
+      away_team: "AMVJ D1",
+      venue: "Sportpark X",
+      field: "Veld 2",
+      competition: "Hoofdklasse",
+      external_id: 9001,
+      cancelled_upstream: false,
+      review_reasons: [],
+    };
+
+    const { result, queries } = await runSync(
+      defaultHandler({ matchesByExternal: [existing] }),
+    );
+
+    const updates = queries.filter(
+      (q) => q.table === "matches" && q.op === "update",
+    );
+    expect(updates).toHaveLength(1);
+    expect(updates[0].payload).toMatchObject({
+      start_time: null,
+      needs_review: true,
+      review_reasons: ["time_changed"],
+    });
+    expect(result.flagged).toBe(1);
+    expect(result.awaitingTime).toBe(1);
+  });
+
+  it("does not re-flag a TBD fixture whose time is already cleared", async () => {
+    mockFetchTeamPoule.mockResolvedValue({
+      poule: {
+        id: 500,
+        matches: [
+          apiMatch({ status: "announced", date: "2026-09-27T00:00:00+02:00" }),
+        ],
+      },
+    });
+
+    const existing = {
+      id: "m-1",
+      date: "2026-09-27",
+      start_time: null, // already cleared on a previous sync
+      home_team: "VVV D1",
+      away_team: "AMVJ D1",
+      venue: "Sportpark X",
+      field: "Veld 2",
+      competition: "Hoofdklasse",
+      external_id: 9001,
+      cancelled_upstream: false,
+      review_reasons: [],
+    };
+
+    const { result, queries } = await runSync(
+      defaultHandler({ matchesByExternal: [existing] }),
+    );
+
+    expect(
+      queries.filter((q) => q.table === "matches" && q.op === "update"),
+    ).toHaveLength(0);
+    expect(result.flagged).toBe(0);
+  });
+
   it("resolves a past-dated cancellation with a reissued match id via the widened natural-key window", async () => {
     mockFetchTeamPoule.mockResolvedValue({
       poule: {

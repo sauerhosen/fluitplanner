@@ -2,13 +2,16 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const mockSyncWithLease = vi.fn();
 const mockRange = vi.fn();
+const mockStateRange = vi.fn();
 
 vi.mock("@/lib/hockey/deps", () => ({
   createHockeyDeps: vi.fn(() => ({
     supabase: {
-      from: vi.fn(() => ({
+      from: vi.fn((table: string) => ({
         select: vi.fn().mockReturnValue({
-          order: vi.fn().mockReturnValue({ range: mockRange }),
+          order: vi.fn().mockReturnValue({
+            range: table === "tracked_teams" ? mockRange : mockStateRange,
+          }),
         }),
       })),
     },
@@ -37,6 +40,7 @@ beforeEach(() => {
     ],
     error: null,
   });
+  mockStateRange.mockResolvedValue({ data: [], error: null });
   mockSyncWithLease.mockResolvedValue({
     inserted: 1,
     updated: 0,
@@ -144,6 +148,28 @@ describe("GET /api/cron/hockey-sync", () => {
     expect(body.results).toContainEqual(
       expect.objectContaining({ organizationId: "org-1", skipped: true }),
     );
+  });
+
+  it("processes the stalest org first", async () => {
+    mockStateRange.mockResolvedValue({
+      data: [
+        {
+          organization_id: "org-1",
+          last_synced_at: "2026-08-15T00:00:00Z",
+        },
+        {
+          organization_id: "org-2",
+          last_synced_at: "2026-08-01T00:00:00Z", // stalest → first
+        },
+      ],
+      error: null,
+    });
+
+    const { GET } = await import("@/app/api/cron/hockey-sync/route");
+    await GET(makeRequest("Bearer test-secret"));
+
+    const orgs = mockSyncWithLease.mock.calls.map(([, orgId]) => orgId);
+    expect(orgs).toEqual(["org-2", "org-1"]);
   });
 
   it("returns 500 when the org enumeration fails", async () => {
