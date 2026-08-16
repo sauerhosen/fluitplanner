@@ -9,6 +9,7 @@ import type {
   Assignment,
   Umpire,
 } from "@/lib/types/domain";
+import { matchSyncDefaults } from "@/__tests__/helpers/fixtures";
 
 // Mock server actions
 vi.mock("@/lib/actions/assignments", () => ({
@@ -26,6 +27,7 @@ vi.mock("sonner", () => ({
 
 const mockMatches: Match[] = [
   {
+    ...matchSyncDefaults,
     id: "m1",
     date: "2026-03-15",
     start_time: "2026-03-15T11:00:00Z",
@@ -40,6 +42,7 @@ const mockMatches: Match[] = [
     organization_id: "test-org-id",
   },
   {
+    ...matchSyncDefaults,
     id: "m2",
     date: "2026-03-15",
     start_time: "2026-03-15T14:30:00Z",

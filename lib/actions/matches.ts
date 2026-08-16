@@ -45,7 +45,7 @@ export async function upsertMatches(
 
     const { data: existing } = await supabase
       .from("matches")
-      .select("id")
+      .select("id, source")
       .eq("date", match.date)
       .eq("home_team", match.home_team)
       .eq("away_team", match.away_team)
@@ -53,20 +53,29 @@ export async function upsertMatches(
       .maybeSingle();
 
     if (existing) {
+      // Sync-owned rows: the Match Center is the authority on schedule
+      // fields; a file import may only adjust required_level. Otherwise the
+      // import and the nightly sync would flap over the same columns.
+      const updates =
+        existing.source === "hockey_sync"
+          ? { required_level: row.required_level }
+          : {
+              start_time: row.start_time,
+              venue: row.venue,
+              field: row.field,
+              required_level: row.required_level,
+              competition: row.competition,
+            };
       const { error } = await supabase
         .from("matches")
-        .update({
-          start_time: row.start_time,
-          venue: row.venue,
-          field: row.field,
-          required_level: row.required_level,
-          competition: row.competition,
-        })
+        .update(updates)
         .eq("id", existing.id);
       if (error) throw new Error(error.message);
       updated++;
     } else {
-      const { error } = await supabase.from("matches").insert(row);
+      const { error } = await supabase
+        .from("matches")
+        .insert({ ...row, source: "file_import" });
       if (error) throw new Error(error.message);
       inserted++;
     }
@@ -184,9 +193,34 @@ export async function getMatches(
   }));
 }
 
-export async function createMatch(
-  match: Omit<Match, "id" | "created_by" | "created_at" | "organization_id">,
-): Promise<Match> {
+// Server actions are network endpoints — a type alone cannot stop callers
+// from sending engine-managed sync columns (external_id, needs_review, …),
+// so the runtime allowlist is the single source of truth and the input type
+// is derived from it.
+const MATCH_FORM_FIELDS = [
+  "date",
+  "start_time",
+  "home_team",
+  "away_team",
+  "competition",
+  "venue",
+  "field",
+  "required_level",
+] as const;
+
+type MatchFormInput = Pick<Match, (typeof MATCH_FORM_FIELDS)[number]>;
+
+function pickMatchFormFields(
+  input: Partial<MatchFormInput>,
+): Partial<MatchFormInput> {
+  const picked: Record<string, unknown> = {};
+  for (const key of MATCH_FORM_FIELDS) {
+    if (key in input) picked[key] = input[key];
+  }
+  return picked as Partial<MatchFormInput>;
+}
+
+export async function createMatch(match: MatchFormInput): Promise<Match> {
   const supabase = await createClient();
   const {
     data: { user },
@@ -196,7 +230,11 @@ export async function createMatch(
 
   const { data, error } = await supabase
     .from("matches")
-    .insert({ ...match, created_by: user.id, organization_id: tenantId })
+    .insert({
+      ...pickMatchFormFields(match),
+      created_by: user.id,
+      organization_id: tenantId,
+    })
     .select()
     .single();
 
@@ -206,9 +244,7 @@ export async function createMatch(
 
 export async function updateMatch(
   id: string,
-  updates: Partial<
-    Omit<Match, "id" | "created_by" | "created_at" | "organization_id">
-  >,
+  updates: Partial<MatchFormInput>,
 ): Promise<Match> {
   const supabase = await createClient();
   const {
@@ -219,7 +255,7 @@ export async function updateMatch(
 
   const { data, error } = await supabase
     .from("matches")
-    .update(updates)
+    .update(pickMatchFormFields(updates))
     .eq("id", id)
     .eq("organization_id", tenantId)
     .select()

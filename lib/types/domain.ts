@@ -1,3 +1,8 @@
+export type MatchSource = "manual" | "file_import" | "hockey_sync";
+
+export type MatchReviewReason =
+  "time_changed" | "date_changed" | "venue_changed" | "cancelled";
+
 export type Match = {
   id: string;
   date: string;
@@ -11,6 +16,12 @@ export type Match = {
   created_by: string;
   created_at: string;
   organization_id: string;
+  external_id: number | null;
+  source: MatchSource;
+  cancelled_upstream: boolean;
+  needs_review: boolean;
+  review_reasons: MatchReviewReason[];
+  last_synced_at: string | null;
 };
 
 export type Poll = {
@@ -142,6 +153,32 @@ export type SubmitResponsesResult =
       status: "partial_saved";
       blockedSlots: { slotId: string; matchLabels: string[] }[];
     };
+
+export type TrackedTeam = {
+  id: string;
+  organization_id: string;
+  club_federation_reference_id: string;
+  club_name: string;
+  hockey_team_id: number;
+  team_name: string;
+  hockey_type: string | null;
+  recent_poule_id: number | null;
+  managed_team_id: string | null;
+  created_by: string;
+  created_at: string;
+};
+
+export type HockeySyncState = {
+  organization_id: string;
+  last_synced_at: string | null;
+  last_sync_status: "success" | "partial" | "error" | null;
+  last_sync_error: string | null;
+  last_inserted: number;
+  last_updated: number;
+  last_flagged: number;
+  awaiting_time_count: number;
+  updated_at: string;
+};
 
 /** Move PollAssignmentContext into domain types for consistency. */
 export type AssignedSlotInfo = {

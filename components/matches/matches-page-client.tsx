@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useCallback, useMemo } from "react";
-import type { ManagedTeam } from "@/lib/types/domain";
+import type { ManagedTeam, HockeySyncState } from "@/lib/types/domain";
 import type { MatchFilters, MatchWithPoll } from "@/lib/actions/matches";
 import { getMatches } from "@/lib/actions/matches";
 import { getPollOptions } from "@/lib/actions/polls";
 import { UploadZone } from "./upload-zone";
 import { MatchTable } from "./match-table";
+import { SyncNowButton } from "./sync-now-button";
 import { MatchFormDialog } from "./match-form";
 import { PollActionButtons } from "./poll-action-buttons";
 import { DateRangePicker } from "@/components/shared/date-range-picker";
@@ -33,10 +34,16 @@ export function MatchesPageClient({
   initialMatches,
   managedTeams,
   polls,
+  syncState = null,
+  showSync = false,
+  isPlanner = false,
 }: {
   initialMatches: MatchWithPoll[];
   managedTeams: ManagedTeam[];
   polls: { id: string; title: string | null; status: string }[];
+  syncState?: HockeySyncState | null;
+  showSync?: boolean;
+  isPlanner?: boolean;
 }) {
   const [matches, setMatches] = useState(initialMatches);
   const [currentPolls, setCurrentPolls] = useState(polls);
@@ -166,7 +173,10 @@ export function MatchesPageClient({
           </SelectContent>
         </Select>
         <DateRangePicker value={dateRange} onChange={handleDateRangeChange} />
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-3">
+          {showSync && (
+            <SyncNowButton initialState={syncState} onSynced={refreshMatches} />
+          )}
           <Button onClick={() => setShowAddDialog(true)}>
             <Plus className="mr-2 h-4 w-4" />
             {t("addMatch")}
@@ -178,6 +188,7 @@ export function MatchesPageClient({
         matches={matches}
         onEdit={(match) => setEditingMatch(match)}
         onDeleted={refreshMatches}
+        canDismissReview={isPlanner}
         toolbarActions={(selectedIds, clearSelection) => (
           <PollActionButtons
             selectedIds={selectedIds}

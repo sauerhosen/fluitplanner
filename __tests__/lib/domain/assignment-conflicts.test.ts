@@ -1,9 +1,11 @@
 import { describe, it, expect } from "vitest";
 import { findConflicts } from "@/lib/domain/assignment-conflicts";
 import type { Match, Assignment } from "@/lib/types/domain";
+import { matchSyncDefaults } from "@/__tests__/helpers/fixtures";
 
 function makeMatch(overrides: Partial<Match> & { id: string }): Match {
   return {
+    ...matchSyncDefaults,
     date: "2026-03-15",
     start_time: "2026-03-15T11:00:00Z",
     home_team: "Team A",

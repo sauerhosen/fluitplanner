@@ -7,11 +7,21 @@ import {
 } from "@/lib/actions/organization-settings";
 import { ManagedTeamsList } from "@/components/settings/managed-teams-list";
 import { AvailabilityLockSetting } from "@/components/settings/availability-lock-setting";
+import { HockeySyncSettings } from "@/components/settings/hockey-sync-settings";
+import { getTrackedTeams } from "@/lib/actions/hockey-teams";
 import { getTranslations } from "next-intl/server";
 
 async function ManagedTeamsLoader() {
   const teams = await getManagedTeams();
   return <ManagedTeamsList initialTeams={teams} />;
+}
+
+async function HockeySyncLoader() {
+  const [teams, canEdit] = await Promise.all([
+    getTrackedTeams(),
+    isPlannerRole(),
+  ]);
+  return <HockeySyncSettings initialTeams={teams} canEdit={canEdit} />;
 }
 
 async function AvailabilityLockLoader() {
@@ -39,6 +49,14 @@ export default async function SettingsPage() {
         <h2 className="mb-4 text-lg font-semibold">{t("managedTeams")}</h2>
         <Suspense fallback={<TableSkeleton rows={3} cols={3} />}>
           <ManagedTeamsLoader />
+        </Suspense>
+      </div>
+      <div>
+        <h2 className="mb-4 text-lg font-semibold">{t("hockeySyncTitle")}</h2>
+        <Suspense
+          fallback={<div className="bg-muted h-24 animate-pulse rounded-md" />}
+        >
+          <HockeySyncLoader />
         </Suspense>
       </div>
       <div>

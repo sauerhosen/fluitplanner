@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { matchSyncDefaults } from "@/__tests__/helpers/fixtures";
 import {
   prepareResponseExport,
   prepareAssignmentExport,
@@ -253,6 +254,7 @@ describe("prepareResponseExport", () => {
 
 describe("prepareAssignmentExport", () => {
   const baseMatch: Match = {
+    ...matchSyncDefaults,
     id: "m1",
     date: "2026-03-15",
     start_time: "2026-03-15T14:00:00Z",
@@ -457,6 +459,7 @@ describe("prepareAssignmentExport", () => {
 
 describe("prepareDaySheetExport", () => {
   const baseMatch: Match = {
+    ...matchSyncDefaults,
     id: "m1",
     date: "2026-03-15",
     start_time: "2026-03-15T14:00:00Z",
