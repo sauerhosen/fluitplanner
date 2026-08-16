@@ -707,10 +707,12 @@ describe("claimSyncSlot", () => {
     });
     // returns the claimed-until timestamp as the lease token
     expect(claimed).toMatch(/^\d{4}-\d{2}-\d{2}T/);
-    // cooldown read first; the ensure-upsert is skipped when the row exists
+    // cooldown pre-check → lease claim → cooldown re-check under the lease
+    // (the ensure-upsert is skipped when the row exists)
     expect(queries.map((q) => `${q.table}:${q.op}`)).toEqual([
       "hockey_sync_state:select",
       "hockey_sync_state:update",
+      "hockey_sync_state:select",
     ]);
     const lease = queries[1];
     expect(lease.filters).toContainEqual(["eq", "organization_id", ORG]);
@@ -739,7 +741,41 @@ describe("claimSyncSlot", () => {
       "hockey_sync_state:select",
       "hockey_sync_state:upsert",
       "hockey_sync_state:update",
+      "hockey_sync_state:select",
     ]);
+  });
+
+  it("releases and returns null when another run completed between pre-check and claim", async () => {
+    // Regression for the stale-read race: caller A pre-checks an expired
+    // cooldown, caller B claims + completes + releases, then A claims the
+    // freed lease. The re-check under the lease must reject A's run.
+    let selectCount = 0;
+    const { client, queries } = makeFakeSupabase((query) => {
+      if (query.table !== "hockey_sync_state") return {};
+      if (query.op === "select") {
+        selectCount++;
+        return {
+          data: {
+            last_synced_at:
+              selectCount === 1
+                ? new Date(Date.now() - 16 * 60_000).toISOString() // stale read: expired
+                : new Date().toISOString(), // B completed meanwhile
+          },
+        };
+      }
+      if (query.op === "update") return { data: [{ organization_id: ORG }] };
+      return {};
+    });
+    const { claimSyncSlot } = await import("@/lib/hockey/sync");
+    const claimed = await claimSyncSlot(client as never, ORG, 15 * 60_000);
+
+    expect(claimed).toBeNull();
+    // the accidentally acquired lease is released again (token-fenced)
+    const updates = queries.filter((q) => q.op === "update");
+    expect(updates).toHaveLength(2);
+    expect(updates[1].payload).toEqual({
+      sync_claimed_until: new Date(0).toISOString(),
+    });
   });
 
   it("claims when the row exists but has never completed a sync", async () => {

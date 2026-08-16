@@ -31,15 +31,29 @@ const MAX_TRACKED_TEAMS = 50;
 /** How long a claimed run lease lasts before it self-expires (crash safety). */
 const SYNC_LEASE_MS = 10 * 60 * 1000;
 
+function withinCooldown(
+  lastSyncedAt: string | null | undefined,
+  windowMs: number,
+): boolean {
+  return (
+    !!lastSyncedAt && Date.now() - new Date(lastSyncedAt).getTime() < windowMs
+  );
+}
+
 /**
  * Claim the right to sync an organization. Two layers:
  *
- * 1. Cooldown (advisory read): last_synced_at within windowMs → no claim.
- *    Only the engine's final state upsert advances last_synced_at, so a run
- *    that throws mid-way does not count as a completed sync.
+ * 1. Cooldown: last_synced_at within windowMs → no claim. Only the engine's
+ *    final state upsert advances last_synced_at, so a run that throws
+ *    mid-way does not count as a completed sync.
  * 2. Lease (atomic): sync_claimed_until is advanced into the future with a
  *    single conditional update — concurrent callers serialize on the row
  *    lock and exactly one wins. A crashed run's lease expires on its own.
+ *
+ * The cooldown is checked twice: a cheap pre-check, and again after the
+ * lease is held. The lease serializes all last_synced_at writers, so the
+ * post-claim read cannot be stale — this closes the race where a caller
+ * with a stale pre-check claims a lease another run just released.
  *
  * Returns a lease token (the claimed-until timestamp) on success, null when
  * the cooldown is active or another run holds the lease. Callers must
@@ -69,10 +83,7 @@ export async function claimSyncSlot(
         { onConflict: "organization_id", ignoreDuplicates: true },
       );
     if (ensureError) throw new Error(ensureError.message);
-  } else if (
-    state.last_synced_at &&
-    Date.now() - new Date(state.last_synced_at).getTime() < windowMs
-  ) {
+  } else if (withinCooldown(state.last_synced_at, windowMs)) {
     return null;
   }
 
@@ -88,7 +99,24 @@ export async function claimSyncSlot(
     .lt("sync_claimed_until", new Date(now).toISOString())
     .select("organization_id");
   if (claimError) throw new Error(claimError.message);
-  return (claimed ?? []).length > 0 ? leaseToken : null;
+  if ((claimed ?? []).length === 0) return null;
+
+  // Re-check under the lease: another run may have completed (advancing
+  // last_synced_at) between the pre-check and our claim.
+  const { data: recheck, error: recheckError } = await supabase
+    .from("hockey_sync_state")
+    .select("last_synced_at")
+    .eq("organization_id", organizationId)
+    .maybeSingle();
+  if (recheckError || withinCooldown(recheck?.last_synced_at, windowMs)) {
+    await releaseSyncSlot(supabase, organizationId, leaseToken).catch(() => {
+      // lease self-expires
+    });
+    if (recheckError) throw new Error(recheckError.message);
+    return null;
+  }
+
+  return leaseToken;
 }
 
 /**
