@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.10.0](https://github.com/sauerhosen/fluitplanner/compare/v2.9.0...v2.10.0) (2026-08-17)
+
+
+### Features
+
+* add Open Graph metadata and dynamic link-preview images ([eab0807](https://github.com/sauerhosen/fluitplanner/commit/eab0807ca25478856e141b1bc3d851f51983bac3))
+* add Open Graph metadata and dynamic link-preview images ([b50da73](https://github.com/sauerhosen/fluitplanner/commit/b50da7328e1d2211e818b38692556b1d5bd6502a))
+
+
+### Bug Fixes
+
+* broaden proxy matcher to skip metadata-image routes at any nesting level ([705d5a0](https://github.com/sauerhosen/fluitplanner/commit/705d5a0bcf8b079102bc71ada7a4cb121e995b65))
+
 ## [2.9.0](https://github.com/sauerhosen/fluitplanner/compare/v2.8.3...v2.9.0) (2026-08-16)
 
 
