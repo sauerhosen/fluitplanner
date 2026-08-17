@@ -295,6 +295,8 @@
     "pollClosedTitle": "Poll closed",
     "pollClosedDescription": "This poll is no longer accepting responses.",
     "defaultPollTitle": "Availability Poll",
+    "metaTitle": "{clubName, select, none {{pollTitle}} other {{pollTitle} — {clubName}}}",
+    "metaDescription": "{clubName, select, none {Open the poll and mark your availability.} other {{clubName} needs to know when you can umpire. Open the poll and mark your availability before the deadline.}}",
     "noSlotsDescription": "This poll has no time slots yet.",
     "enterEmailPrompt": "Enter your email to fill in your availability.",
     "respondingAs": "Responding as {name}",
