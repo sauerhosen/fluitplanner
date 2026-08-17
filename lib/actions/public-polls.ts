@@ -1,5 +1,6 @@
 "use server";
 
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { mapMatchesToSlots } from "@/lib/domain/match-slot-mapping";
@@ -33,33 +34,69 @@ export type ResponseInput = {
 /*  getPollByToken                                                     */
 /* ------------------------------------------------------------------ */
 
-export async function getPollByToken(
-  token: string,
-): Promise<PublicPollData | null> {
-  const supabase = await createClient();
+export const getPollByToken = cache(
+  async (token: string): Promise<PublicPollData | null> => {
+    const supabase = await createClient();
 
-  let query = supabase.from("polls").select("*").eq("token", token);
+    let query = supabase.from("polls").select("*").eq("token", token);
 
-  // Add organization scoping if tenant context is available (defense in depth)
-  const tenantId = await getTenantId();
-  if (tenantId) {
-    query = query.eq("organization_id", tenantId);
-  }
+    // Add organization scoping if tenant context is available (defense in depth)
+    const tenantId = await getTenantId();
+    if (tenantId) {
+      query = query.eq("organization_id", tenantId);
+    }
 
-  const { data: poll, error: pollError } = await query.single();
+    const { data: poll, error: pollError } = await query.single();
 
-  if (pollError || !poll) return null;
+    if (pollError || !poll) return null;
 
-  const { data: slots, error: slotsError } = await supabase
-    .from("poll_slots")
-    .select("*")
-    .eq("poll_id", poll.id)
-    .order("start_time");
+    const { data: slots, error: slotsError } = await supabase
+      .from("poll_slots")
+      .select("*")
+      .eq("poll_id", poll.id)
+      .order("start_time");
 
-  if (slotsError) return null;
+    if (slotsError) return null;
 
-  return { poll, slots: slots ?? [] };
-}
+    return { poll, slots: slots ?? [] };
+  },
+);
+
+/* ------------------------------------------------------------------ */
+/*  getPollMeta                                                        */
+/* ------------------------------------------------------------------ */
+
+export type PollMeta = {
+  title: string | null;
+  status: Poll["status"];
+  clubName: string | null;
+};
+
+/**
+ * Poll title + club name for link-preview metadata (generateMetadata,
+ * opengraph-image). Uses the service client for the org name lookup because
+ * poll respondents are anonymous and `organizations` RLS only allows
+ * authenticated reads.
+ */
+export const getPollMeta = cache(
+  async (token: string): Promise<PollMeta | null> => {
+    const data = await getPollByToken(token);
+    if (!data) return null;
+
+    const serviceClient = createServiceClient();
+    const { data: org } = await serviceClient
+      .from("organizations")
+      .select("name")
+      .eq("id", data.poll.organization_id)
+      .single();
+
+    return {
+      title: data.poll.title,
+      status: data.poll.status,
+      clubName: org?.name ?? null,
+    };
+  },
+);
 
 /* ------------------------------------------------------------------ */
 /*  findOrCreateUmpire                                                 */

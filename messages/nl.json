@@ -295,6 +295,8 @@
     "pollClosedTitle": "Peiling gesloten",
     "pollClosedDescription": "Deze peiling accepteert geen reacties meer.",
     "defaultPollTitle": "Beschikbaarheidspeiling",
+    "metaTitle": "{clubName, select, none {{pollTitle}} other {{pollTitle} — {clubName}}}",
+    "metaDescription": "{clubName, select, none {Open de peiling en geef je beschikbaarheid door.} other {{clubName} wil weten wanneer jij kunt fluiten. Open de peiling en geef je beschikbaarheid door voor de deadline.}}",
     "noSlotsDescription": "Deze peiling heeft nog geen tijdsloten.",
     "enterEmailPrompt": "Vul je e-mailadres in om je beschikbaarheid op te geven.",
     "respondingAs": "Je reageert als {name}",
