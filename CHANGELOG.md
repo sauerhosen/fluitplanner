@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.10.1](https://github.com/sauerhosen/fluitplanner/compare/v2.10.0...v2.10.1) (2026-08-17)
+
+
+### Bug Fixes
+
+* resolve metadata URLs against production domain, not VERCEL_URL ([62936b1](https://github.com/sauerhosen/fluitplanner/commit/62936b1a9d10f0304bb77b24f081b244599e2b32))
+* resolve metadata URLs against production domain, not VERCEL_URL ([b0fd96b](https://github.com/sauerhosen/fluitplanner/commit/b0fd96b520a3d80801b9459103a7bf0c76377b53))
+
 ## [2.10.0](https://github.com/sauerhosen/fluitplanner/compare/v2.9.0...v2.10.0) (2026-08-17)
 
 
