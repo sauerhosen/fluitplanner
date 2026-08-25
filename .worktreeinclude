@@ -1,0 +1,17 @@
+# Gitignored files copied into every new Orca worktree.
+# Literal paths only. Each must exist in the primary checkout and be gitignored,
+# otherwise it is silently skipped.
+
+# App + local Supabase credentials. Without this, `next dev` in a worktree fails
+# with "Your project's URL and Key are required to create a Supabase client!"
+.env.local
+
+# Supabase CLI project link. Without these, CLI commands that talk to the remote
+# project (`supabase db dump`, i.e. `npm run supabase:seed`) fail with
+# "Cannot find project ref. Have you run supabase link?".
+# Only the link metadata is copied — not the volatile runtime state in
+# supabase/.temp (container versions, start-secrets), which each worktree
+# should manage on its own.
+supabase/.temp/project-ref
+supabase/.temp/linked-project.json
+supabase/.temp/pooler-url
