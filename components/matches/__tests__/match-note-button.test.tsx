@@ -61,6 +61,15 @@ describe("MatchNoteButton", () => {
     expect(screen.getByRole("button")).toBeInTheDocument();
   });
 
+  it("gives the note editor an accessible name", async () => {
+    const user = userEvent.setup();
+    render(<MatchNoteButton match={match} variant="editor" />);
+
+    await user.click(screen.getByRole("button", { name: /Umpire X/ }));
+
+    expect(screen.getByRole("textbox", { name: "Notes" })).toBeInTheDocument();
+  });
+
   it("saves an edited note and reports it back", async () => {
     const user = userEvent.setup();
     const onSaved = vi.fn();

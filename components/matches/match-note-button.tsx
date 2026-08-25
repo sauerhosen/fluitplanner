@@ -118,6 +118,7 @@ export function MatchNoteButton({
               onChange={(e) => setDraft(e.target.value)}
               rows={4}
               maxLength={2000}
+              aria-label={t("notesLabel")}
               placeholder={t("notesPlaceholder")}
               autoFocus
             />
