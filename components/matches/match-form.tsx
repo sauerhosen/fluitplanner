@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -47,6 +48,7 @@ export function MatchFormDialog({
   const [venue, setVenue] = useState(match?.venue ?? "");
   const [field, setField] = useState(match?.field ?? "");
   const [competition, setCompetition] = useState(match?.competition ?? "");
+  const [notes, setNotes] = useState(match?.notes ?? "");
   const [requiredLevel, setRequiredLevel] = useState<string>(
     String(match?.required_level ?? 1),
   );
@@ -68,6 +70,7 @@ export function MatchFormDialog({
         venue: venue || null,
         field: field || null,
         competition: competition || null,
+        notes: notes.trim() || null,
         required_level: Number(requiredLevel) as 1 | 2 | 3,
       };
 
@@ -176,6 +179,18 @@ export function MatchFormDialog({
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="notes">{t("notesLabel")}</Label>
+            <Textarea
+              id="notes"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={3}
+              maxLength={2000}
+              placeholder={t("notesPlaceholder")}
+            />
           </div>
 
           <div className="flex justify-end gap-2">

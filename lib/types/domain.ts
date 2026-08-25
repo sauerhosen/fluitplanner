@@ -12,6 +12,7 @@ export type Match = {
   competition: string | null;
   venue: string | null;
   field: string | null;
+  notes: string | null;
   required_level: 1 | 2 | 3;
   created_by: string;
   created_at: string;

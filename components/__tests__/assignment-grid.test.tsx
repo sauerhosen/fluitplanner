@@ -1,4 +1,5 @@
 import { screen, fireEvent } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { render } from "@/__tests__/helpers/render";
 import { describe, it, expect, vi } from "vitest";
 import { AssignmentGrid } from "@/components/polls/assignment-grid";
@@ -12,6 +13,10 @@ import type {
 import { matchSyncDefaults } from "@/__tests__/helpers/fixtures";
 
 // Mock server actions
+vi.mock("@/lib/actions/matches", () => ({
+  updateMatchNotes: vi.fn(),
+}));
+
 vi.mock("@/lib/actions/assignments", () => ({
   createAssignment: vi.fn(),
   deleteAssignment: vi.fn(),
@@ -36,6 +41,7 @@ const mockMatches: Match[] = [
     competition: "Hoofdklasse",
     venue: "Wagener",
     field: "1",
+    notes: null,
     required_level: 2,
     created_by: "user-1",
     created_at: "2026-01-01T00:00:00Z",
@@ -51,6 +57,7 @@ const mockMatches: Match[] = [
     competition: "Eerste Klasse",
     venue: "Galgenwaard",
     field: "2",
+    notes: null,
     required_level: 1,
     created_by: "user-1",
     created_at: "2026-01-01T00:00:00Z",
@@ -237,5 +244,52 @@ describe("AssignmentGrid", () => {
 
     // In transposed view, the first column header is "Umpire"
     expect(screen.getByText("Umpire")).toBeInTheDocument();
+  });
+
+  it("shows no note icon for matches without notes", () => {
+    render(<AssignmentGrid {...defaultProps} />);
+
+    expect(
+      screen.queryByRole("button", { name: /Don't assign Piet/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows a note icon carrying the note for matches that have one", () => {
+    const withNote = [
+      { ...mockMatches[0], notes: "Don't assign Piet" },
+      mockMatches[1],
+    ];
+    render(<AssignmentGrid {...defaultProps} matches={withNote} />);
+
+    expect(
+      screen.getByRole("button", { name: "Don't assign Piet" }),
+    ).toBeInTheDocument();
+  });
+
+  it("reveals the note on hover in the assignment grid", async () => {
+    const user = userEvent.setup();
+    const withNote = [
+      { ...mockMatches[0], notes: "Don't assign Piet" },
+      mockMatches[1],
+    ];
+    render(<AssignmentGrid {...defaultProps} matches={withNote} />);
+
+    await user.hover(screen.getByRole("button", { name: "Don't assign Piet" }));
+
+    expect(await screen.findByRole("tooltip")).toHaveTextContent(
+      "Don't assign Piet",
+    );
+  });
+
+  it("shows the note icon in the transposed view too", () => {
+    const withNote = [
+      { ...mockMatches[0], notes: "Don't assign Piet" },
+      mockMatches[1],
+    ];
+    render(<AssignmentGrid {...defaultProps} matches={withNote} transposed />);
+
+    expect(
+      screen.getByRole("button", { name: "Don't assign Piet" }),
+    ).toBeInTheDocument();
   });
 });

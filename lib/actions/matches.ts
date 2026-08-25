@@ -205,6 +205,7 @@ const MATCH_FORM_FIELDS = [
   "competition",
   "venue",
   "field",
+  "notes",
   "required_level",
 ] as const;
 
@@ -263,6 +264,23 @@ export async function updateMatch(
 
   if (error) throw new Error(error.message);
   return data;
+}
+
+/**
+ * Set or clear the planner note on a match.
+ *
+ * A blank body clears the note (stored as NULL) rather than an empty string,
+ * so "has a note" stays a single check everywhere it is rendered.
+ */
+export async function updateMatchNotes(
+  id: string,
+  notes: string,
+): Promise<Match> {
+  const trimmed = notes.trim();
+  if (trimmed.length > 2000)
+    throw new Error("Note cannot be longer than 2000 characters");
+
+  return updateMatch(id, { notes: trimmed || null });
 }
 
 export async function deleteMatch(id: string): Promise<void> {

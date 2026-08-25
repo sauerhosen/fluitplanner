@@ -17,6 +17,7 @@ import type {
   Assignment,
   Umpire,
 } from "@/lib/types/domain";
+import { MatchNoteButton } from "@/components/matches/match-note-button";
 import { useTranslations, useFormatter } from "next-intl";
 
 type Props = {
@@ -28,6 +29,8 @@ type Props = {
   umpires: Umpire[];
   transposed?: boolean;
   onAssignmentsChange?: (assignments: Assignment[]) => void;
+  /** Called after a match note is saved so the parent can refetch. */
+  onNoteSaved?: () => void;
 };
 
 const AVAILABILITY_COLORS: Record<string, string> = {
@@ -47,6 +50,7 @@ export function AssignmentGrid({
   umpires,
   transposed = false,
   onAssignmentsChange,
+  onNoteSaved,
 }: Props) {
   const [assignments, setAssignments] = useState(initialAssignments);
   const [saving, setSaving] = useState<string | null>(null);
@@ -365,6 +369,11 @@ export function AssignmentGrid({
                           <span className="font-medium truncate">
                             {match.home_team} &ndash; {match.away_team}
                           </span>
+                          <MatchNoteButton
+                            match={match}
+                            variant="indicator"
+                            onSaved={onNoteSaved}
+                          />
                         </div>
                       </td>
                       <td className="py-1.5 px-1 text-center">
@@ -431,7 +440,14 @@ export function AssignmentGrid({
                       <span className="text-[11px] leading-tight">
                         {match.home_team} &ndash; {match.away_team}
                       </span>
-                      {renderCountBadge(match.id)}
+                      <div className="flex items-center gap-1">
+                        {renderCountBadge(match.id)}
+                        <MatchNoteButton
+                          match={match}
+                          variant="indicator"
+                          onSaved={onNoteSaved}
+                        />
+                      </div>
                     </div>
                   </th>
                 );
