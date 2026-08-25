@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.11.0](https://github.com/sauerhosen/fluitplanner/compare/v2.10.1...v2.11.0) (2026-08-25)
+
+
+### Features
+
+* default assignment grid to umpire rows / match columns ([03f523c](https://github.com/sauerhosen/fluitplanner/commit/03f523cb643dae554957c3376eaf1c101829be4b))
+* default assignment grid to umpire rows / match columns ([38a4388](https://github.com/sauerhosen/fluitplanner/commit/38a4388ad10d2a489a045135a612627ab72085d9))
+
 ## [2.10.1](https://github.com/sauerhosen/fluitplanner/compare/v2.10.0...v2.10.1) (2026-08-17)
 
 
