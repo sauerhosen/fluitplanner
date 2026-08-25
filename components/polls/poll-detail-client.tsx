@@ -67,7 +67,7 @@ export function PollDetailClient({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("matches");
-  const [transposed, setTransposed] = useState(false);
+  const [transposed, setTransposed] = useState(true);
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
   const [liveAssignments, setLiveAssignments] = useState<Assignment[]>(
     initialPoll.assignments,
