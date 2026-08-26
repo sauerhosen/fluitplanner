@@ -16,6 +16,12 @@ vi.mock("@/lib/actions/matches", () => ({
   updateMatchNotes: vi.fn(),
 }));
 
+// Saving triggers a refresh that also calls getPollOptions; without this the
+// real server action runs and rejects on `cookies()` outside a request scope.
+vi.mock("@/lib/actions/polls", () => ({
+  getPollOptions: vi.fn().mockResolvedValue([]),
+}));
+
 vi.mock("../upload-zone", () => ({
   UploadZone: () => <div data-testid="upload-zone" />,
 }));
