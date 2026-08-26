@@ -2,6 +2,7 @@
 
 import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
+import { getTenantId } from "@/lib/tenant";
 
 export type UserOrganization = {
   slug: string;
@@ -55,4 +56,22 @@ export async function switchOrganization(slug: string): Promise<void> {
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
   });
+}
+
+/**
+ * Name of the organization the current request is scoped to, or null when
+ * there is no tenant context (root domain) or the lookup fails.
+ */
+export async function getCurrentOrganizationName(): Promise<string | null> {
+  const tenantId = await getTenantId();
+  if (!tenantId) return null;
+
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("organizations")
+    .select("name")
+    .eq("id", tenantId)
+    .maybeSingle();
+
+  return data?.name ?? null;
 }

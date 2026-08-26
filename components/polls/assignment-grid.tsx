@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { createAssignment, deleteAssignment } from "@/lib/actions/assignments";
 import { mapMatchesToSlots } from "@/lib/domain/match-slot-mapping";
+import { stripClubPrefix } from "@/lib/domain/team-names";
 import {
   findConflicts,
   type AssignmentConflict,
@@ -29,6 +30,8 @@ type Props = {
   assignments: Assignment[];
   umpires: RosteredUmpire[];
   transposed?: boolean;
+  /** Own club name, stripped from home team labels so columns stay narrow. */
+  clubName?: string | null;
   onAssignmentsChange?: (assignments: Assignment[]) => void;
   /** Called after a match note is saved so the parent can refetch. */
   onNoteSaved?: () => void;
@@ -52,6 +55,7 @@ export function AssignmentGrid({
   assignments: initialAssignments,
   umpires,
   transposed = false,
+  clubName,
   onAssignmentsChange,
   onNoteSaved,
   onUmpireNoteSaved,
@@ -302,6 +306,30 @@ export function AssignmentGrid({
     );
   }
 
+  /**
+   * Assignment progress as a bar rather than a "0/2" pill: across a full poll
+   * the pills were the heaviest ink in the header, while empty/half/full reads
+   * at a glance. The exact count stays available as a tooltip.
+   */
+  function renderCountBar(matchId: string) {
+    const count = assignmentCounts.get(matchId) ?? 0;
+    const over = count > 2;
+    const label = `${count}/2`;
+    return (
+      <span
+        role="img"
+        aria-label={label}
+        title={label}
+        className="mt-1 block h-[3px] w-full overflow-hidden rounded-full bg-muted"
+      >
+        <span
+          className={`block h-full rounded-full ${over ? "bg-destructive" : "bg-primary"}`}
+          style={{ width: `${(Math.min(count, 2) / 2) * 100}%` }}
+        />
+      </span>
+    );
+  }
+
   function renderCountBadge(matchId: string) {
     const count = assignmentCounts.get(matchId) ?? 0;
     const variant =
@@ -436,7 +464,7 @@ export function AssignmentGrid({
                 return (
                   <th
                     key={match.id}
-                    className={`p-2 pt-0 text-center font-medium whitespace-nowrap min-w-24 ${showBorder ? "border-l-2 border-border" : ""}`}
+                    className={`relative p-2 pt-0 text-center font-medium whitespace-nowrap min-w-24 ${showBorder ? "border-l-2 border-border" : ""}`}
                   >
                     <div className="flex flex-col items-center gap-0.5">
                       {match.start_time && (
@@ -448,17 +476,24 @@ export function AssignmentGrid({
                           })}
                         </span>
                       )}
-                      <span className="text-[11px] leading-tight">
-                        {match.home_team} &ndash; {match.away_team}
+                      <span className="flex flex-col items-center text-[11px] leading-tight">
+                        <span>
+                          {stripClubPrefix(match.home_team, clubName)}
+                        </span>
+                        <span className="text-muted-foreground">
+                          {match.away_team}
+                        </span>
                       </span>
-                      <div className="flex items-center gap-1">
-                        {renderCountBadge(match.id)}
-                        <MatchNoteButton
-                          match={match}
-                          variant="indicator"
-                          onSaved={onNoteSaved}
-                        />
-                      </div>
+                      {/* Absolute so a note never adds a row: an in-flow icon made
+                          noted columns taller and knocked their fill bar, and the
+                          cells beneath it, out of line with every other column. */}
+                      <MatchNoteButton
+                        match={match}
+                        variant="indicator"
+                        onSaved={onNoteSaved}
+                        className="absolute right-0 top-0"
+                      />
+                      {renderCountBar(match.id)}
                     </div>
                   </th>
                 );

@@ -347,4 +347,53 @@ describe("AssignmentGrid", () => {
       screen.getByRole("button", { name: "Not yet ready for this team level" }),
     ).toBeInTheDocument();
   });
+
+  it("keeps the note icon out of the flow in the transposed header", () => {
+    const withNote = [
+      { ...mockMatches[0], notes: "Don't assign Piet" },
+      mockMatches[1],
+    ];
+    render(<AssignmentGrid {...defaultProps} matches={withNote} transposed />);
+
+    // An in-flow icon made noted columns taller, knocking their fill bar and
+    // the cells beneath it out of line with every other column.
+    const note = screen.getByRole("button", { name: "Don't assign Piet" });
+    expect(note).toHaveClass("absolute");
+    expect(note.closest("th")).toHaveClass("relative");
+  });
+
+  it("strips the own club prefix from home teams in the transposed header", () => {
+    render(<AssignmentGrid {...defaultProps} transposed clubName="HC" />);
+
+    expect(screen.getByText("Amsterdam")).toBeInTheDocument();
+    expect(screen.queryByText("HC Amsterdam")).not.toBeInTheDocument();
+    // Opponents keep their full name.
+    expect(screen.getByText("HC Rotterdam")).toBeInTheDocument();
+  });
+
+  it("leaves team names untouched when no club name is known", () => {
+    render(<AssignmentGrid {...defaultProps} transposed />);
+
+    expect(screen.getByText("HC Amsterdam")).toBeInTheDocument();
+  });
+
+  it("shows the assignment count as a bar labelled with the exact count", () => {
+    const assignments: Assignment[] = [
+      {
+        id: "a1",
+        poll_id: "poll-1",
+        match_id: "m1",
+        umpire_id: "u1",
+        created_at: "2026-01-01T00:00:00Z",
+        organization_id: "test-org-id",
+      },
+    ];
+
+    render(
+      <AssignmentGrid {...defaultProps} assignments={assignments} transposed />,
+    );
+
+    expect(screen.getByRole("img", { name: "1/2" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "0/2" })).toBeInTheDocument();
+  });
 });
