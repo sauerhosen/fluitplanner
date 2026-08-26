@@ -72,6 +72,19 @@ export type Umpire = {
   updated_at: string;
 };
 
+/**
+ * An umpire as a planner sees them: the shared `umpires` row plus the note
+ * this organization keeps about them.
+ *
+ * The note is a column on `organization_umpires`, not on `umpires`, so it is
+ * per-organization and — unlike an `umpires` row — never readable by `anon`.
+ * That is what keeps it out of the umpire's own hands, so only planner-facing
+ * queries widen `Umpire` to this type.
+ */
+export type RosteredUmpire = Umpire & {
+  notes: string | null;
+};
+
 export type Organization = {
   id: string;
   name: string;

@@ -8,13 +8,17 @@ import type {
   PollSlot,
   AvailabilityResponse,
   Assignment,
-  Umpire,
+  RosteredUmpire,
 } from "@/lib/types/domain";
 import { matchSyncDefaults } from "@/__tests__/helpers/fixtures";
 
 // Mock server actions
 vi.mock("@/lib/actions/matches", () => ({
   updateMatchNotes: vi.fn(),
+}));
+
+vi.mock("@/lib/actions/umpires", () => ({
+  updateUmpireNotes: vi.fn(),
 }));
 
 vi.mock("@/lib/actions/assignments", () => ({
@@ -80,13 +84,14 @@ const mockSlots: PollSlot[] = [
   },
 ];
 
-const mockUmpires: Umpire[] = [
+const mockUmpires: RosteredUmpire[] = [
   {
     id: "u1",
     auth_user_id: null,
     name: "Jan de Vries",
     email: "jan@example.com",
     level: 2,
+    notes: null,
     created_at: "2026-01-01T00:00:00Z",
     updated_at: "2026-01-01T00:00:00Z",
   },
@@ -96,6 +101,7 @@ const mockUmpires: Umpire[] = [
     name: "Piet Bakker",
     email: "piet@example.com",
     level: 1,
+    notes: null,
     created_at: "2026-01-01T00:00:00Z",
     updated_at: "2026-01-01T00:00:00Z",
   },
@@ -290,6 +296,55 @@ describe("AssignmentGrid", () => {
 
     expect(
       screen.getByRole("button", { name: "Don't assign Piet" }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows no umpire note icon for umpires without notes", () => {
+    render(<AssignmentGrid {...defaultProps} />);
+
+    expect(
+      screen.queryByRole("button", { name: /add a note/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows a note icon carrying the note for umpires that have one", () => {
+    const withNote = [
+      { ...mockUmpires[0], notes: "Not yet ready for this team level" },
+      mockUmpires[1],
+    ];
+    render(<AssignmentGrid {...defaultProps} umpires={withNote} />);
+
+    expect(
+      screen.getByRole("button", { name: "Not yet ready for this team level" }),
+    ).toBeInTheDocument();
+  });
+
+  it("reveals the umpire note on hover", async () => {
+    const user = userEvent.setup();
+    const withNote = [
+      { ...mockUmpires[0], notes: "Not yet ready for this team level" },
+      mockUmpires[1],
+    ];
+    render(<AssignmentGrid {...defaultProps} umpires={withNote} />);
+
+    await user.hover(
+      screen.getByRole("button", { name: "Not yet ready for this team level" }),
+    );
+
+    expect(await screen.findByRole("tooltip")).toHaveTextContent(
+      "Not yet ready for this team level",
+    );
+  });
+
+  it("shows the umpire note icon in the transposed view too", () => {
+    const withNote = [
+      { ...mockUmpires[0], notes: "Not yet ready for this team level" },
+      mockUmpires[1],
+    ];
+    render(<AssignmentGrid {...defaultProps} umpires={withNote} transposed />);
+
+    expect(
+      screen.getByRole("button", { name: "Not yet ready for this team level" }),
     ).toBeInTheDocument();
   });
 });

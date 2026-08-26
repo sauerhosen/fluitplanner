@@ -1,21 +1,20 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { updateMatchNotes } from "@/lib/actions/matches";
+import { updateUmpireNotes } from "@/lib/actions/umpires";
 import { NoteButton } from "@/components/shared/note-button";
 
-export type NotableMatch = {
+export type NotableUmpire = {
   id: string;
-  home_team: string;
-  away_team: string;
+  name: string;
   notes: string | null;
 };
 
 type Props = {
-  match: NotableMatch;
+  umpire: NotableUmpire;
   /**
-   * "indicator" renders nothing when the match has no note — for dense views
-   * (the assignment grid) where an empty affordance per match would be noise.
+   * "indicator" renders nothing when the umpire has no note — for dense views
+   * (the assignment grid) where an empty affordance per umpire would be noise.
    * "editor" always renders a trigger so a note can be added.
    */
   variant?: "indicator" | "editor";
@@ -25,30 +24,28 @@ type Props = {
    * Callers pass an async refetch; it is awaited so a failed refresh reports
    * an error instead of closing the dialog over stale content.
    */
-  onSaved?: (matchId: string, notes: string | null) => void | Promise<void>;
+  onSaved?: (umpireId: string, notes: string | null) => void | Promise<void>;
 };
 
-export function MatchNoteButton({
-  match,
+export function UmpireNoteButton({
+  umpire,
   variant = "indicator",
   readOnly = false,
   className,
   onSaved,
 }: Props) {
-  const t = useTranslations("matches");
+  const t = useTranslations("umpires");
   const tCommon = useTranslations("common");
 
   return (
     <NoteButton
-      note={match.notes}
+      note={umpire.notes}
       variant={variant}
       readOnly={readOnly}
       className={className}
       labels={{
         add: t("noteAdd"),
-        dialogTitle: t("noteDialogTitle", {
-          match: `${match.home_team} – ${match.away_team}`,
-        }),
+        dialogTitle: t("noteDialogTitle", { umpire: umpire.name }),
         fieldLabel: t("notesLabel"),
         placeholder: t("notesPlaceholder"),
         saveError: t("noteSaveError"),
@@ -58,8 +55,8 @@ export function MatchNoteButton({
         delete: tCommon("delete"),
       }}
       onSave={async (body) => {
-        await updateMatchNotes(match.id, body);
-        await onSaved?.(match.id, body.trim() || null);
+        await updateUmpireNotes(umpire.id, body);
+        await onSaved?.(umpire.id, body.trim() || null);
       }}
     />
   );

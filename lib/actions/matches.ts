@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireTenantId } from "@/lib/tenant";
 import type { Match } from "@/lib/types/domain";
 import type { ParsedMatch } from "@/lib/parsers/types";
-import { MAX_NOTE_LENGTH } from "@/lib/domain/notes";
+import { normalizeNote } from "@/lib/domain/notes";
 
 async function requireAuth() {
   const supabase = await createClient();
@@ -224,13 +224,7 @@ function pickMatchFormFields(
   // trimmed, length-capped, and blank stored as NULL so "has a note" is a
   // single check wherever it is rendered.
   if (typeof picked.notes === "string") {
-    const trimmed = picked.notes.trim();
-    if (trimmed.length > MAX_NOTE_LENGTH) {
-      throw new Error(
-        `Note cannot be longer than ${MAX_NOTE_LENGTH} characters`,
-      );
-    }
-    picked.notes = trimmed || null;
+    picked.notes = normalizeNote(picked.notes);
   }
   return picked as Partial<MatchFormInput>;
 }

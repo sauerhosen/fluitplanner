@@ -2,7 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { requireTenantId } from "@/lib/tenant";
-import type { Assignment, Umpire } from "@/lib/types/domain";
+import type { Assignment, RosteredUmpire, Umpire } from "@/lib/types/domain";
 import { revalidatePath } from "next/cache";
 
 async function requireAuth() {
@@ -75,8 +75,11 @@ export async function deleteAssignment(
   revalidatePath(`/protected/polls/${pollId}`);
 }
 
-export async function getUmpiresForPoll(pollId: string): Promise<Umpire[]> {
+export async function getUmpiresForPoll(
+  pollId: string,
+): Promise<RosteredUmpire[]> {
   const { supabase } = await requireAuth();
+  const tenantId = await requireTenantId();
 
   const { data: responses, error: respError } = await supabase
     .from("availability_responses")
@@ -103,5 +106,23 @@ export async function getUmpiresForPoll(pollId: string): Promise<Umpire[]> {
     .order("name");
 
   if (error) throw new Error(error.message);
-  return umpires ?? [];
+
+  // The planner note lives on the roster row, not on the shared umpire record,
+  // so it is fetched per organization and merged in here.
+  const { data: roster, error: rosterError } = await supabase
+    .from("organization_umpires")
+    .select("umpire_id, notes")
+    .eq("organization_id", tenantId)
+    .in("umpire_id", umpireIds);
+
+  if (rosterError) throw new Error(rosterError.message);
+
+  const notesById = new Map<string, string | null>(
+    (roster ?? []).map((r) => [r.umpire_id, r.notes ?? null]),
+  );
+
+  return (umpires ?? []).map((umpire: Umpire) => ({
+    ...umpire,
+    notes: notesById.get(umpire.id) ?? null,
+  }));
 }

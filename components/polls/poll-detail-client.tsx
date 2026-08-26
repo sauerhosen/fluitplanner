@@ -4,7 +4,7 @@ import { useState, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import type {
   Match,
-  Umpire,
+  RosteredUmpire,
   Assignment,
   AvailabilityResponse,
 } from "@/lib/types/domain";
@@ -23,6 +23,7 @@ import { ResponseSummary } from "./response-summary";
 import { AssignmentGrid } from "./assignment-grid";
 import { SharePollButton } from "./share-poll-button";
 import { MatchNoteButton } from "@/components/matches/match-note-button";
+import { getUmpiresForPoll } from "@/lib/actions/assignments";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,7 +39,7 @@ import { format as fnsFormat } from "date-fns";
 type Props = {
   initialPoll: PollDetail;
   availableMatches: Match[];
-  umpires: Umpire[];
+  umpires: RosteredUmpire[];
 };
 
 /**
@@ -55,10 +56,11 @@ type Props = {
 export function PollDetailClient({
   initialPoll,
   availableMatches,
-  umpires,
+  umpires: initialUmpires,
 }: Props) {
   const router = useRouter();
   const [poll, setPoll] = useState(initialPoll);
+  const [umpires, setUmpires] = useState(initialUmpires);
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState(poll.title ?? "");
   const [editingMatches, setEditingMatches] = useState(false);
@@ -124,6 +126,12 @@ export function PollDetailClient({
     setPoll(updated);
     setLiveAssignments(updated.assignments);
     setLiveResponses(updated.responses);
+  }, [poll.id]);
+
+  // Umpires arrive as a prop from the server, so an umpire note edited in the
+  // assignment grid needs its own refetch to be read back.
+  const refreshUmpires = useCallback(async () => {
+    setUmpires(await getUmpiresForPoll(poll.id));
   }, [poll.id]);
 
   async function handleSaveTitle() {
@@ -492,6 +500,7 @@ export function PollDetailClient({
             transposed={transposed}
             onAssignmentsChange={setLiveAssignments}
             onNoteSaved={refreshPoll}
+            onUmpireNoteSaved={refreshUmpires}
           />
         </TabsContent>
       </Tabs>

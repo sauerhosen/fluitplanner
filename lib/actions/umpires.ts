@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireTenantId } from "@/lib/tenant";
-import type { Umpire } from "@/lib/types/domain";
+import { normalizeNote } from "@/lib/domain/notes";
+import type { RosteredUmpire, Umpire } from "@/lib/types/domain";
 
 async function requireAuth() {
   const supabase = await createClient();
@@ -19,19 +20,24 @@ export type UmpireFilters = {
   level?: 1 | 2 | 3;
 };
 
-export async function getUmpires(filters?: UmpireFilters): Promise<Umpire[]> {
+export async function getUmpires(
+  filters?: UmpireFilters,
+): Promise<RosteredUmpire[]> {
   const { supabase } = await requireAuth();
   const tenantId = await requireTenantId();
 
   const { data: roster, error: rosterError } = await supabase
     .from("organization_umpires")
-    .select("umpire_id")
+    .select("umpire_id, notes")
     .eq("organization_id", tenantId);
 
   if (rosterError) throw new Error(rosterError.message);
   if (!roster || roster.length === 0) return [];
 
   const umpireIds = roster.map((r) => r.umpire_id);
+  const notesById = new Map<string, string | null>(
+    roster.map((r) => [r.umpire_id, r.notes ?? null]),
+  );
 
   let query = supabase
     .from("umpires")
@@ -51,17 +57,50 @@ export async function getUmpires(filters?: UmpireFilters): Promise<Umpire[]> {
 
   const { data, error } = await query;
   if (error) throw new Error(error.message);
-  return data ?? [];
+  return (data ?? []).map((umpire: Umpire) => ({
+    ...umpire,
+    notes: notesById.get(umpire.id) ?? null,
+  }));
+}
+
+/**
+ * Write this organization's note about an umpire onto its roster row.
+ *
+ * Scoped by `organization_id`, so a planner can only ever touch the note their
+ * own organization keeps — the umpire row itself is shared between orgs.
+ */
+async function writeUmpireNote(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  tenantId: string,
+  umpireId: string,
+  notes: string | null,
+): Promise<void> {
+  const { data, error } = await supabase
+    .from("organization_umpires")
+    .update({ notes: normalizeNote(notes) })
+    .eq("organization_id", tenantId)
+    .eq("umpire_id", umpireId)
+    .select("umpire_id");
+
+  if (error) throw new Error(error.message);
+  // No matching roster row means the umpire is not on this organization's
+  // roster; without this the write would be a silent no-op.
+  if (!data || data.length === 0)
+    throw new Error("Umpire not in this organization");
 }
 
 export async function createUmpire(umpire: {
   name: string;
   email: string;
   level?: 1 | 2 | 3;
-}): Promise<Umpire> {
+  notes?: string | null;
+}): Promise<RosteredUmpire> {
   const { supabase } = await requireAuth();
   const tenantId = await requireTenantId();
   const normalizedEmail = umpire.email.trim().toLowerCase();
+  // Validate before any write, so an over-long note fails the whole call
+  // rather than leaving a rostered umpire behind without their note.
+  const notes = umpire.notes === undefined ? null : normalizeNote(umpire.notes);
 
   // Check if umpire already exists by email
   const { data: existing } = await supabase
@@ -99,20 +138,31 @@ export async function createUmpire(umpire: {
 
   if (linkError) throw new Error(linkError.message);
 
-  return umpireRecord;
+  // Written separately from the link upsert so re-adding an umpire who is
+  // already on the roster cannot blank the note they already carry.
+  if (notes !== null) {
+    await writeUmpireNote(supabase, tenantId, umpireRecord.id, notes);
+  }
+
+  return { ...umpireRecord, notes };
 }
 
 export async function updateUmpire(
   id: string,
-  updates: Partial<{ name: string; email: string; level: 1 | 2 | 3 }>,
-): Promise<Umpire> {
+  updates: Partial<{
+    name: string;
+    email: string;
+    level: 1 | 2 | 3;
+    notes: string | null;
+  }>,
+): Promise<RosteredUmpire> {
   const { supabase } = await requireAuth();
   const tenantId = await requireTenantId();
 
   // Verify the umpire belongs to the current org's roster
   const { data: rosterEntry } = await supabase
     .from("organization_umpires")
-    .select("umpire_id")
+    .select("umpire_id, notes")
     .eq("organization_id", tenantId)
     .eq("umpire_id", id)
     .maybeSingle();
@@ -125,6 +175,25 @@ export async function updateUmpire(
     cleanUpdates.email = updates.email.trim().toLowerCase();
   if (updates.level !== undefined) cleanUpdates.level = updates.level;
 
+  // The note lives on the roster row, so it is written separately from the
+  // shared umpire record — and only when the caller actually sent one.
+  let notes: string | null = rosterEntry.notes ?? null;
+  if (updates.notes !== undefined) {
+    notes = normalizeNote(updates.notes);
+    await writeUmpireNote(supabase, tenantId, id, notes);
+  }
+
+  if (Object.keys(cleanUpdates).length === 0) {
+    const { data, error } = await supabase
+      .from("umpires")
+      .select("*")
+      .eq("id", id)
+      .single();
+
+    if (error) throw new Error(error.message);
+    return { ...data, notes };
+  }
+
   const { data, error } = await supabase
     .from("umpires")
     .update(cleanUpdates)
@@ -133,7 +202,23 @@ export async function updateUmpire(
     .single();
 
   if (error) throw new Error(error.message);
-  return data;
+  return { ...data, notes };
+}
+
+/**
+ * Set or clear this organization's note on an umpire.
+ *
+ * A blank body clears the note (stored as NULL) rather than an empty string,
+ * so "has a note" stays a single check everywhere it is rendered.
+ */
+export async function updateUmpireNotes(
+  id: string,
+  notes: string,
+): Promise<void> {
+  const { supabase } = await requireAuth();
+  const tenantId = await requireTenantId();
+
+  await writeUmpireNote(supabase, tenantId, id, notes);
 }
 
 export async function deleteUmpire(id: string): Promise<void> {
