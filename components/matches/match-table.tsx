@@ -35,6 +35,7 @@ import {
 import { useTranslations, useFormatter } from "next-intl";
 import { toast } from "sonner";
 import { useSelection } from "@/hooks/use-selection";
+import { MatchNoteButton } from "./match-note-button";
 import { SelectionToolbar } from "@/components/shared/selection-toolbar";
 
 const LEVEL_VARIANTS: Record<number, "default" | "secondary" | "destructive"> =
@@ -195,6 +196,7 @@ export function MatchTable({
               <TableHead>{t("awayHeader")}</TableHead>
               <TableHead>{t("fieldHeader")}</TableHead>
               <TableHead>{t("venueHeader")}</TableHead>
+              <TableHead className="w-16">{t("notesHeader")}</TableHead>
               <TableHead className="w-32">{t("levelHeader")}</TableHead>
               <TableHead>{t("pollHeader")}</TableHead>
               <TableHead className="w-12"></TableHead>
@@ -230,7 +232,7 @@ export function MatchTable({
                         })}
                       />
                     </TableCell>
-                    <TableCell colSpan={8} className="font-semibold">
+                    <TableCell colSpan={9} className="font-semibold">
                       <div className="flex items-center gap-2">
                         {collapsed ? (
                           <ChevronRight className="h-4 w-4" />
@@ -309,6 +311,13 @@ export function MatchTable({
                         </TableCell>
                         <TableCell>{match.field ?? "—"}</TableCell>
                         <TableCell>{match.venue ?? "—"}</TableCell>
+                        <TableCell>
+                          <MatchNoteButton
+                            match={match}
+                            variant="editor"
+                            onSaved={onDeleted}
+                          />
+                        </TableCell>
                         <TableCell>
                           <Badge variant={LEVEL_VARIANTS[match.required_level]}>
                             {match.required_level} —{" "}

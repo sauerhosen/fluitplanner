@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireTenantId } from "@/lib/tenant";
 import type { Match } from "@/lib/types/domain";
 import type { ParsedMatch } from "@/lib/parsers/types";
+import { MAX_NOTE_LENGTH } from "@/lib/domain/notes";
 
 async function requireAuth() {
   const supabase = await createClient();
@@ -205,6 +206,7 @@ const MATCH_FORM_FIELDS = [
   "competition",
   "venue",
   "field",
+  "notes",
   "required_level",
 ] as const;
 
@@ -216,6 +218,19 @@ function pickMatchFormFields(
   const picked: Record<string, unknown> = {};
   for (const key of MATCH_FORM_FIELDS) {
     if (key in input) picked[key] = input[key];
+  }
+  // Normalising here rather than in one caller keeps every write path — the
+  // match form, the note editor, a hand-rolled request — under the same rule:
+  // trimmed, length-capped, and blank stored as NULL so "has a note" is a
+  // single check wherever it is rendered.
+  if (typeof picked.notes === "string") {
+    const trimmed = picked.notes.trim();
+    if (trimmed.length > MAX_NOTE_LENGTH) {
+      throw new Error(
+        `Note cannot be longer than ${MAX_NOTE_LENGTH} characters`,
+      );
+    }
+    picked.notes = trimmed || null;
   }
   return picked as Partial<MatchFormInput>;
 }
@@ -263,6 +278,20 @@ export async function updateMatch(
 
   if (error) throw new Error(error.message);
   return data;
+}
+
+/**
+ * Set or clear the planner note on a match.
+ *
+ * Writes only `notes`, so saving a note never overwrites schedule fields a
+ * planner may be editing at the same time. Trimming, the length cap and the
+ * blank-to-NULL rule live in `pickMatchFormFields`.
+ */
+export async function updateMatchNotes(
+  id: string,
+  notes: string,
+): Promise<Match> {
+  return updateMatch(id, { notes });
 }
 
 export async function deleteMatch(id: string): Promise<void> {

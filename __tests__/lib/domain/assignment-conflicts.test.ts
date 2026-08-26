@@ -13,6 +13,7 @@ function makeMatch(overrides: Partial<Match> & { id: string }): Match {
     competition: null,
     venue: null,
     field: null,
+    notes: null,
     required_level: 1,
     created_by: "user-1",
     created_at: "2026-01-01T00:00:00Z",

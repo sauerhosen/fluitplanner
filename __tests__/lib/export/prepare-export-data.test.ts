@@ -263,6 +263,7 @@ describe("prepareAssignmentExport", () => {
     competition: "League",
     venue: "Stadium",
     field: "1",
+    notes: null,
     required_level: 1,
     created_by: "user1",
     created_at: "",
@@ -435,6 +436,7 @@ describe("prepareAssignmentExport", () => {
       start_time: null,
       venue: null,
       field: null,
+      notes: null,
       competition: null,
     };
 
@@ -468,6 +470,7 @@ describe("prepareDaySheetExport", () => {
     competition: "League",
     venue: "Stadium",
     field: "1",
+    notes: null,
     required_level: 1,
     created_by: "user1",
     created_at: "",
@@ -625,6 +628,7 @@ describe("prepareDaySheetExport", () => {
       ...baseMatch,
       start_time: null,
       field: null,
+      notes: null,
     };
 
     const result = prepareDaySheetExport(

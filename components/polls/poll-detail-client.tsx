@@ -22,6 +22,7 @@ import { SlotPreview } from "./slot-preview";
 import { ResponseSummary } from "./response-summary";
 import { AssignmentGrid } from "./assignment-grid";
 import { SharePollButton } from "./share-poll-button";
+import { MatchNoteButton } from "@/components/matches/match-note-button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -429,23 +430,30 @@ export function PollDetailClient({
                                   {slotMatches.map((match) => (
                                     <div
                                       key={match.id}
-                                      className="flex items-baseline justify-between py-1.5 text-sm"
+                                      className="flex items-center justify-between gap-2 py-1.5 text-sm"
                                     >
                                       <span>
                                         {match.home_team} – {match.away_team}
                                       </span>
-                                      {match.start_time && (
-                                        <span className="text-muted-foreground text-xs">
-                                          {format.dateTime(
-                                            new Date(match.start_time),
-                                            {
-                                              hour: "2-digit",
-                                              minute: "2-digit",
-                                              hour12: false,
-                                            },
-                                          )}
-                                        </span>
-                                      )}
+                                      <div className="flex items-center gap-1">
+                                        {match.start_time && (
+                                          <span className="text-muted-foreground text-xs">
+                                            {format.dateTime(
+                                              new Date(match.start_time),
+                                              {
+                                                hour: "2-digit",
+                                                minute: "2-digit",
+                                                hour12: false,
+                                              },
+                                            )}
+                                          </span>
+                                        )}
+                                        <MatchNoteButton
+                                          match={match}
+                                          variant="editor"
+                                          onSaved={refreshPoll}
+                                        />
+                                      </div>
                                     </div>
                                   ))}
                                 </div>
@@ -483,6 +491,7 @@ export function PollDetailClient({
             umpires={umpires}
             transposed={transposed}
             onAssignmentsChange={setLiveAssignments}
+            onNoteSaved={refreshPoll}
           />
         </TabsContent>
       </Tabs>

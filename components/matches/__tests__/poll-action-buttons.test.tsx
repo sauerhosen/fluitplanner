@@ -35,6 +35,7 @@ const matchBase: Omit<MatchWithPoll, "id" | "poll"> = {
   away_team: "Team B",
   venue: "Field 1",
   field: "1",
+  notes: null,
   competition: null,
   required_level: 1,
   created_by: "user-1",

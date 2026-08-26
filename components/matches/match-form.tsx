@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -19,6 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { MAX_NOTE_LENGTH } from "@/lib/domain/notes";
 import { useTranslations } from "next-intl";
 
 export function MatchFormDialog({
@@ -47,6 +49,7 @@ export function MatchFormDialog({
   const [venue, setVenue] = useState(match?.venue ?? "");
   const [field, setField] = useState(match?.field ?? "");
   const [competition, setCompetition] = useState(match?.competition ?? "");
+  const [notes, setNotes] = useState(match?.notes ?? "");
   const [requiredLevel, setRequiredLevel] = useState<string>(
     String(match?.required_level ?? 1),
   );
@@ -72,9 +75,16 @@ export function MatchFormDialog({
       };
 
       if (isEditing) {
-        await updateMatch(match.id, matchData);
+        // The note has its own editor on the Matches and poll screens, so it
+        // can change while this dialog sits open. Send it only when this form
+        // actually touched it, rather than writing back a stale snapshot.
+        const noteChanged = notes.trim() !== (match.notes ?? "").trim();
+        await updateMatch(
+          match.id,
+          noteChanged ? { ...matchData, notes } : matchData,
+        );
       } else {
-        await createMatch(matchData);
+        await createMatch({ ...matchData, notes });
       }
       onSaved();
       onOpenChange(false);
@@ -176,6 +186,18 @@ export function MatchFormDialog({
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="notes">{t("notesLabel")}</Label>
+            <Textarea
+              id="notes"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={3}
+              maxLength={MAX_NOTE_LENGTH}
+              placeholder={t("notesPlaceholder")}
+            />
           </div>
 
           <div className="flex justify-end gap-2">
