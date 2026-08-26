@@ -45,6 +45,10 @@ export function UmpireFormDialog({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // State is seeded from props at mount, so every caller must mount a fresh
+  // dialog per opening (see UmpiresPageClient) — otherwise the previous
+  // umpire's details, their note included, are still sitting in the form.
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!name || !email) return;

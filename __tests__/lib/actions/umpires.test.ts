@@ -9,6 +9,8 @@ let rosterRows: { umpire_id: string; notes: string | null }[] = [];
 let umpireRows: Record<string, unknown>[] = [];
 /** Roster rows a scoped `.update()` claims to have matched. */
 let rosterUpdateMatches: { umpire_id: string }[] = [];
+/** Errors to inject, keyed `table.kind` (e.g. "umpires.update"). */
+let injectedErrors = new Map<string, { message: string }>();
 
 vi.mock("@/lib/tenant", () => ({
   requireTenantId: vi.fn(async () => "test-org-id"),
@@ -37,6 +39,15 @@ function makeQuery(table: string) {
     return umpireRows;
   }
 
+  /** The error injected for this builder's write, if the test asked for one. */
+  function writeError() {
+    for (const kind of ["insert", "update", "upsert"]) {
+      const err = injectedErrors.get(`${table}.${kind}`);
+      if (err && tableUpdates.has(`${table}.${kind}`)) return err;
+    }
+    return null;
+  }
+
   const builder: Record<string, unknown> = {
     eqCalls,
     select: vi.fn(() => builder),
@@ -61,12 +72,18 @@ function makeQuery(table: string) {
     in: vi.fn(() => builder),
     or: vi.fn(() => builder),
     order: vi.fn(() => builder),
-    maybeSingle: vi.fn(async () => ({ data: rows()[0] ?? null, error: null })),
-    single: vi.fn(async () => ({ data: rows()[0] ?? null, error: null })),
+    maybeSingle: vi.fn(async () => ({
+      data: rows()[0] ?? null,
+      error: writeError(),
+    })),
+    single: vi.fn(async () => ({
+      data: rows()[0] ?? null,
+      error: writeError(),
+    })),
     // Awaiting the builder itself (list queries, and the note update's
     // select-back) yields the full row set.
     then: (onFulfilled: (v: unknown) => unknown) =>
-      Promise.resolve({ data: rows(), error: null }).then(onFulfilled),
+      Promise.resolve({ data: rows(), error: writeError() }).then(onFulfilled),
   };
   return builder;
 }
@@ -99,6 +116,7 @@ beforeEach(() => {
     data: { user: { id: "user-1" } },
     error: null,
   });
+  injectedErrors = new Map();
   rosterRows = [{ umpire_id: "u-1", notes: "Father of a player" }];
   rosterUpdateMatches = [{ umpire_id: "u-1" }];
   umpireRows = [
@@ -217,6 +235,22 @@ describe("updateUmpire", () => {
     expect(result.notes).toBe("Not yet ready for this team level");
   });
 
+  it("does not commit the note when the umpire record fails to save", async () => {
+    // A planner edits the note and the email at once, and the email collides
+    // with another umpire. The note must not survive a save that failed.
+    injectedErrors.set("umpires.update", { message: "duplicate key value" });
+    const { updateUmpire } = await import("@/lib/actions/umpires");
+
+    await expect(
+      updateUmpire("u-1", {
+        email: "taken@example.com",
+        notes: "Not yet ready for this team level",
+      }),
+    ).rejects.toThrow(/duplicate key/);
+
+    expect(tableUpdates.has("organization_umpires.update")).toBe(false);
+  });
+
   it("rejects an over-long note without touching the umpire record", async () => {
     const { updateUmpire } = await import("@/lib/actions/umpires");
 
@@ -240,6 +274,21 @@ describe("createUmpire", () => {
     ).rejects.toThrow(/2000 characters/);
     expect(tableUpdates.has("umpires.insert")).toBe(false);
     expect(tableUpdates.has("organization_umpires.upsert")).toBe(false);
+  });
+
+  it("reports the note the roster actually holds, not the one it was sent", async () => {
+    // Re-adding a rostered umpire with an empty note leaves their existing
+    // note in place, so the returned record must show that note.
+    const { createUmpire } = await import("@/lib/actions/umpires");
+
+    const result = await createUmpire({
+      name: "Jan de Vries",
+      email: "jan@example.com",
+      notes: "",
+    });
+
+    expect(tableUpdates.has("organization_umpires.update")).toBe(false);
+    expect(result.notes).toBe("Father of a player");
   });
 
   it("does not blank an existing note when no note is given", async () => {

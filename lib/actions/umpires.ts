@@ -142,9 +142,21 @@ export async function createUmpire(umpire: {
   // already on the roster cannot blank the note they already carry.
   if (notes !== null) {
     await writeUmpireNote(supabase, tenantId, umpireRecord.id, notes);
+    return { ...umpireRecord, notes };
   }
 
-  return { ...umpireRecord, notes };
+  // No note was written, so the roster may already hold one from an earlier
+  // stint. Read it back rather than claiming the umpire has none.
+  const { data: rosterEntry, error: rosterError } = await supabase
+    .from("organization_umpires")
+    .select("notes")
+    .eq("organization_id", tenantId)
+    .eq("umpire_id", umpireRecord.id)
+    .maybeSingle();
+
+  if (rosterError) throw new Error(rosterError.message);
+
+  return { ...umpireRecord, notes: rosterEntry?.notes ?? null };
 }
 
 export async function updateUmpire(
@@ -175,14 +187,15 @@ export async function updateUmpire(
     cleanUpdates.email = updates.email.trim().toLowerCase();
   if (updates.level !== undefined) cleanUpdates.level = updates.level;
 
-  // The note lives on the roster row, so it is written separately from the
-  // shared umpire record — and only when the caller actually sent one.
-  let notes: string | null = rosterEntry.notes ?? null;
-  if (updates.notes !== undefined) {
-    notes = normalizeNote(updates.notes);
-    await writeUmpireNote(supabase, tenantId, id, notes);
-  }
+  // Validated up front, so an over-long note fails the call before anything
+  // is written. The note lives on the roster row, so it is written separately
+  // from the shared umpire record — and only when the caller actually sent one.
+  const notes: string | null =
+    updates.notes === undefined
+      ? (rosterEntry.notes ?? null)
+      : normalizeNote(updates.notes);
 
+  let record: Umpire;
   if (Object.keys(cleanUpdates).length === 0) {
     const { data, error } = await supabase
       .from("umpires")
@@ -191,18 +204,28 @@ export async function updateUmpire(
       .single();
 
     if (error) throw new Error(error.message);
-    return { ...data, notes };
+    record = data;
+  } else {
+    const { data, error } = await supabase
+      .from("umpires")
+      .update(cleanUpdates)
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (error) throw new Error(error.message);
+    record = data;
   }
 
-  const { data, error } = await supabase
-    .from("umpires")
-    .update(cleanUpdates)
-    .eq("id", id)
-    .select()
-    .single();
+  // Written last, and only once the umpire record is safely saved: the two
+  // tables cannot be updated in one transaction, and the shared row carries
+  // the likelier failure (the unique email constraint). A save the planner
+  // saw fail must not leave the new note behind.
+  if (updates.notes !== undefined) {
+    await writeUmpireNote(supabase, tenantId, id, notes);
+  }
 
-  if (error) throw new Error(error.message);
-  return { ...data, notes };
+  return { ...record, notes };
 }
 
 /**

@@ -94,13 +94,16 @@ export function UmpiresPageClient({
         onNoteSaved={refreshUmpires}
       />
 
-      {/* Add dialog */}
-      <UmpireFormDialog
-        umpire={null}
-        open={showAddDialog}
-        onOpenChange={setShowAddDialog}
-        onSaved={refreshUmpires}
-      />
+      {/* Add dialog — mounted only while open, so each opening starts blank
+          rather than holding on to the last umpire's details and note. */}
+      {showAddDialog && (
+        <UmpireFormDialog
+          umpire={null}
+          open={true}
+          onOpenChange={setShowAddDialog}
+          onSaved={refreshUmpires}
+        />
+      )}
 
       {/* Edit dialog */}
       {editingUmpire && (
