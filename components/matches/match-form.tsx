@@ -53,6 +53,9 @@ export function MatchFormDialog({
   const [requiredLevel, setRequiredLevel] = useState<string>(
     String(match?.required_level ?? 1),
   );
+  // State is seeded from props at mount, so every caller must mount a fresh
+  // dialog per opening (see MatchesPageClient) — otherwise the previous
+  // match's details, its note included, are still sitting in the form.
   const [saving, setSaving] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {

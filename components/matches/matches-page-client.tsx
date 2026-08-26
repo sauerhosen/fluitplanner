@@ -200,13 +200,16 @@ export function MatchesPageClient({
         )}
       />
 
-      {/* Add dialog */}
-      <MatchFormDialog
-        match={null}
-        open={showAddDialog}
-        onOpenChange={setShowAddDialog}
-        onSaved={refreshMatches}
-      />
+      {/* Add dialog — mounted only while open, so each opening starts blank
+          rather than holding on to the last match's details and note. */}
+      {showAddDialog && (
+        <MatchFormDialog
+          match={null}
+          open={true}
+          onOpenChange={setShowAddDialog}
+          onSaved={refreshMatches}
+        />
+      )}
 
       {/* Edit dialog */}
       {editingMatch && (
