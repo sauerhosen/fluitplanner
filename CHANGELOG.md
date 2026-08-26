@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.14.0](https://github.com/sauerhosen/fluitplanner/compare/v2.13.0...v2.14.0) (2026-08-26)
+
+
+### Features
+
+* declutter the poll assignment grid match headers ([328e639](https://github.com/sauerhosen/fluitplanner/commit/328e639179c9130515ad569d8b30adc5290113a4))
+* use more screen width and declutter the assignment grid headers ([6d805a4](https://github.com/sauerhosen/fluitplanner/commit/6d805a4e2fa55b13a678ced23bc8efb16505358b))
+* widen authenticated pages to max-w-7xl ([47b93ec](https://github.com/sauerhosen/fluitplanner/commit/47b93ecabe6c61b59e86a947aa7f3217bd852dc6))
+
 ## [2.13.0](https://github.com/sauerhosen/fluitplanner/compare/v2.12.0...v2.13.0) (2026-08-26)
 
 
