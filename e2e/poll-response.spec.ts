@@ -6,7 +6,9 @@ test.describe("Poll response page", () => {
     const context = await browser.newContext();
     const page = await context.newPage();
     await page.goto("/poll/nonexistent-token-xyz");
-    await expect(page.getByText("Poll not found")).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Poll not found" }),
+    ).toBeVisible();
     await context.close();
   });
 
@@ -68,7 +70,9 @@ test.describe("Poll response page", () => {
       umpirePage = await umpireContext.newPage();
 
       await umpirePage.goto(`/poll/${pollToken}`);
-      await expect(umpirePage.getByText(pollTitle)).toBeVisible();
+      await expect(
+        umpirePage.getByRole("heading", { name: pollTitle }),
+      ).toBeVisible();
 
       // Enter email (new umpire)
       await umpirePage.getByLabel("Your email").fill(umpireEmail);
