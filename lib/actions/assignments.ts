@@ -2,7 +2,12 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { requireTenantId } from "@/lib/tenant";
-import type { Assignment, RosteredUmpire, Umpire } from "@/lib/types/domain";
+import type {
+  Assignment,
+  AssignmentStatus,
+  RosteredUmpire,
+  Umpire,
+} from "@/lib/types/domain";
 import { revalidatePath } from "next/cache";
 
 async function requireAuth() {
@@ -34,6 +39,7 @@ export async function createAssignment(
   pollId: string,
   matchId: string,
   umpireId: string,
+  status: AssignmentStatus = "confirmed",
 ): Promise<Assignment> {
   const { supabase } = await requireAuth();
 
@@ -46,6 +52,7 @@ export async function createAssignment(
       match_id: matchId,
       umpire_id: umpireId,
       organization_id: tenantId,
+      status,
     })
     .select()
     .single();
@@ -53,6 +60,71 @@ export async function createAssignment(
   if (error) throw new Error(error.message);
   revalidatePath(`/protected/polls/${pollId}`);
   return data;
+}
+
+/** Promote a tentative appointment to confirmed, or demote a confirmed one. */
+export async function setAssignmentStatus(
+  pollId: string,
+  matchId: string,
+  umpireId: string,
+  status: AssignmentStatus,
+): Promise<Assignment> {
+  const { supabase } = await requireAuth();
+  const tenantId = await requireTenantId();
+
+  const { data, error } = await supabase
+    .from("assignments")
+    .update({ status })
+    .eq("poll_id", pollId)
+    .eq("match_id", matchId)
+    .eq("umpire_id", umpireId)
+    .eq("organization_id", tenantId)
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message);
+  revalidatePath(`/protected/polls/${pollId}`);
+  return data;
+}
+
+/** Confirm every tentative appointment in a poll. Returns how many changed. */
+export async function confirmTentativeAssignments(
+  pollId: string,
+): Promise<number> {
+  const { supabase } = await requireAuth();
+  const tenantId = await requireTenantId();
+
+  const { data, error } = await supabase
+    .from("assignments")
+    .update({ status: "confirmed" })
+    .eq("poll_id", pollId)
+    .eq("organization_id", tenantId)
+    .eq("status", "tentative")
+    .select("id");
+
+  if (error) throw new Error(error.message);
+  revalidatePath(`/protected/polls/${pollId}`);
+  return data?.length ?? 0;
+}
+
+/** Discard every tentative appointment in a poll. Returns how many were removed. */
+export async function clearTentativeAssignments(
+  pollId: string,
+): Promise<number> {
+  const { supabase } = await requireAuth();
+  const tenantId = await requireTenantId();
+
+  const { data, error } = await supabase
+    .from("assignments")
+    .delete()
+    .eq("poll_id", pollId)
+    .eq("organization_id", tenantId)
+    .eq("status", "tentative")
+    .select("id");
+
+  if (error) throw new Error(error.message);
+  revalidatePath(`/protected/polls/${pollId}`);
+  return data?.length ?? 0;
 }
 
 export async function deleteAssignment(

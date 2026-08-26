@@ -45,18 +45,26 @@ export function findConflicts(
         const slotA = calculateSlot(new Date(matchA.start_time));
         const slotB = calculateSlot(new Date(matchB.start_time));
 
+        // A clash between two confirmed appointments is a real problem; one
+        // that involves a tentative sketch is only worth a warning, since the
+        // sketch may never be confirmed.
+        const bothConfirmed =
+          umpireAssignments[i].status === "confirmed" &&
+          umpireAssignments[j].status === "confirmed";
+
         if (slotsOverlap(slotA, slotB)) {
+          const severity = bothConfirmed ? "hard" : "soft";
           conflicts.push({
             umpireId,
             matchId: matchA.id,
             conflictingMatchId: matchB.id,
-            severity: "hard",
+            severity,
           });
           conflicts.push({
             umpireId,
             matchId: matchB.id,
             conflictingMatchId: matchA.id,
-            severity: "hard",
+            severity,
           });
         } else if (sameDay(matchA.date, matchB.date)) {
           conflicts.push({

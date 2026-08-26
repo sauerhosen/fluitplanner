@@ -125,11 +125,13 @@ export async function getDashboardStats(): Promise<DashboardStats> {
 
   let unassignedMatches = 0;
   if (openPollIds.length > 0) {
-    // Get assignments for matches in open polls
+    // Get assignments for matches in open polls. Tentative appointments are
+    // sketches, so a match held only by them still counts as unassigned.
     const { data: assignments, error: assignError } = await supabase
       .from("assignments")
       .select("match_id")
-      .in("poll_id", openPollIds);
+      .in("poll_id", openPollIds)
+      .eq("status", "confirmed");
 
     if (assignError) throw new Error(assignError.message);
 
@@ -206,11 +208,12 @@ export async function getActionItems(): Promise<ActionItem[]> {
 
     if (pmError) throw new Error(pmError.message);
 
-    // 3. Get assignments for open polls
+    // 3. Get assignments for open polls (confirmed only — see above)
     const { data: assignments, error: assignError } = await supabase
       .from("assignments")
       .select("match_id")
-      .in("poll_id", pollIds);
+      .in("poll_id", pollIds)
+      .eq("status", "confirmed");
 
     if (assignError) throw new Error(assignError.message);
 
@@ -451,6 +454,7 @@ export async function getRecentActivity(): Promise<ActivityEvent[]> {
     .from("assignments")
     .select("created_at, umpires(name), matches(home_team, away_team)")
     .eq("organization_id", tenantId)
+    .eq("status", "confirmed")
     .order("created_at", { ascending: false })
     .limit(50);
 

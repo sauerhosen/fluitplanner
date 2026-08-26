@@ -24,6 +24,9 @@ vi.mock("@/lib/actions/umpires", () => ({
 vi.mock("@/lib/actions/assignments", () => ({
   createAssignment: vi.fn(),
   deleteAssignment: vi.fn(),
+  setAssignmentStatus: vi.fn(),
+  confirmTentativeAssignments: vi.fn(),
+  clearTentativeAssignments: vi.fn(),
 }));
 
 // Mock sonner
@@ -31,6 +34,7 @@ vi.mock("sonner", () => ({
   toast: {
     warning: vi.fn(),
     error: vi.fn(),
+    success: vi.fn(),
   },
 }));
 
@@ -193,6 +197,7 @@ describe("AssignmentGrid", () => {
         umpire_id: "u1",
         created_at: "2026-01-01T00:00:00Z",
         organization_id: "test-org-id",
+        status: "confirmed",
       },
     ];
 
@@ -211,6 +216,7 @@ describe("AssignmentGrid", () => {
       umpire_id: "u1",
       created_at: "2026-01-01T00:00:00Z",
       organization_id: "test-org-id",
+      status: "confirmed",
     });
 
     render(<AssignmentGrid {...defaultProps} />);
@@ -218,7 +224,7 @@ describe("AssignmentGrid", () => {
     const cell = screen.getByTestId("cell-m1-u1");
     fireEvent.click(cell);
 
-    expect(mockCreate).toHaveBeenCalledWith("poll-1", "m1", "u1");
+    expect(mockCreate).toHaveBeenCalledWith("poll-1", "m1", "u1", "confirmed");
   });
 
   it("calls deleteAssignment when clicking assigned cell", async () => {
@@ -234,6 +240,7 @@ describe("AssignmentGrid", () => {
         umpire_id: "u1",
         created_at: "2026-01-01T00:00:00Z",
         organization_id: "test-org-id",
+        status: "confirmed",
       },
     ];
 
@@ -386,6 +393,7 @@ describe("AssignmentGrid", () => {
         umpire_id: "u1",
         created_at: "2026-01-01T00:00:00Z",
         organization_id: "test-org-id",
+        status: "confirmed",
       },
     ];
 
@@ -395,5 +403,222 @@ describe("AssignmentGrid", () => {
 
     expect(screen.getByRole("img", { name: "1/2" })).toBeInTheDocument();
     expect(screen.getByRole("img", { name: "0/2" })).toBeInTheDocument();
+  });
+  /* ---------------------------------------------------------------- */
+  /*  Tentative appointments                                           */
+  /* ---------------------------------------------------------------- */
+
+  function makeAssignment(
+    overrides: Partial<Assignment> & { match_id: string; umpire_id: string },
+  ): Assignment {
+    return {
+      id: `a-${overrides.match_id}-${overrides.umpire_id}`,
+      poll_id: "poll-1",
+      created_at: "2026-01-01T00:00:00Z",
+      organization_id: "test-org-id",
+      status: "confirmed",
+      ...overrides,
+    };
+  }
+
+  it("creates a tentative assignment while tentative mode is on", async () => {
+    const { createAssignment } = await import("@/lib/actions/assignments");
+    const mockCreate = vi.mocked(createAssignment);
+    mockCreate.mockResolvedValue(
+      makeAssignment({ match_id: "m1", umpire_id: "u1", status: "tentative" }),
+    );
+
+    render(<AssignmentGrid {...defaultProps} tentativeMode />);
+
+    fireEvent.click(screen.getByTestId("cell-m1-u1"));
+
+    expect(mockCreate).toHaveBeenCalledWith("poll-1", "m1", "u1", "tentative");
+  });
+
+  it("makes a definitive assignment on alt-click even in tentative mode", async () => {
+    const { createAssignment } = await import("@/lib/actions/assignments");
+    const mockCreate = vi.mocked(createAssignment);
+    mockCreate.mockResolvedValue(
+      makeAssignment({ match_id: "m1", umpire_id: "u1" }),
+    );
+
+    render(<AssignmentGrid {...defaultProps} tentativeMode />);
+
+    fireEvent.click(screen.getByTestId("cell-m1-u1"), { altKey: true });
+
+    expect(mockCreate).toHaveBeenCalledWith("poll-1", "m1", "u1", "confirmed");
+  });
+
+  it("marks a tentative cell so it reads as unconfirmed", () => {
+    const assignments = [
+      makeAssignment({ match_id: "m1", umpire_id: "u1", status: "tentative" }),
+    ];
+
+    render(<AssignmentGrid {...defaultProps} assignments={assignments} />);
+
+    const cell = screen.getByTestId("cell-m1-u1");
+    expect(cell).toHaveAttribute("data-status", "tentative");
+    expect(cell.className).toContain("outline-dashed");
+  });
+
+  it("does not let a tentative appointment fill a match slot", () => {
+    const assignments = [
+      makeAssignment({ match_id: "m1", umpire_id: "u1", status: "tentative" }),
+    ];
+
+    render(<AssignmentGrid {...defaultProps} assignments={assignments} />);
+
+    // Both matches still count as unfilled; the sketch shows as a +1 aside,
+    // once on the match badge and once on the umpire's workload.
+    expect(screen.getAllByText("0/2")).toHaveLength(2);
+    expect(screen.getAllByText("+1")).toHaveLength(2);
+  });
+
+  it("promotes a tentative appointment to confirmed on a plain click", async () => {
+    const { setAssignmentStatus } = await import("@/lib/actions/assignments");
+    const mockSetStatus = vi.mocked(setAssignmentStatus);
+    mockSetStatus.mockResolvedValue(
+      makeAssignment({ match_id: "m1", umpire_id: "u1" }),
+    );
+
+    const assignments = [
+      makeAssignment({ match_id: "m1", umpire_id: "u1", status: "tentative" }),
+    ];
+
+    render(<AssignmentGrid {...defaultProps} assignments={assignments} />);
+    fireEvent.click(screen.getByTestId("cell-m1-u1"));
+
+    expect(mockSetStatus).toHaveBeenCalledWith(
+      "poll-1",
+      "m1",
+      "u1",
+      "confirmed",
+    );
+  });
+
+  it("demotes a confirmed appointment while tentative mode is on", async () => {
+    const { setAssignmentStatus } = await import("@/lib/actions/assignments");
+    const mockSetStatus = vi.mocked(setAssignmentStatus);
+    mockSetStatus.mockResolvedValue(
+      makeAssignment({ match_id: "m1", umpire_id: "u1", status: "tentative" }),
+    );
+
+    const assignments = [makeAssignment({ match_id: "m1", umpire_id: "u1" })];
+
+    render(
+      <AssignmentGrid
+        {...defaultProps}
+        assignments={assignments}
+        tentativeMode
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("cell-m1-u1"));
+
+    expect(mockSetStatus).toHaveBeenCalledWith(
+      "poll-1",
+      "m1",
+      "u1",
+      "tentative",
+    );
+  });
+
+  it("removes a tentative appointment when clicked again in tentative mode", async () => {
+    const { deleteAssignment } = await import("@/lib/actions/assignments");
+    const mockDelete = vi.mocked(deleteAssignment);
+    mockDelete.mockResolvedValue(undefined);
+
+    const assignments = [
+      makeAssignment({ match_id: "m1", umpire_id: "u1", status: "tentative" }),
+    ];
+
+    render(
+      <AssignmentGrid
+        {...defaultProps}
+        assignments={assignments}
+        tentativeMode
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("cell-m1-u1"));
+
+    expect(mockDelete).toHaveBeenCalledWith("poll-1", "m1", "u1");
+  });
+
+  it("keeps the tentative bar out of the way until there is something in it", () => {
+    render(
+      <AssignmentGrid
+        {...defaultProps}
+        assignments={[makeAssignment({ match_id: "m1", umpire_id: "u1" })]}
+      />,
+    );
+
+    expect(screen.queryByTestId("confirm-tentative")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("clear-tentative")).not.toBeInTheDocument();
+    expect(screen.queryByText(/hidden from umpires/i)).not.toBeInTheDocument();
+  });
+
+  it("summarises the sketches once there are some", () => {
+    render(
+      <AssignmentGrid
+        {...defaultProps}
+        assignments={[
+          makeAssignment({
+            match_id: "m1",
+            umpire_id: "u1",
+            status: "tentative",
+          }),
+          makeAssignment({
+            match_id: "m1",
+            umpire_id: "u2",
+            status: "tentative",
+          }),
+        ]}
+      />,
+    );
+
+    expect(
+      screen.getByText("2 tentative appointments — hidden from umpires"),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("confirm-tentative")).toBeInTheDocument();
+  });
+
+  it("confirms every tentative appointment at once", async () => {
+    const { confirmTentativeAssignments } =
+      await import("@/lib/actions/assignments");
+    const mockConfirmAll = vi.mocked(confirmTentativeAssignments);
+    mockConfirmAll.mockResolvedValue(2);
+
+    const assignments = [
+      makeAssignment({ match_id: "m1", umpire_id: "u1", status: "tentative" }),
+      makeAssignment({ match_id: "m1", umpire_id: "u2", status: "tentative" }),
+    ];
+
+    render(<AssignmentGrid {...defaultProps} assignments={assignments} />);
+
+    fireEvent.click(screen.getByTestId("confirm-tentative"));
+
+    expect(mockConfirmAll).toHaveBeenCalledWith("poll-1");
+    await screen.findByText("2/2");
+  });
+
+  it("discards every tentative appointment at once", async () => {
+    const { clearTentativeAssignments } =
+      await import("@/lib/actions/assignments");
+    const mockClear = vi.mocked(clearTentativeAssignments);
+    mockClear.mockResolvedValue(1);
+
+    const assignments = [
+      makeAssignment({ match_id: "m1", umpire_id: "u1", status: "tentative" }),
+    ];
+
+    render(<AssignmentGrid {...defaultProps} assignments={assignments} />);
+    fireEvent.click(screen.getByTestId("clear-tentative"));
+
+    expect(mockClear).toHaveBeenCalledWith("poll-1");
+    expect(screen.getByTestId("cell-m1-u1")).toHaveAttribute(
+      "data-status",
+      "none",
+    );
   });
 });

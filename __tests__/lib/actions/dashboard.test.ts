@@ -128,7 +128,9 @@ describe("getDashboardStats", () => {
     });
 
     // Query 4: .from("assignments").select("match_id").in("poll_id", [...])
-    mockIn.mockResolvedValueOnce({
+    //          .eq("status", "confirmed") — tentative ones do not fill a match
+    mockIn.mockReturnValueOnce(chainable());
+    mockEq.mockResolvedValueOnce({
       data: [
         { match_id: "m1" },
         { match_id: "m1" }, // m1 has 2 assignments (fully assigned)
@@ -214,7 +216,9 @@ describe("getActionItems", () => {
     });
 
     // Q3: .from("assignments").select("match_id").in("poll_id", [...])
-    mockIn.mockResolvedValueOnce({
+    //     .eq("status", "confirmed")
+    mockIn.mockReturnValueOnce(chainable());
+    mockEq.mockResolvedValueOnce({
       data: [{ match_id: "m1" }, { match_id: "m1" }], // m1 fully assigned, m2 not
       error: null,
     });

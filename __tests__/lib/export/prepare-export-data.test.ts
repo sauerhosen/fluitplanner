@@ -343,6 +343,7 @@ describe("prepareAssignmentExport", () => {
         umpire_id: "u2",
         created_at: "",
         organization_id: "org1",
+        status: "confirmed",
       },
       {
         id: "a2",
@@ -351,6 +352,7 @@ describe("prepareAssignmentExport", () => {
         umpire_id: "u1",
         created_at: "",
         organization_id: "org1",
+        status: "confirmed",
       },
     ];
 
@@ -377,6 +379,7 @@ describe("prepareAssignmentExport", () => {
         umpire_id: "u1",
         created_at: "",
         organization_id: "org1",
+        status: "confirmed",
       },
     ];
 
@@ -414,6 +417,7 @@ describe("prepareAssignmentExport", () => {
         umpire_id: "unknown-uuid",
         created_at: "",
         organization_id: "org1",
+        status: "confirmed",
       },
     ];
 
@@ -558,6 +562,7 @@ describe("prepareDaySheetExport", () => {
         umpire_id: "u2",
         created_at: "",
         organization_id: "org1",
+        status: "confirmed",
       },
       {
         id: "a2",
@@ -566,6 +571,7 @@ describe("prepareDaySheetExport", () => {
         umpire_id: "u1",
         created_at: "",
         organization_id: "org1",
+        status: "confirmed",
       },
     ];
 
@@ -642,5 +648,98 @@ describe("prepareDaySheetExport", () => {
     );
     expect(result.rows[0].time).toBe("");
     expect(result.rows[0].field).toBe("");
+  });
+});
+describe("tentative appointments in exports", () => {
+  const baseMatch: Match = {
+    ...matchSyncDefaults,
+    id: "m1",
+    date: "2026-03-15",
+    start_time: "2026-03-15T14:00:00Z",
+    home_team: "Team A",
+    away_team: "Team B",
+    competition: "League",
+    venue: "Stadium",
+    field: "1",
+    notes: null,
+    required_level: 1,
+    created_by: "user1",
+    created_at: "",
+    organization_id: "org1",
+  };
+
+  const umpires: Umpire[] = [
+    {
+      id: "u1",
+      auth_user_id: null,
+      name: "Alice",
+      email: "alice@example.com",
+      level: 1,
+      created_at: "",
+      updated_at: "",
+    },
+    {
+      id: "u2",
+      auth_user_id: null,
+      name: "Bob",
+      email: "bob@example.com",
+      level: 1,
+      created_at: "",
+      updated_at: "",
+    },
+  ];
+
+  function assignment(
+    overrides: Partial<Assignment> & { match_id: string; umpire_id: string },
+  ): Assignment {
+    return {
+      id: `a-${overrides.match_id}-${overrides.umpire_id}`,
+      poll_id: "p1",
+      created_at: "",
+      organization_id: "org1",
+      status: "confirmed",
+      ...overrides,
+    };
+  }
+
+  it("leaves tentative appointments out of the assignment export", () => {
+    const matches = [baseMatch];
+    const assignments = [
+      assignment({ match_id: "m1", umpire_id: "u1" }),
+      assignment({ match_id: "m1", umpire_id: "u2", status: "tentative" }),
+    ];
+
+    const result = prepareAssignmentExport(
+      "Poll",
+      matches,
+      assignments,
+      umpires,
+      (d) => d,
+      (t) => t,
+    );
+
+    expect(result.rows[0].umpire1).toBe("Alice");
+    expect(result.rows[0].umpire2).toBe("");
+    expect(result.rows[0].assignmentCount).toBe("1/2");
+  });
+
+  it("leaves tentative appointments off the day sheet", () => {
+    const matches = [baseMatch];
+    const assignments = [
+      assignment({ match_id: "m1", umpire_id: "u1", status: "tentative" }),
+    ];
+
+    const result = prepareDaySheetExport(
+      "Poll",
+      matches,
+      assignments,
+      umpires,
+      (d) => d,
+      (t) => t,
+      "2026-03-15",
+    );
+
+    expect(result.rows[0].umpire1).toBe("");
+    expect(result.rows[0].umpire2).toBe("");
   });
 });
