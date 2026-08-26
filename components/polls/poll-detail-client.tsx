@@ -40,6 +40,8 @@ type Props = {
   initialPoll: PollDetail;
   availableMatches: Match[];
   umpires: RosteredUmpire[];
+  /** Own club name, stripped from home team labels in the assignment grid. */
+  clubName?: string | null;
 };
 
 /**
@@ -57,6 +59,7 @@ export function PollDetailClient({
   initialPoll,
   availableMatches,
   umpires: initialUmpires,
+  clubName,
 }: Props) {
   const router = useRouter();
   const [poll, setPoll] = useState(initialPoll);
@@ -498,6 +501,7 @@ export function PollDetailClient({
             assignments={poll.assignments}
             umpires={umpires}
             transposed={transposed}
+            clubName={clubName}
             onAssignmentsChange={setLiveAssignments}
             onNoteSaved={refreshPoll}
             onUmpireNoteSaved={refreshUmpires}
