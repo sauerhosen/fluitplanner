@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import type { Umpire } from "@/lib/types/domain";
+import type { RosteredUmpire } from "@/lib/types/domain";
 import type { UmpireFilters } from "@/lib/actions/umpires";
 import { getUmpires } from "@/lib/actions/umpires";
 import { UmpireTable } from "./umpire-table";
@@ -21,13 +21,15 @@ import { useTranslations } from "next-intl";
 export function UmpiresPageClient({
   initialUmpires,
 }: {
-  initialUmpires: Umpire[];
+  initialUmpires: RosteredUmpire[];
 }) {
   const t = useTranslations("umpires");
   const [umpires, setUmpires] = useState(initialUmpires);
   const [search, setSearch] = useState("");
   const [levelFilter, setLevelFilter] = useState<string>("all");
-  const [editingUmpire, setEditingUmpire] = useState<Umpire | null>(null);
+  const [editingUmpire, setEditingUmpire] = useState<RosteredUmpire | null>(
+    null,
+  );
   const [showAddDialog, setShowAddDialog] = useState(false);
 
   const refreshUmpires = useCallback(async () => {
@@ -89,15 +91,19 @@ export function UmpiresPageClient({
         umpires={umpires}
         onEdit={(umpire) => setEditingUmpire(umpire)}
         onDeleted={refreshUmpires}
+        onNoteSaved={refreshUmpires}
       />
 
-      {/* Add dialog */}
-      <UmpireFormDialog
-        umpire={null}
-        open={showAddDialog}
-        onOpenChange={setShowAddDialog}
-        onSaved={refreshUmpires}
-      />
+      {/* Add dialog — mounted only while open, so each opening starts blank
+          rather than holding on to the last umpire's details and note. */}
+      {showAddDialog && (
+        <UmpireFormDialog
+          umpire={null}
+          open={true}
+          onOpenChange={setShowAddDialog}
+          onSaved={refreshUmpires}
+        />
+      )}
 
       {/* Edit dialog */}
       {editingUmpire && (

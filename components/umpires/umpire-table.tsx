@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import type { Umpire } from "@/lib/types/domain";
+import type { RosteredUmpire } from "@/lib/types/domain";
 import { deleteUmpire, deleteUmpires } from "@/lib/actions/umpires";
+import { UmpireNoteButton } from "./umpire-note-button";
 import {
   Table,
   TableBody,
@@ -45,10 +46,13 @@ export function UmpireTable({
   umpires,
   onEdit,
   onDeleted,
+  onNoteSaved,
 }: {
-  umpires: Umpire[];
-  onEdit: (umpire: Umpire) => void;
+  umpires: RosteredUmpire[];
+  onEdit: (umpire: RosteredUmpire) => void;
   onDeleted: () => void;
+  /** Awaited refetch, so a note saved here is read back from the server. */
+  onNoteSaved?: () => void | Promise<void>;
 }) {
   const t = useTranslations("umpires");
   const tCommon = useTranslations("common");
@@ -111,6 +115,7 @@ export function UmpireTable({
               <TableHead>{t("emailHeader")}</TableHead>
               <TableHead className="w-32">{t("levelHeader")}</TableHead>
               <TableHead className="w-20">{t("verifiedHeader")}</TableHead>
+              <TableHead className="w-16">{t("notesHeader")}</TableHead>
               <TableHead className="w-12"></TableHead>
             </TableRow>
           </TableHeader>
@@ -141,6 +146,13 @@ export function UmpireTable({
                   ) : (
                     <X className="h-4 w-4 text-muted-foreground" />
                   )}
+                </TableCell>
+                <TableCell>
+                  <UmpireNoteButton
+                    umpire={umpire}
+                    variant="editor"
+                    onSaved={onNoteSaved}
+                  />
                 </TableCell>
                 <TableCell>
                   <DropdownMenu>

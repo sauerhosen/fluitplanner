@@ -15,9 +15,10 @@ import type {
   PollSlot,
   AvailabilityResponse,
   Assignment,
-  Umpire,
+  RosteredUmpire,
 } from "@/lib/types/domain";
 import { MatchNoteButton } from "@/components/matches/match-note-button";
+import { UmpireNoteButton } from "@/components/umpires/umpire-note-button";
 import { useTranslations, useFormatter } from "next-intl";
 
 type Props = {
@@ -26,11 +27,13 @@ type Props = {
   slots: PollSlot[];
   responses: AvailabilityResponse[];
   assignments: Assignment[];
-  umpires: Umpire[];
+  umpires: RosteredUmpire[];
   transposed?: boolean;
   onAssignmentsChange?: (assignments: Assignment[]) => void;
   /** Called after a match note is saved so the parent can refetch. */
   onNoteSaved?: () => void;
+  /** Called after an umpire note is saved so the parent can refetch. */
+  onUmpireNoteSaved?: () => void;
 };
 
 const AVAILABILITY_COLORS: Record<string, string> = {
@@ -51,6 +54,7 @@ export function AssignmentGrid({
   transposed = false,
   onAssignmentsChange,
   onNoteSaved,
+  onUmpireNoteSaved,
 }: Props) {
   const [assignments, setAssignments] = useState(initialAssignments);
   const [saving, setSaving] = useState<string | null>(null);
@@ -322,7 +326,14 @@ export function AssignmentGrid({
                     className="p-2 text-center font-medium whitespace-nowrap min-w-16 bg-background"
                   >
                     <div className="flex flex-col items-center gap-0.5">
-                      <span>{u.name}</span>
+                      <div className="flex items-center gap-1">
+                        <span>{u.name}</span>
+                        <UmpireNoteButton
+                          umpire={u}
+                          variant="indicator"
+                          onSaved={onUmpireNoteSaved}
+                        />
+                      </div>
                       <span className="text-[11px] font-normal text-muted-foreground tabular-nums">
                         {umpireAssignmentCounts.get(u.id) ?? 0}
                       </span>
@@ -458,11 +469,16 @@ export function AssignmentGrid({
             {umpires.map((u) => (
               <tr key={u.id} className="border-b">
                 <td className="p-2 font-medium sticky left-0 z-10 bg-background whitespace-nowrap">
-                  <div className="flex items-baseline gap-2">
+                  <div className="flex items-center gap-2">
                     <span>{u.name}</span>
                     <span className="text-[11px] font-normal text-muted-foreground tabular-nums">
                       {umpireAssignmentCounts.get(u.id) ?? 0}
                     </span>
+                    <UmpireNoteButton
+                      umpire={u}
+                      variant="indicator"
+                      onSaved={onUmpireNoteSaved}
+                    />
                   </div>
                 </td>
                 {sortedMatches.map((match, i) => {
