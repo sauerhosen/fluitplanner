@@ -48,12 +48,17 @@ test.describe("Match notes", () => {
     await form.getByLabel("Notes").fill(formNote);
     await form.getByRole("button", { name: /^add$/i }).click();
 
-    matchCreated = true;
+    // The dialog closes only once the server action resolves. Waiting for that
+    // keeps the navigation below from aborting the in-flight request.
+    await expect(form).toBeHidden({ timeout: 10_000 });
 
     await gotoMatch(page);
     await expect(page.getByRole("button", { name: formNote })).toBeVisible({
       timeout: 10_000,
     });
+
+    // Set last: the later tests skip rather than cascade if creation failed.
+    matchCreated = true;
   });
 
   test("the note is revealed on hover in the Matches screen", async ({

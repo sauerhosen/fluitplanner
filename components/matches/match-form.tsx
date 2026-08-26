@@ -20,6 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { MAX_NOTE_LENGTH } from "@/lib/domain/notes";
 import { useTranslations } from "next-intl";
 
 export function MatchFormDialog({
@@ -70,14 +71,20 @@ export function MatchFormDialog({
         venue: venue || null,
         field: field || null,
         competition: competition || null,
-        notes: notes.trim() || null,
         required_level: Number(requiredLevel) as 1 | 2 | 3,
       };
 
       if (isEditing) {
-        await updateMatch(match.id, matchData);
+        // The note has its own editor on the Matches and poll screens, so it
+        // can change while this dialog sits open. Send it only when this form
+        // actually touched it, rather than writing back a stale snapshot.
+        const noteChanged = notes.trim() !== (match.notes ?? "").trim();
+        await updateMatch(
+          match.id,
+          noteChanged ? { ...matchData, notes } : matchData,
+        );
       } else {
-        await createMatch(matchData);
+        await createMatch({ ...matchData, notes });
       }
       onSaved();
       onOpenChange(false);
@@ -188,7 +195,7 @@ export function MatchFormDialog({
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={3}
-              maxLength={2000}
+              maxLength={MAX_NOTE_LENGTH}
               placeholder={t("notesPlaceholder")}
             />
           </div>

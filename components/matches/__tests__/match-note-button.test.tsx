@@ -8,7 +8,12 @@ vi.mock("@/lib/actions/matches", () => ({
   updateMatchNotes: vi.fn(),
 }));
 
+vi.mock("sonner", () => ({
+  toast: { error: vi.fn(), warning: vi.fn() },
+}));
+
 import { updateMatchNotes } from "@/lib/actions/matches";
+import { toast } from "sonner";
 const mockUpdateMatchNotes = vi.mocked(updateMatchNotes);
 
 const match = {
@@ -108,6 +113,21 @@ describe("MatchNoteButton", () => {
       expect(mockUpdateMatchNotes).toHaveBeenCalledWith("m-1", ""),
     );
     expect(onSaved).toHaveBeenCalledWith("m-1", null);
+  });
+
+  it("keeps the dialog open and reports a refetch that fails after saving", async () => {
+    const user = userEvent.setup();
+    const onSaved = vi.fn().mockRejectedValue(new Error("network"));
+    render(
+      <MatchNoteButton match={match} variant="editor" onSaved={onSaved} />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /Umpire X/ }));
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+    // Still open, so the planner is not left looking at stale content.
+    expect(screen.getByRole("textbox", { name: "Notes" })).toBeInTheDocument();
   });
 
   it("does not open an editor when read-only", async () => {

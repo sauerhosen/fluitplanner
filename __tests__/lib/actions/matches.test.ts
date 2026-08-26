@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { MAX_NOTE_LENGTH } from "@/lib/domain/notes";
 
 const mockGetUser = vi.fn();
 const mockInsert = vi.fn();
@@ -39,6 +40,7 @@ const validMatch = {
   competition: null,
   venue: null,
   field: null,
+  notes: null,
   required_level: 1 as const,
 };
 
@@ -104,6 +106,35 @@ describe("updateMatch", () => {
     expect(mockUpdate).toHaveBeenCalledWith({
       notes: "Umpire X would like to be assigned",
     });
+  });
+});
+
+describe("note validation", () => {
+  it("rejects an over-long note on createMatch, not just the note editor", async () => {
+    const { createMatch } = await import("@/lib/actions/matches");
+
+    await expect(
+      createMatch({ ...validMatch, notes: "x".repeat(MAX_NOTE_LENGTH + 1) }),
+    ).rejects.toThrow(/2000 characters/);
+    expect(mockInsert).not.toHaveBeenCalled();
+  });
+
+  it("rejects an over-long note on updateMatch", async () => {
+    const { updateMatch } = await import("@/lib/actions/matches");
+
+    await expect(
+      updateMatch("m-1", { notes: "x".repeat(MAX_NOTE_LENGTH + 1) }),
+    ).rejects.toThrow(/2000 characters/);
+    expect(mockUpdate).not.toHaveBeenCalled();
+  });
+
+  it("trims and NULLs a blank note written through the match form", async () => {
+    const { createMatch } = await import("@/lib/actions/matches");
+    await createMatch({ ...validMatch, notes: "   " });
+
+    expect(mockInsert).toHaveBeenCalledWith(
+      expect.objectContaining({ notes: null }),
+    );
   });
 });
 

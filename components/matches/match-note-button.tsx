@@ -17,6 +17,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { MAX_NOTE_LENGTH } from "@/lib/domain/notes";
 import { useTranslations } from "next-intl";
 
 export type NotableMatch = {
@@ -36,7 +37,11 @@ type Props = {
   variant?: "indicator" | "editor";
   readOnly?: boolean;
   className?: string;
-  onSaved?: (matchId: string, notes: string | null) => void;
+  /**
+   * Callers pass an async refetch; it is awaited so a failed refresh reports
+   * an error instead of closing the dialog over stale content.
+   */
+  onSaved?: (matchId: string, notes: string | null) => void | Promise<void>;
 };
 
 export function MatchNoteButton({
@@ -61,7 +66,7 @@ export function MatchNoteButton({
     setSaving(true);
     try {
       await updateMatchNotes(match.id, body);
-      onSaved?.(match.id, body.trim() || null);
+      await onSaved?.(match.id, body.trim() || null);
       setOpen(false);
     } catch {
       toast.error(t("noteSaveError"));
@@ -117,7 +122,7 @@ export function MatchNoteButton({
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               rows={4}
-              maxLength={2000}
+              maxLength={MAX_NOTE_LENGTH}
               aria-label={t("notesLabel")}
               placeholder={t("notesPlaceholder")}
               autoFocus
