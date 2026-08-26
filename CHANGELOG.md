@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.12.0](https://github.com/sauerhosen/fluitplanner/compare/v2.11.0...v2.12.0) (2026-08-26)
+
+
+### Features
+
+* add notes to matches, visible in matches, poll and assignment views ([794c3cd](https://github.com/sauerhosen/fluitplanner/commit/794c3cd29d99359ea9961230f58fcc11cd17db7d))
+* CRUD notes on matches ([b498359](https://github.com/sauerhosen/fluitplanner/commit/b498359dfa838e66ac25a2df622e60418d375294))
+
+
+### Bug Fixes
+
+* give the note editor an accessible name ([f753cd4](https://github.com/sauerhosen/fluitplanner/commit/f753cd481da938b2d82523d57030c20c91664a23))
+* harden match notes against review findings ([66a10dd](https://github.com/sauerhosen/fluitplanner/commit/66a10dd8389665c4100278a4dbfb8b6879b05394))
+
 ## [2.11.0](https://github.com/sauerhosen/fluitplanner/compare/v2.10.1...v2.11.0) (2026-08-25)
 
 
