@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.13.0](https://github.com/sauerhosen/fluitplanner/compare/v2.12.0...v2.13.0) (2026-08-26)
+
+
+### Features
+
+* add notes to umpires, visible in the umpires and assignment views ([02d922d](https://github.com/sauerhosen/fluitplanner/commit/02d922d06a9dd4d49471bad9a11b7cbd6c3d2146))
+* CRUD notes on umpires ([7494b98](https://github.com/sauerhosen/fluitplanner/commit/7494b985c2fcdeb203ac0ab850e4504161e8bd13))
+
+
+### Bug Fixes
+
+* harden umpire notes against review findings ([57a7931](https://github.com/sauerhosen/fluitplanner/commit/57a7931c9b073cc0a29b1205acba4548aa0b5e87))
+* start the add-match dialog blank on every opening ([60dd3eb](https://github.com/sauerhosen/fluitplanner/commit/60dd3eb5207f4704f0be7af0109c816e1fd1360b))
+
 ## [2.12.0](https://github.com/sauerhosen/fluitplanner/compare/v2.11.0...v2.12.0) (2026-08-26)
 
 
