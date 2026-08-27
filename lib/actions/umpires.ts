@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireTenantId } from "@/lib/tenant";
+import { requirePlanner } from "@/lib/auth";
 import { normalizeNote } from "@/lib/domain/notes";
 import type { RosteredUmpire, Umpire } from "@/lib/types/domain";
 
@@ -273,4 +274,104 @@ export async function deleteUmpires(ids: string[]): Promise<void> {
 
   if (error) throw new Error(error.message);
   revalidatePath("/protected/umpires");
+}
+
+/**
+ * What a merge carried over, and what it had to discard as a conflict.
+ *
+ * "Dropped" rows are the losing half of a cell both umpires answered: one
+ * person cannot hold two answers for the same poll slot or two appointments
+ * for the same match.
+ */
+export type UmpireMergeSummary = {
+  responsesMoved: number;
+  responsesDropped: number;
+  assignmentsMoved: number;
+  assignmentsDropped: number;
+};
+
+/** How much the umpire about to disappear is carrying, for the confirm step. */
+export type UmpireMergePreview = {
+  responses: number;
+  assignments: number;
+};
+
+export async function getUmpireMergePreview(
+  disappearingId: string,
+): Promise<UmpireMergePreview> {
+  const { supabase, tenantId } = await requirePlanner();
+
+  // The counts are read past RLS on shared tables, so the roster check the
+  // merge itself makes has to be made here too: without it any umpire id in
+  // the system can be counted from outside the organization that holds them.
+  const { data: rosterEntry, error: rosterError } = await supabase
+    .from("organization_umpires")
+    .select("umpire_id")
+    .eq("organization_id", tenantId)
+    .eq("umpire_id", disappearingId)
+    .maybeSingle();
+
+  if (rosterError) throw new Error(rosterError.message);
+  if (!rosterEntry) throw new Error("Umpire not in this organization");
+
+  const [responses, assignments] = await Promise.all([
+    supabase
+      .from("availability_responses")
+      .select("id", { count: "exact", head: true })
+      .eq("umpire_id", disappearingId),
+    supabase
+      .from("assignments")
+      .select("id", { count: "exact", head: true })
+      .eq("umpire_id", disappearingId),
+  ]);
+
+  if (responses.error) throw new Error(responses.error.message);
+  if (assignments.error) throw new Error(assignments.error.message);
+
+  return {
+    responses: responses.count ?? 0,
+    assignments: assignments.count ?? 0,
+  };
+}
+
+/**
+ * Fold a duplicate umpire into the record that survives.
+ *
+ * One mistyped email on a poll is enough to create a second person: the address
+ * is the identity everywhere. This moves everything the duplicate collected —
+ * availability, appointments, roster notes, the verified login link — onto the
+ * surviving record and deletes the duplicate.
+ *
+ * The work happens inside `merge_umpires` (see the migration) rather than as a
+ * series of calls from here: it rewrites five tables and deletes rows, and a
+ * merge that failed halfway would strand availability on an umpire that no
+ * longer exists. The function re-checks the planner role and both rosters for
+ * itself, because SECURITY DEFINER means RLS is not there to do it.
+ */
+export async function mergeUmpires(
+  survivingId: string,
+  disappearingId: string,
+): Promise<UmpireMergeSummary> {
+  if (survivingId === disappearingId)
+    throw new Error("Cannot merge an umpire into themselves");
+
+  const { supabase, tenantId } = await requirePlanner();
+
+  const { data, error } = await supabase.rpc("merge_umpires", {
+    p_surviving_id: survivingId,
+    p_disappearing_id: disappearingId,
+    p_organization_id: tenantId,
+  });
+
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/protected/umpires");
+
+  const summary = (data ?? {}) as Record<string, number>;
+  return {
+    responsesMoved: summary.responses_moved ?? 0,
+    responsesDropped: summary.responses_dropped ?? 0,
+    assignmentsMoved: summary.assignments_moved ?? 0,
+    assignmentsDropped: summary.assignments_dropped ?? 0,
+  };
 }

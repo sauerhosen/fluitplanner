@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { render } from "@/__tests__/helpers/render";
 import { describe, it, expect, vi } from "vitest";
@@ -50,6 +50,7 @@ describe("UmpireTable", () => {
       <UmpireTable
         umpires={mockUmpires}
         onEdit={vi.fn()}
+        onMerge={vi.fn()}
         onDeleted={vi.fn()}
       />,
     );
@@ -66,6 +67,7 @@ describe("UmpireTable", () => {
       <UmpireTable
         umpires={mockUmpires}
         onEdit={vi.fn()}
+        onMerge={vi.fn()}
         onDeleted={vi.fn()}
       />,
     );
@@ -76,7 +78,14 @@ describe("UmpireTable", () => {
   });
 
   it("shows empty state when no umpires", () => {
-    render(<UmpireTable umpires={[]} onEdit={vi.fn()} onDeleted={vi.fn()} />);
+    render(
+      <UmpireTable
+        umpires={[]}
+        onEdit={vi.fn()}
+        onMerge={vi.fn()}
+        onDeleted={vi.fn()}
+      />,
+    );
 
     expect(screen.getByText(/no umpires yet/i)).toBeInTheDocument();
   });
@@ -86,6 +95,7 @@ describe("UmpireTable", () => {
       <UmpireTable
         umpires={mockUmpires}
         onEdit={vi.fn()}
+        onMerge={vi.fn()}
         onDeleted={vi.fn()}
       />,
     );
@@ -101,6 +111,7 @@ describe("UmpireTable", () => {
       <UmpireTable
         umpires={mockUmpires}
         onEdit={vi.fn()}
+        onMerge={vi.fn()}
         onDeleted={vi.fn()}
       />,
     );
@@ -117,6 +128,7 @@ describe("UmpireTable", () => {
       <UmpireTable
         umpires={mockUmpires}
         onEdit={vi.fn()}
+        onMerge={vi.fn()}
         onDeleted={vi.fn()}
       />,
     );
@@ -135,6 +147,7 @@ describe("UmpireTable", () => {
       <UmpireTable
         umpires={mockUmpires}
         onEdit={vi.fn()}
+        onMerge={vi.fn()}
         onDeleted={vi.fn()}
       />,
     );
@@ -153,6 +166,7 @@ describe("UmpireTable", () => {
       <UmpireTable
         umpires={mockUmpires}
         onEdit={vi.fn()}
+        onMerge={vi.fn()}
         onDeleted={vi.fn()}
       />,
     );
@@ -169,6 +183,7 @@ describe("UmpireTable", () => {
       <UmpireTable
         umpires={mockUmpires}
         onEdit={vi.fn()}
+        onMerge={vi.fn()}
         onDeleted={vi.fn()}
       />,
     );
@@ -183,6 +198,7 @@ describe("UmpireTable", () => {
       <UmpireTable
         umpires={mockUmpires}
         onEdit={vi.fn()}
+        onMerge={vi.fn()}
         onDeleted={vi.fn()}
       />,
     );
@@ -200,6 +216,7 @@ describe("UmpireTable", () => {
       <UmpireTable
         umpires={mockUmpires}
         onEdit={vi.fn()}
+        onMerge={vi.fn()}
         onDeleted={vi.fn()}
         onNoteSaved={onNoteSaved}
       />,
@@ -211,5 +228,30 @@ describe("UmpireTable", () => {
     await user.click(screen.getByRole("button", { name: /^save$/i }));
 
     await waitFor(() => expect(onNoteSaved).toHaveBeenCalled());
+  });
+
+  it("hands the row's own umpire to the merge dialog as the survivor", async () => {
+    const user = userEvent.setup();
+    const onMerge = vi.fn();
+    render(
+      <UmpireTable
+        umpires={mockUmpires}
+        onEdit={vi.fn()}
+        onMerge={onMerge}
+        onDeleted={vi.fn()}
+      />,
+    );
+
+    const row = screen.getByText("Piet Bakker").closest("tr")!;
+    await user.click(
+      within(row).getByRole("button", { name: /more actions/i }),
+    );
+    await user.click(
+      await screen.findByRole("menuitem", { name: /merge duplicate/i }),
+    );
+
+    expect(onMerge).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "2", name: "Piet Bakker" }),
+    );
   });
 });

@@ -6,6 +6,7 @@ import type { UmpireFilters } from "@/lib/actions/umpires";
 import { getUmpires } from "@/lib/actions/umpires";
 import { UmpireTable } from "./umpire-table";
 import { UmpireFormDialog } from "./umpire-form";
+import { UmpireMergeDialog } from "./umpire-merge-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -31,6 +32,9 @@ export function UmpiresPageClient({
     null,
   );
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [mergingUmpire, setMergingUmpire] = useState<RosteredUmpire | null>(
+    null,
+  );
 
   const refreshUmpires = useCallback(async () => {
     const filters: UmpireFilters = {};
@@ -90,6 +94,7 @@ export function UmpiresPageClient({
       <UmpireTable
         umpires={umpires}
         onEdit={(umpire) => setEditingUmpire(umpire)}
+        onMerge={(umpire) => setMergingUmpire(umpire)}
         onDeleted={refreshUmpires}
         onNoteSaved={refreshUmpires}
       />
@@ -102,6 +107,19 @@ export function UmpiresPageClient({
           open={true}
           onOpenChange={setShowAddDialog}
           onSaved={refreshUmpires}
+        />
+      )}
+
+      {/* Merge dialog — mounted per opening for the same reason as the add
+          dialog: it holds the chosen counterpart and merge direction. */}
+      {mergingUmpire && (
+        <UmpireMergeDialog
+          umpire={mergingUmpire}
+          open={true}
+          onOpenChange={(open) => {
+            if (!open) setMergingUmpire(null);
+          }}
+          onMerged={refreshUmpires}
         />
       )}
 
