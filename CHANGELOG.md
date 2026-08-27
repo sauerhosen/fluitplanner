@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.15.0](https://github.com/sauerhosen/fluitplanner/compare/v2.14.0...v2.15.0) (2026-08-27)
+
+
+### Features
+
+* tentative umpire appointments ([ca80357](https://github.com/sauerhosen/fluitplanner/commit/ca8035783e9fa8e9a9ccfb332e2d7fdeffa35262))
+* tentative umpire appointments ([0d1defe](https://github.com/sauerhosen/fluitplanner/commit/0d1defe6772922e5a6b912f7c7a1b4b99d7ca2db))
+
 ## [2.14.0](https://github.com/sauerhosen/fluitplanner/compare/v2.13.0...v2.14.0) (2026-08-26)
 
 
