@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getUsers, getOrganizations } from "@/lib/actions/admin";
 import { getTranslations } from "next-intl/server";
 import { UserList } from "@/components/admin/user-list";
+import { PageHeader } from "@/components/shared/page-header";
 
 export default async function UsersPage() {
   const [rootDomain, supabase] = await Promise.all([
@@ -24,9 +25,9 @@ export default async function UsersPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">{t("users")}</h1>
-      </div>
+      <PageHeader
+        title={<h1 className="truncate text-xl font-semibold">{t("users")}</h1>}
+      />
       <UserList users={users} organizations={organizations} />
     </div>
   );

@@ -132,30 +132,41 @@ sticky children keep sticking to the viewport. If a toolbar ever sticks to the
 wrong place — or scrolls away with the page — an ancestor grew an `overflow`
 that is not `visible` or `clip`.
 
-## Bringing other pages over
+## Where it is applied
 
-Same two rows, same components. Per page:
+Every authenticated page now uses the same two rows.
 
-| Page        | Back to       | Primary action                          | Into `⋯`                     | Toolbar                              |
-| ----------- | ------------- | --------------------------------------- | ---------------------------- | ------------------------------------ |
-| Poll detail | Polls         | Share ▾                                 | Rename, close/reopen, delete | Tabs, date range, export, grid tools |
-| Matches     | — (top level) | Add matches ▾ (upload / paste / manual) | Sync now, bulk delete        | Date range, filters, export          |
-| Umpires     | — (top level) | Add umpire                              | Import, export               | Search, level filter                 |
-| Poll list   | — (top level) | New poll                                | —                            | Status filter, date range            |
-| Settings    | — (top level) | — (no primary)                          | —                            | Section tabs                         |
+| Page                         | Back to | Primary action | Behind `⋯`                   | Toolbar                               |
+| ---------------------------- | ------- | -------------- | ---------------------------- | ------------------------------------- |
+| Poll detail                  | Polls   | Share ▾        | Rename, close/reopen, delete | Tabs, date range, export, grid tools  |
+| Matches                      | —       | Add match      | Import matches               | Search, level, poll, date range, sync |
+| Umpires                      | —       | Add umpire     | —                            | Search, level                         |
+| Poll list                    | —       | New poll       | —                            | — (nothing to filter yet)             |
+| Dashboard                    | —       | —              | —                            | —                                     |
+| Settings                     | —       | —              | —                            | —                                     |
+| Organizations, Users (admin) | —       | —              | —                            | —                                     |
 
-Top-level list pages have no `backHref`; they keep the same single identity row
-and the same toolbar, so the two levels feel like one system.
+Top-level pages have no `backHref`, so their header is title plus whatever
+actions they have. A page with nothing to filter simply has no toolbar — the
+pattern is not a template to fill in.
 
-### Checklist for migrating a page
+### Page subtitles are gone
 
-1. Collapse every header block into one `PageHeader` row.
-2. Pick the single primary action. Everything else goes in `⋯`.
-3. Move tabs, filters and view toggles into a `StickyToolbar`.
-4. Delete any `<Label>` that only labelled a row of buttons.
-5. Set the page container to `gap-4`.
-6. Check the stuck state at a 560 px-tall viewport — the compact identity should
-   fade in and nothing should shift.
+Every list page used to carry a muted sentence under its title
+("Create and manage availability polls for umpires"). They restated the page
+name, cost a row each, and pushed the content down. The one that carried real
+information — that umpires are added automatically when they answer a poll —
+moved into the umpire table's empty state, where someone with no umpires will
+actually read it.
+
+### Where the header lives
+
+Server component when the actions need no client state (poll list, dashboard,
+settings, admin pages) — the header then renders instantly, outside `Suspense`.
+
+Client component when a primary action opens a dialog (matches, umpires). The
+page's `Suspense` fallback then pairs `PageHeaderSkeleton` with the table
+skeleton so the header does not pop in after the data resolves.
 
 ## Still on the table
 

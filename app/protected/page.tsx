@@ -8,16 +8,18 @@ import {
   ActivitySkeleton,
 } from "@/components/dashboard/dashboard-skeleton";
 import { getTranslations } from "next-intl/server";
+import { PageHeader } from "@/components/shared/page-header";
 
 export default async function DashboardPage() {
   const t = await getTranslations("dashboard");
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-bold">{t("pageTitle")}</h1>
-        <p className="text-muted-foreground">{t("pageSubtitle")}</p>
-      </div>
+      <PageHeader
+        title={
+          <h1 className="truncate text-xl font-semibold">{t("pageTitle")}</h1>
+        }
+      />
 
       <Suspense fallback={<StatsSkeleton />}>
         <StatsSection />

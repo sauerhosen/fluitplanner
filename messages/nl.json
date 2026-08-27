@@ -94,7 +94,6 @@
   },
   "matches": {
     "pageTitle": "Wedstrijden",
-    "pageSubtitle": "Upload wedstrijdschema's en beheer individuele wedstrijden.",
     "searchPlaceholder": "Zoek teams...",
     "filterByLevel": "Filter op niveau",
     "allLevels": "Alle niveaus",
@@ -106,6 +105,7 @@
     "noPoll": "Geen peiling",
     "pollHeader": "Peiling",
     "addMatch": "Wedstrijd toevoegen",
+    "moreActions": "Meer acties",
     "editMatch": "Wedstrijd bewerken",
     "dateLabel": "Datum",
     "timeLabel": "Tijd",
@@ -203,7 +203,6 @@
   },
   "polls": {
     "pageTitle": "Peilingen",
-    "pageSubtitle": "Maak en beheer beschikbaarheidspeilingen voor scheidsrechters.",
     "newPoll": "Nieuwe peiling",
     "newPollTitle": "Nieuwe peiling",
     "newPollSubtitle": "Selecteer wedstrijden en maak een beschikbaarheidspeiling.",
@@ -366,7 +365,6 @@
   },
   "umpires": {
     "pageTitle": "Scheidsrechters",
-    "pageSubtitle": "Beheer het scheidsrechtersrooster. Scheidsrechters worden automatisch toegevoegd wanneer ze reageren op een beschikbaarheidspeiling.",
     "searchPlaceholder": "Zoek op naam of e-mail...",
     "filterByLevel": "Filter op niveau",
     "allLevels": "Alle niveaus",
@@ -381,7 +379,7 @@
     "verifiedHeader": "Geverifieerd",
     "moreActions": "Meer acties",
     "edit": "Bewerken",
-    "emptyState": "Nog geen scheidsrechters. Scheidsrechters verschijnen hier wanneer ze reageren op een beschikbaarheidspeiling, of je kunt ze handmatig toevoegen.",
+    "emptyState": "Nog geen scheidsrechters. Ze worden automatisch toegevoegd zodra ze op een beschikbaarheidspeiling reageren, of voeg er zelf een toe.",
     "nameLabel": "Naam",
     "emailLabel": "E-mail",
     "levelLabel": "Niveau",
@@ -401,7 +399,6 @@
   },
   "settings": {
     "pageTitle": "Instellingen",
-    "pageSubtitle": "Stel in welke teams je beheert. Alleen wedstrijden voor deze teams worden geïmporteerd uit geüploade schema's.",
     "managedTeams": "Beheerde teams",
     "teamNameHeader": "Teamnaam",
     "requiredLevelHeader": "Vereist niveau",

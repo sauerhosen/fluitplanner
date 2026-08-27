@@ -31,6 +31,19 @@ export function TableSkeleton({
   );
 }
 
+/**
+ * Stands in for the identity row on pages whose header lives in the client
+ * component, so the header does not pop in after the data resolves.
+ */
+export function PageHeaderSkeleton({ action = true }: { action?: boolean }) {
+  return (
+    <div className="flex items-center gap-3">
+      <Skeleton className="h-7 w-48" />
+      {action && <Skeleton className="ml-auto h-8 w-32" />}
+    </div>
+  );
+}
+
 export function PollDetailSkeleton() {
   return (
     <div className="flex flex-col gap-6">

@@ -12,6 +12,14 @@ import { MatchFormDialog } from "./match-form";
 import { PollActionButtons } from "./poll-action-buttons";
 import { DateRangePicker } from "@/components/shared/date-range-picker";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { PageHeader } from "@/components/shared/page-header";
+import { StickyToolbar } from "@/components/shared/sticky-toolbar";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -20,12 +28,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
-import { ChevronRight, Plus } from "lucide-react";
+import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
+import { MoreHorizontal, Plus } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { addMonths, format } from "date-fns";
 import type { DateRange } from "react-day-picker";
@@ -122,33 +126,54 @@ export function MatchesPageClient({
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      {/* Collapsible import section */}
-      <Collapsible open={importOpen} onOpenChange={setImportOpen}>
-        <CollapsibleTrigger className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
-          <ChevronRight
-            className={`h-4 w-4 transition-transform ${importOpen ? "rotate-90" : ""}`}
-          />
-          {t("importMatches")}
-        </CollapsibleTrigger>
-        <CollapsibleContent className="mt-3">
-          <UploadZone
-            managedTeams={managedTeams}
-            onImportComplete={refreshMatches}
-          />
-        </CollapsibleContent>
-      </Collapsible>
+    <div className="flex flex-col gap-4">
+      <PageHeader
+        title={
+          <h1 className="truncate text-xl font-semibold">{t("pageTitle")}</h1>
+        }
+        actions={
+          <>
+            <Button size="sm" onClick={() => setShowAddDialog(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              {t("addMatch")}
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="size-8"
+                  aria-label={t("moreActions")}
+                >
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuCheckboxItem
+                  checked={importOpen}
+                  onCheckedChange={setImportOpen}
+                >
+                  {t("importMatches")}
+                </DropdownMenuCheckboxItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </>
+        }
+      />
 
-      {/* Filters + Add button */}
-      <div className="flex items-center gap-4">
+      <StickyToolbar
+        compact={
+          <h2 className="truncate text-sm font-medium">{t("pageTitle")}</h2>
+        }
+      >
         <Input
           placeholder={t("searchPlaceholder")}
           value={search}
           onChange={(e) => handleSearchChange(e.target.value)}
-          className="max-w-xs"
+          className="h-8 max-w-xs"
         />
         <Select value={levelFilter} onValueChange={handleLevelChange}>
-          <SelectTrigger className="w-48">
+          <SelectTrigger size="sm" className="w-48">
             <SelectValue placeholder={t("filterByLevel")} />
           </SelectTrigger>
           <SelectContent>
@@ -159,7 +184,7 @@ export function MatchesPageClient({
           </SelectContent>
         </Select>
         <Select value={pollFilter} onValueChange={handlePollChange}>
-          <SelectTrigger className="w-48">
+          <SelectTrigger size="sm" className="w-48">
             <SelectValue placeholder={t("filterByPoll")} />
           </SelectTrigger>
           <SelectContent>
@@ -173,16 +198,23 @@ export function MatchesPageClient({
           </SelectContent>
         </Select>
         <DateRangePicker value={dateRange} onChange={handleDateRangeChange} />
-        <div className="ml-auto flex items-center gap-3">
-          {showSync && (
+        {showSync && (
+          <div className="ml-auto">
             <SyncNowButton initialState={syncState} onSynced={refreshMatches} />
-          )}
-          <Button onClick={() => setShowAddDialog(true)}>
-            <Plus className="mr-2 h-4 w-4" />
-            {t("addMatch")}
-          </Button>
-        </div>
-      </div>
+          </div>
+        )}
+      </StickyToolbar>
+
+      {/* Import panel: opened from the overflow menu, shown under the toolbar
+          so it never occupies a row of chrome while closed. */}
+      <Collapsible open={importOpen} onOpenChange={setImportOpen}>
+        <CollapsibleContent>
+          <UploadZone
+            managedTeams={managedTeams}
+            onImportComplete={refreshMatches}
+          />
+        </CollapsibleContent>
+      </Collapsible>
 
       <MatchTable
         matches={matches}
