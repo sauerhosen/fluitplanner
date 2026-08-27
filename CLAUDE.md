@@ -54,6 +54,7 @@ CI (GitHub Actions) runs lint, format check, type check, tests, and build on eve
 - **Next.js** (App Router) on **Vercel** with Fluid Compute
 - **Supabase** for database, auth, and backend (via `@supabase/ssr`)
 - **TailwindCSS v4** with CSS-first configuration (no `tailwind.config.ts`). All theme config is in `app/globals.css` via `@theme inline`. Dark mode uses `@custom-variant dark` with class strategy.
+- **Page chrome**: one identity row (`components/shared/page-header.tsx`) plus a sticky toolbar (`components/shared/sticky-toolbar.tsx`) — see [`docs/page-chrome.md`](docs/page-chrome.md) before adding anything to the top of a page
 - **shadcn/ui** (new-york style, RSC-enabled) — add components via `npx shadcn@latest add <component>`. Components use `data-slot` attributes (not `forwardRef`).
 - **next-themes** for dark/light mode switching
 - **next-intl** for i18n (English + Dutch), cookie-based locale without URL routing

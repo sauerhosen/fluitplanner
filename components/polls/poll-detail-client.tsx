@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import type {
   Match,
   RosteredUmpire,
@@ -22,6 +23,15 @@ import { SlotPreview } from "./slot-preview";
 import { ResponseSummary } from "./response-summary";
 import { AssignmentGrid } from "./assignment-grid";
 import { SharePollButton } from "./share-poll-button";
+import { PageHeader } from "@/components/shared/page-header";
+import { StickyToolbar } from "@/components/shared/sticky-toolbar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { MatchNoteButton } from "@/components/matches/match-note-button";
 import { getUmpiresForPoll } from "@/lib/actions/assignments";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -35,6 +45,10 @@ import {
   Check,
   Trash2,
   ArrowRightLeft,
+  MoreHorizontal,
+  Lock,
+  LockOpen,
+  ChevronLeft,
 } from "lucide-react";
 import { ExportDropdown } from "./export-dropdown";
 import { useTranslations, useFormatter } from "next-intl";
@@ -233,23 +247,38 @@ export function PollDetailClient({
   ].length;
 
   return (
-    <div className="flex min-w-0 flex-col gap-8">
+    <div className="flex min-w-0 flex-col gap-4">
       {error && (
         <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
           {error}
         </div>
       )}
 
-      {/* Header: title + status + actions */}
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-        <div className="flex-1 min-w-0">
-          {editingTitle ? (
-            <div className="flex items-center gap-2">
+      {/* One identity row: where you are, what state it is in, what you came
+          to do. Everything rarer lives behind the overflow menu. */}
+      <PageHeader
+        backHref="/protected/polls"
+        backLabel={t("pageTitle")}
+        status={
+          <Badge
+            variant={poll.status === "open" ? "default" : "secondary"}
+            className="shrink-0"
+          >
+            {poll.status === "open" ? t("statusOpen") : t("statusClosed")}
+          </Badge>
+        }
+        title={
+          editingTitle ? (
+            <div className="flex min-w-0 flex-1 items-center gap-2">
               <Input
                 value={titleDraft}
                 onChange={(e) => setTitleDraft(e.target.value)}
-                className="text-xl font-bold"
+                className="h-9 text-lg font-semibold"
                 autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleSaveTitle();
+                  if (e.key === "Escape") setEditingTitle(false);
+                }}
               />
               <Button
                 size="icon"
@@ -262,56 +291,89 @@ export function PollDetailClient({
               </Button>
             </div>
           ) : (
-            <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-bold">{poll.title}</h1>
-              <Button
-                size="icon"
-                variant="ghost"
-                onClick={() => {
-                  setTitleDraft(poll.title ?? "");
-                  setEditingTitle(true);
-                }}
-                aria-label={t("editTitle")}
-              >
-                <Pencil className="h-4 w-4" />
-              </Button>
-            </div>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          <Badge variant={poll.status === "open" ? "default" : "secondary"}>
-            {poll.status === "open" ? t("statusOpen") : t("statusClosed")}
-          </Badge>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleToggleStatus}
-            disabled={saving}
-          >
-            {poll.status === "open" ? t("closePoll") : t("reopenPoll")}
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleDelete}
-            disabled={saving}
-            className="text-destructive"
-          >
-            <Trash2 className="mr-2 h-4 w-4" />
-            {tCommon("delete")}
-          </Button>
-        </div>
-      </div>
-
-      {/* Share */}
-      <div className="flex flex-col gap-2">
-        <Label>{t("shareLinkLabel")}</Label>
-        <SharePollButton token={poll.token} />
-      </div>
+            <button
+              type="button"
+              onClick={() => {
+                setTitleDraft(poll.title ?? "");
+                setEditingTitle(true);
+              }}
+              title={t("editTitle")}
+              className="group flex min-w-0 items-center gap-1.5 text-left"
+            >
+              <h1 className="truncate text-lg font-semibold sm:text-xl">
+                {poll.title}
+              </h1>
+              <Pencil className="h-3.5 w-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" />
+            </button>
+          )
+        }
+        actions={
+          <>
+            <SharePollButton token={poll.token} variant="menu" />
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="size-8"
+                  aria-label={t("moreActions")}
+                >
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  onSelect={() => {
+                    setTitleDraft(poll.title ?? "");
+                    setEditingTitle(true);
+                  }}
+                >
+                  <Pencil className="mr-2 h-4 w-4" />
+                  {t("editTitle")}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={handleToggleStatus}
+                  disabled={saving}
+                >
+                  {poll.status === "open" ? (
+                    <Lock className="mr-2 h-4 w-4" />
+                  ) : (
+                    <LockOpen className="mr-2 h-4 w-4" />
+                  )}
+                  {poll.status === "open" ? t("closePoll") : t("reopenPoll")}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onSelect={handleDelete}
+                  disabled={saving}
+                  variant="destructive"
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  {tCommon("delete")}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </>
+        }
+      />
 
       {/* Matches, Responses & Assignments */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <div className="flex items-center justify-between gap-2 overflow-x-auto">
+        <StickyToolbar
+          compact={
+            <>
+              <Link
+                href="/protected/polls"
+                className="flex min-w-0 items-center gap-1 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+              >
+                <ChevronLeft className="h-4 w-4 shrink-0" />
+                <span className="truncate">{poll.title}</span>
+              </Link>
+              <span aria-hidden className="mx-3 h-4 w-px shrink-0 bg-border" />
+            </>
+          }
+          className="justify-between"
+        >
           <TabsList>
             <TabsTrigger value="matches">
               {t("matchesTab", { count: filteredMatches.length })}
@@ -358,7 +420,7 @@ export function PollDetailClient({
               </>
             )}
           </div>
-        </div>
+        </StickyToolbar>
         <TabsContent value="matches">
           <div className="flex flex-col gap-4">
             <div className="flex items-center justify-between">

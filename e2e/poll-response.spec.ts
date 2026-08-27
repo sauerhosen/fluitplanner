@@ -47,7 +47,9 @@ test.describe("Poll response page", () => {
       await page
         .context()
         .grantPermissions(["clipboard-read", "clipboard-write"]);
-      await page.getByRole("button", { name: "Copy Link" }).click();
+      // Copy Link now lives inside the header's Share menu
+      await page.getByRole("button", { name: /^Share/ }).click();
+      await page.getByRole("menuitem", { name: "Copy Link" }).click();
 
       // Read from clipboard
       pollToken = await page.evaluate(async () => {
