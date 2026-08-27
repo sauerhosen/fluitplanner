@@ -21,7 +21,15 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, Pencil, Trash2, Check, X, Inbox } from "lucide-react";
+import {
+  MoreHorizontal,
+  Pencil,
+  Trash2,
+  Check,
+  X,
+  Inbox,
+  Merge,
+} from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useSelection } from "@/hooks/use-selection";
 import { SelectionToolbar } from "@/components/shared/selection-toolbar";
@@ -45,11 +53,14 @@ const LEVEL_VARIANTS: Record<number, "default" | "secondary" | "destructive"> =
 export function UmpireTable({
   umpires,
   onEdit,
+  onMerge,
   onDeleted,
   onNoteSaved,
 }: {
   umpires: RosteredUmpire[];
   onEdit: (umpire: RosteredUmpire) => void;
+  /** Opens the merge dialog with this row as the umpire that survives. */
+  onMerge: (umpire: RosteredUmpire) => void;
   onDeleted: () => void;
   /** Awaited refetch, so a note saved here is read back from the server. */
   onNoteSaved?: () => void | Promise<void>;
@@ -166,6 +177,10 @@ export function UmpireTable({
                       <DropdownMenuItem onClick={() => onEdit(umpire)}>
                         <Pencil className="mr-2 h-4 w-4" />
                         {t("edit")}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => onMerge(umpire)}>
+                        <Merge className="mr-2 h-4 w-4" />
+                        {t("mergeMenuItem")}
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         onClick={() => handleDelete(umpire.id)}
