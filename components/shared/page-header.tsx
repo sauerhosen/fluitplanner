@@ -20,7 +20,7 @@ type Props = {
  * state it is in, and the one action you came to take. Everything rarer lives
  * behind the overflow menu in `actions`.
  *
- * Deliberately one row tall — see `docs/design/page-chrome.md`. Tabs, filters
+ * Deliberately one row tall — see `docs/page-chrome.md`. Tabs, filters
  * and tools belong in the toolbar below it, not here.
  */
 export function PageHeader({

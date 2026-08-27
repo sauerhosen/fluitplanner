@@ -8,7 +8,11 @@ import { StickyToolbar } from "@/components/shared/sticky-toolbar";
 /*  IntersectionObserver stand-in                                      */
 /* ------------------------------------------------------------------ */
 
-type Cb = (entries: { isIntersecting: boolean }[]) => void;
+type Entry = {
+  intersectionRatio: number;
+  boundingClientRect: { top: number };
+};
+type Cb = (entries: Entry[]) => void;
 let observerCallback: Cb | null = null;
 const disconnect = vi.fn();
 
@@ -32,10 +36,19 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-/** Simulate the sentinel above the bar scrolling out of (or into) view. */
-function setSentinelVisible(isIntersecting: boolean) {
+/**
+ * The bar observes itself against a root shrunk by 1px at the top: fully inside
+ * it (ratio 1) while it sits in the flow, poking out of it (ratio < 1) once it
+ * pins. Pinned means `top` is at the fold; a bar you have not scrolled to yet
+ * is also outside the root, but with `top` far below it.
+ */
+function setPinned(pinned: boolean) {
   act(() => {
-    observerCallback?.([{ isIntersecting }]);
+    observerCallback?.([
+      pinned
+        ? { intersectionRatio: 0.98, boundingClientRect: { top: 0 } }
+        : { intersectionRatio: 1, boundingClientRect: { top: 120 } },
+    ]);
   });
 }
 
@@ -92,7 +105,7 @@ describe("StickyToolbar", () => {
       </StickyToolbar>,
     );
 
-    setSentinelVisible(false);
+    setPinned(true);
 
     const holder = screen.getByText("Seizoen '26-'27").parentElement!;
     expect(holder).not.toHaveAttribute("aria-hidden", "true");
@@ -106,8 +119,28 @@ describe("StickyToolbar", () => {
       </StickyToolbar>,
     );
 
-    setSentinelVisible(false);
-    setSentinelVisible(true);
+    setPinned(true);
+    setPinned(false);
+
+    expect(screen.getByText("Seizoen '26-'27").parentElement).toHaveAttribute(
+      "aria-hidden",
+      "true",
+    );
+  });
+
+  it("does not call a bar that is still below the fold stuck", () => {
+    render(
+      <StickyToolbar compact={<span>Seizoen &apos;26-&apos;27</span>}>
+        <button type="button">Export</button>
+      </StickyToolbar>,
+    );
+
+    // Outside the root, but below the viewport — nobody has scrolled to it yet.
+    act(() => {
+      observerCallback?.([
+        { intersectionRatio: 0, boundingClientRect: { top: 400 } },
+      ]);
+    });
 
     expect(screen.getByText("Seizoen '26-'27").parentElement).toHaveAttribute(
       "aria-hidden",

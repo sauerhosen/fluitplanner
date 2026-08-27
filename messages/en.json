@@ -76,7 +76,6 @@
   },
   "dashboard": {
     "pageTitle": "Dashboard",
-    "pageSubtitle": "Overview of your umpire planning.",
     "upcomingMatches": "Upcoming matches",
     "openPolls": "Open polls",
     "unassigned": "Unassigned",

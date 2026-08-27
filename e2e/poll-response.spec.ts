@@ -1,4 +1,5 @@
 import { test, expect, type BrowserContext, type Page } from "@playwright/test";
+import { pollHeading, pollOverflowAction } from "./helpers/poll-detail";
 
 test.describe("Poll response page", () => {
   test("shows not found for invalid token", async ({ browser }) => {
@@ -41,7 +42,7 @@ test.describe("Poll response page", () => {
       await page.getByRole("button", { name: "Create Poll" }).click();
 
       // Should redirect to detail page
-      await expect(page.getByText(pollTitle)).toBeVisible();
+      await expect(pollHeading(page, pollTitle)).toBeVisible();
 
       // Grant clipboard permissions and get the poll URL
       await page
@@ -116,7 +117,7 @@ test.describe("Poll response page", () => {
       // Close the poll via planner (authenticated context)
       await page.goto("/protected/polls");
       await page.getByText(pollTitle).click();
-      await page.getByRole("button", { name: /close poll/i }).click();
+      await pollOverflowAction(page, /close poll/i);
       await expect(page.getByText("Closed")).toBeVisible();
 
       // Visit the public poll link using the umpire context
@@ -129,9 +130,9 @@ test.describe("Poll response page", () => {
       // Cleanup: reopen and delete
       await page.goto("/protected/polls");
       await page.getByText(pollTitle).click();
-      await page.getByRole("button", { name: /reopen/i }).click();
+      await pollOverflowAction(page, /reopen/i);
       page.on("dialog", (dialog) => dialog.accept());
-      await page.getByRole("button", { name: /delete/i }).click();
+      await pollOverflowAction(page, /delete/i);
       await page.waitForURL(/\/protected\/polls$/);
     });
   });

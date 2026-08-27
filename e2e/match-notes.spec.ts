@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { pollHeading, pollOverflowAction } from "./helpers/poll-detail";
 
 /**
  * Notes on matches: written from the match form and from the Matches screen,
@@ -134,7 +135,9 @@ test.describe("Match notes", () => {
       .getByRole("checkbox")
       .click();
     await page.getByRole("button", { name: "Create Poll" }).click();
-    await expect(page.getByText(pollTitle)).toBeVisible({ timeout: 10_000 });
+    await expect(pollHeading(page, pollTitle)).toBeVisible({
+      timeout: 10_000,
+    });
     pollCreated = true;
 
     // The Matches tab lists the match inside its slot, with the note control.
@@ -152,7 +155,7 @@ test.describe("Match notes", () => {
     await page.waitForURL(/\/protected\/polls\//);
 
     page.once("dialog", (dialog) => dialog.accept());
-    await page.getByRole("button", { name: /^delete$/i }).click();
+    await pollOverflowAction(page, /^delete$/i);
     await page.waitForURL(/\/protected\/polls$/, { timeout: 10_000 });
   });
 

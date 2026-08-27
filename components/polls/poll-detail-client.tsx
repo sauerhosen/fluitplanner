@@ -291,20 +291,23 @@ export function PollDetailClient({
               </Button>
             </div>
           ) : (
-            <button
-              type="button"
-              onClick={() => {
-                setTitleDraft(poll.title ?? "");
-                setEditingTitle(true);
-              }}
-              title={t("editTitle")}
-              className="group flex min-w-0 items-center gap-1.5 text-left"
-            >
-              <h1 className="truncate text-lg font-semibold sm:text-xl">
-                {poll.title}
-              </h1>
-              <Pencil className="h-3.5 w-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" />
-            </button>
+            // The heading wraps the button, not the other way round: a button
+            // takes its name from its contents, so a heading nested inside one
+            // is both invalid markup and invisible to heading navigation.
+            <h1 className="min-w-0 text-lg font-semibold sm:text-xl">
+              <button
+                type="button"
+                onClick={() => {
+                  setTitleDraft(poll.title ?? "");
+                  setEditingTitle(true);
+                }}
+                title={t("editTitle")}
+                className="group flex max-w-full min-w-0 items-center gap-1.5 text-left"
+              >
+                <span className="truncate">{poll.title}</span>
+                <Pencil className="h-3.5 w-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" />
+              </button>
+            </h1>
           )
         }
         actions={

@@ -108,19 +108,25 @@ sections; these are one piece of chrome.
 
 ### How the sticky detection works
 
-`StickyToolbar` renders a 1 px sentinel directly above itself and watches it with
-an `IntersectionObserver`. The sentinel leaves the viewport at exactly the moment
-the bar starts sticking — no scroll maths, no threshold to tune, nothing to
-recompute on resize. The compact identity shares the row with the toolbar's own
-children rather than adding a second line, so sticking never changes the bar's
-height and the page never jumps.
+`StickyToolbar` observes **itself** with an `IntersectionObserver` whose root is
+shrunk by 1 px at the top (`rootMargin: "-1px 0px 0px 0px"`, `threshold: [0, 1]`).
+While the bar sits in the flow it is fully inside that root (ratio 1); the moment
+it pins to the top it pokes 1 px outside it (ratio < 1). A `boundingClientRect.top`
+guard keeps a bar that is simply below the fold — outside the root for the
+opposite reason — from reporting itself as stuck. Measured on the running app,
+the flip lands on the exact pixel the bar reaches `top: 0`.
 
-### Spacing above the page
+A separate sentinel element does not work, in either position. Above the bar it
+is another flex item, so the parent's `gap` sits between the two — a row of dead
+space while unstuck, and `stuck` flipping a whole gap early. Inside the bar it is
+glued to the bar, never crosses a threshold, and the observer fires exactly once,
+on setup.
 
-`app/protected/layout.tsx` sets `gap-8` between the nav and the content wrapper,
-which adds `p-5` of its own — 52 px of air under the navbar. It was `gap-20`
-(100 px total), which made the emptiest band on the page the largest one. Keep
-this gap in the layout; a page should not add its own top padding.
+The compact identity shares the row with the toolbar's own children rather than
+adding a second line, so sticking never changes the bar's height and the page
+never jumps. While collapsed it carries `inert` as well as `aria-hidden`, so
+focus cannot land on an invisible back link, and `overflow-hidden`, so its
+`shrink-0` children add no phantom width to the toolbar's horizontal scroll.
 
 ### The one layout constraint
 
