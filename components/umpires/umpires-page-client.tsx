@@ -16,6 +16,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Plus } from "lucide-react";
+import { PageHeader } from "@/components/shared/page-header";
+import { StickyToolbar } from "@/components/shared/sticky-toolbar";
 import { useTranslations } from "next-intl";
 
 export function UmpiresPageClient({
@@ -59,17 +61,32 @@ export function UmpiresPageClient({
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      {/* Filters + Add button */}
-      <div className="flex items-center gap-4">
+    <div className="flex flex-col gap-4">
+      <PageHeader
+        title={
+          <h1 className="truncate text-xl font-semibold">{t("pageTitle")}</h1>
+        }
+        actions={
+          <Button size="sm" onClick={() => setShowAddDialog(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            {t("addUmpire")}
+          </Button>
+        }
+      />
+
+      <StickyToolbar
+        compact={
+          <h2 className="truncate text-sm font-medium">{t("pageTitle")}</h2>
+        }
+      >
         <Input
           placeholder={t("searchPlaceholder")}
           value={search}
           onChange={(e) => handleSearchChange(e.target.value)}
-          className="max-w-xs"
+          className="h-8 max-w-xs"
         />
         <Select value={levelFilter} onValueChange={handleLevelChange}>
-          <SelectTrigger className="w-48">
+          <SelectTrigger size="sm" className="w-48">
             <SelectValue placeholder={t("filterByLevel")} />
           </SelectTrigger>
           <SelectContent>
@@ -79,13 +96,7 @@ export function UmpiresPageClient({
             <SelectItem value="3">{t("levelTop")}</SelectItem>
           </SelectContent>
         </Select>
-        <div className="ml-auto">
-          <Button onClick={() => setShowAddDialog(true)}>
-            <Plus className="mr-2 h-4 w-4" />
-            {t("addUmpire")}
-          </Button>
-        </div>
-      </div>
+      </StickyToolbar>
 
       <UmpireTable
         umpires={umpires}

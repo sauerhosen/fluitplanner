@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { pollHeading, pollOverflowAction } from "./helpers/poll-detail";
 
 test.describe("Polls page", () => {
   test.describe.configure({ mode: "serial" });
@@ -37,7 +38,7 @@ test.describe("Polls page", () => {
     await page.getByRole("button", { name: "Create Poll" }).click();
 
     // Should redirect to detail page
-    await expect(page.getByText(pollTitle)).toBeVisible();
+    await expect(pollHeading(page, pollTitle)).toBeVisible();
     pollCreated = true;
   });
 
@@ -53,14 +54,14 @@ test.describe("Polls page", () => {
 
     // Click on the poll title to go to detail
     await page.getByText(pollTitle).click();
-    await expect(page.getByText(pollTitle)).toBeVisible();
+    await expect(pollHeading(page, pollTitle)).toBeVisible();
 
     // Toggle status
-    await page.getByRole("button", { name: /close poll/i }).click();
+    await pollOverflowAction(page, /close poll/i);
     await expect(page.getByText("Closed")).toBeVisible();
 
     // Toggle back
-    await page.getByRole("button", { name: /reopen poll/i }).click();
+    await pollOverflowAction(page, /reopen poll/i);
     await expect(page.getByText("Open")).toBeVisible();
   });
 
@@ -72,7 +73,7 @@ test.describe("Polls page", () => {
     // Accept the confirmation dialog
     page.on("dialog", (dialog) => dialog.accept());
 
-    await page.getByRole("button", { name: /delete/i }).click();
+    await pollOverflowAction(page, /delete/i);
 
     // Should redirect to polls list
     await page.waitForURL(/\/protected\/polls$/);

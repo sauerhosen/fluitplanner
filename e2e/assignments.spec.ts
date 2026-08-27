@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { pollHeading, pollOverflowAction } from "./helpers/poll-detail";
 
 test.describe("Umpire Assignment", () => {
   test("planner can view assignment grid on poll detail page", async ({
@@ -62,7 +63,7 @@ test.describe("Umpire Assignment", () => {
       await page.getByRole("button", { name: "Create Poll" }).click();
 
       // Should redirect to detail page
-      await expect(page.getByText(pollTitle)).toBeVisible();
+      await expect(pollHeading(page, pollTitle)).toBeVisible();
       pollUrl = page.url();
       pollCreated = true;
     });
@@ -140,7 +141,7 @@ test.describe("Umpire Assignment", () => {
 
       await page.goto(pollUrl);
       page.on("dialog", (dialog) => dialog.accept());
-      await page.getByRole("button", { name: /delete/i }).click();
+      await pollOverflowAction(page, /delete/i);
       await page.waitForURL(/\/protected\/polls$/);
     });
   });

@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { render } from "@/__tests__/helpers/render";
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -74,6 +74,14 @@ describe("MatchesPageClient", () => {
     expect(screen.getByText("All polls")).toBeInTheDocument();
   });
 
+  /** Import lives behind the header's overflow menu — see docs/page-chrome.md. */
+  async function toggleImport(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(screen.getByRole("button", { name: /more actions/i }));
+    await user.click(
+      await screen.findByRole("menuitemcheckbox", { name: /import matches/i }),
+    );
+  }
+
   it("hides the upload zone by default", () => {
     render(
       <MatchesPageClient
@@ -83,8 +91,12 @@ describe("MatchesPageClient", () => {
       />,
     );
     expect(screen.queryByTestId("upload-zone")).not.toBeInTheDocument();
+    // The import toggle is one click deep, not a row of its own.
     expect(
-      screen.getByRole("button", { name: /import matches/i }),
+      screen.queryByRole("button", { name: /import matches/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /more actions/i }),
     ).toBeInTheDocument();
   });
 
@@ -97,8 +109,8 @@ describe("MatchesPageClient", () => {
         polls={polls}
       />,
     );
-    await user.click(screen.getByRole("button", { name: /import matches/i }));
-    expect(screen.getByTestId("upload-zone")).toBeInTheDocument();
+    await toggleImport(user);
+    expect(await screen.findByTestId("upload-zone")).toBeInTheDocument();
   });
 
   it("hides the upload zone when the import toggle is clicked again", async () => {
@@ -110,10 +122,11 @@ describe("MatchesPageClient", () => {
         polls={polls}
       />,
     );
-    const toggle = screen.getByRole("button", { name: /import matches/i });
-    await user.click(toggle);
-    expect(screen.getByTestId("upload-zone")).toBeInTheDocument();
-    await user.click(toggle);
-    expect(screen.queryByTestId("upload-zone")).not.toBeInTheDocument();
+    await toggleImport(user);
+    expect(await screen.findByTestId("upload-zone")).toBeInTheDocument();
+    await toggleImport(user);
+    await waitFor(() =>
+      expect(screen.queryByTestId("upload-zone")).not.toBeInTheDocument(),
+    );
   });
 });

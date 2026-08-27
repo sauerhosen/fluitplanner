@@ -76,7 +76,6 @@
   },
   "dashboard": {
     "pageTitle": "Dashboard",
-    "pageSubtitle": "Overview of your umpire planning.",
     "upcomingMatches": "Upcoming matches",
     "openPolls": "Open polls",
     "unassigned": "Unassigned",
@@ -94,7 +93,6 @@
   },
   "matches": {
     "pageTitle": "Matches",
-    "pageSubtitle": "Upload match schedules and manage individual matches.",
     "searchPlaceholder": "Search teams...",
     "filterByLevel": "Filter by level",
     "allLevels": "All levels",
@@ -106,6 +104,7 @@
     "noPoll": "No poll",
     "pollHeader": "Poll",
     "addMatch": "Add Match",
+    "moreActions": "More actions",
     "editMatch": "Edit Match",
     "dateLabel": "Date",
     "timeLabel": "Time",
@@ -203,7 +202,6 @@
   },
   "polls": {
     "pageTitle": "Polls",
-    "pageSubtitle": "Create and manage availability polls for umpires.",
     "newPoll": "New Poll",
     "newPollTitle": "New Poll",
     "newPollSubtitle": "Select matches and create an availability poll.",
@@ -254,7 +252,6 @@
     "editTitle": "Edit title",
     "closePoll": "Close Poll",
     "reopenPoll": "Reopen Poll",
-    "shareLinkLabel": "Share Link",
     "matchesTab": "Matches ({count})",
     "responsesTab": "Responses ({count})",
     "assignmentsTab": "Assignments",
@@ -274,6 +271,7 @@
     "copied": "Copied!",
     "copyLink": "Copy Link",
     "share": "Share",
+    "openPollPage": "Open poll page",
     "availableLabel": "available",
     "ifNeedBeLabel": "if need be",
     "notAvailableLabel": "not available",
@@ -366,7 +364,6 @@
   },
   "umpires": {
     "pageTitle": "Umpires",
-    "pageSubtitle": "Manage the umpire roster. Umpires are automatically added when they respond to an availability poll.",
     "searchPlaceholder": "Search name or email...",
     "filterByLevel": "Filter by level",
     "allLevels": "All levels",
@@ -381,7 +378,7 @@
     "verifiedHeader": "Verified",
     "moreActions": "More actions",
     "edit": "Edit",
-    "emptyState": "No umpires yet. Umpires will appear here when they respond to an availability poll, or you can add them manually.",
+    "emptyState": "No umpires yet. Umpires are added automatically when they respond to an availability poll, or add one by hand.",
     "nameLabel": "Name",
     "emailLabel": "Email",
     "levelLabel": "Level",
@@ -401,7 +398,6 @@
   },
   "settings": {
     "pageTitle": "Settings",
-    "pageSubtitle": "Configure which teams you manage. Only matches for these teams will be imported from uploaded schedules.",
     "managedTeams": "Managed Teams",
     "teamNameHeader": "Team Name",
     "requiredLevelHeader": "Required Level",

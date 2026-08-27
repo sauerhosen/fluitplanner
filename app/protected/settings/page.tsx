@@ -10,6 +10,7 @@ import { AvailabilityLockSetting } from "@/components/settings/availability-lock
 import { HockeySyncSettings } from "@/components/settings/hockey-sync-settings";
 import { getTrackedTeams } from "@/lib/actions/hockey-teams";
 import { getTranslations } from "next-intl/server";
+import { PageHeader } from "@/components/shared/page-header";
 
 async function ManagedTeamsLoader() {
   const teams = await getManagedTeams();
@@ -41,10 +42,11 @@ export default async function SettingsPage() {
   const t = await getTranslations("settings");
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-bold">{t("pageTitle")}</h1>
-        <p className="text-muted-foreground">{t("pageSubtitle")}</p>
-      </div>
+      <PageHeader
+        title={
+          <h1 className="truncate text-xl font-semibold">{t("pageTitle")}</h1>
+        }
+      />
       <div>
         <h2 className="mb-4 text-lg font-semibold">{t("managedTeams")}</h2>
         <Suspense fallback={<TableSkeleton rows={3} cols={3} />}>
