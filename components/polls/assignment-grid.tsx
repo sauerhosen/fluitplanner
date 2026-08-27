@@ -483,7 +483,10 @@ export function AssignmentGrid({
 
     return (
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-        <span className="flex items-center gap-1.5">
+        <span
+          className="flex items-center gap-1.5"
+          data-testid="tentative-summary"
+        >
           <span className="flex h-4 w-4 items-center justify-center rounded outline-2 outline-dashed outline-primary/70 -outline-offset-2">
             <Check className={`h-3 w-3 text-primary/60 ${DASHED_STROKE}`} />
           </span>

@@ -162,16 +162,20 @@ describe("findConflicts", () => {
     expect(u2Conflicts.length).toBeGreaterThanOrEqual(1);
   });
   it("keeps an overlap a warning when one side is only tentative", () => {
+    // Straddle midnight on purpose. The same-day branch also reports "soft",
+    // so a same-day fixture would still pass with slot-overlap detection
+    // ripped out; separate dates leave the overlap branch as the only way
+    // these two can conflict at all.
     const matches = [
       makeMatch({
         id: "m1",
         date: "2026-03-15",
-        start_time: "2026-03-15T11:00:00Z",
+        start_time: "2026-03-15T23:00:00Z",
       }),
       makeMatch({
         id: "m2",
-        date: "2026-03-15",
-        start_time: "2026-03-15T11:15:00Z",
+        date: "2026-03-16",
+        start_time: "2026-03-16T00:15:00Z",
       }),
     ];
     const assignments = [
@@ -185,8 +189,20 @@ describe("findConflicts", () => {
 
     const conflicts = findConflicts(assignments, matches);
 
-    expect(conflicts.length).toBeGreaterThan(0);
-    expect(conflicts.every((c) => c.severity === "soft")).toBe(true);
+    expect(conflicts).toEqual([
+      {
+        umpireId: "u1",
+        matchId: "m2",
+        conflictingMatchId: "m1",
+        severity: "soft",
+      },
+      {
+        umpireId: "u1",
+        matchId: "m1",
+        conflictingMatchId: "m2",
+        severity: "soft",
+      },
+    ]);
   });
 
   it("still reports a hard conflict once both sides are confirmed", () => {

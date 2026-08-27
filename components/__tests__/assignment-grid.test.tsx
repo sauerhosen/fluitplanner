@@ -555,7 +555,7 @@ describe("AssignmentGrid", () => {
 
     expect(screen.queryByTestId("confirm-tentative")).not.toBeInTheDocument();
     expect(screen.queryByTestId("clear-tentative")).not.toBeInTheDocument();
-    expect(screen.queryByText(/hidden from umpires/i)).not.toBeInTheDocument();
+    expect(screen.queryByTestId("tentative-summary")).not.toBeInTheDocument();
   });
 
   it("summarises the sketches once there are some", () => {
@@ -577,9 +577,9 @@ describe("AssignmentGrid", () => {
       />,
     );
 
-    expect(
-      screen.getByText("2 tentative appointments — hidden from umpires"),
-    ).toBeInTheDocument();
+    // Assert the count the bar reports, not the sentence around it — the copy
+    // lives in messages/en.json and may be reworded without a behaviour change.
+    expect(screen.getByTestId("tentative-summary")).toHaveTextContent("2");
     expect(screen.getByTestId("confirm-tentative")).toBeInTheDocument();
   });
 
