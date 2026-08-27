@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.16.0](https://github.com/sauerhosen/fluitplanner/compare/v2.15.1...v2.16.0) (2026-08-27)
+
+
+### Features
+
+* merge duplicate umpires ([#135](https://github.com/sauerhosen/fluitplanner/issues/135)) ([e8e2f39](https://github.com/sauerhosen/fluitplanner/commit/e8e2f392411c384390cfb4729b05f65d1e58e6e1))
+
 ## [2.15.1](https://github.com/sauerhosen/fluitplanner/compare/v2.15.0...v2.15.1) (2026-08-27)
 
 
