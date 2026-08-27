@@ -33,6 +33,7 @@ function makeAssignment(
     poll_id: "poll-1",
     created_at: "2026-01-01T00:00:00Z",
     organization_id: "test-org-id",
+    status: "confirmed",
     ...overrides,
   };
 }
@@ -159,5 +160,71 @@ describe("findConflicts", () => {
     const u2Conflicts = conflicts.filter((c) => c.umpireId === "u2");
     expect(u1Conflicts.length).toBeGreaterThanOrEqual(1);
     expect(u2Conflicts.length).toBeGreaterThanOrEqual(1);
+  });
+  it("keeps an overlap a warning when one side is only tentative", () => {
+    // Straddle midnight on purpose. The same-day branch also reports "soft",
+    // so a same-day fixture would still pass with slot-overlap detection
+    // ripped out; separate dates leave the overlap branch as the only way
+    // these two can conflict at all.
+    const matches = [
+      makeMatch({
+        id: "m1",
+        date: "2026-03-15",
+        start_time: "2026-03-15T23:00:00Z",
+      }),
+      makeMatch({
+        id: "m2",
+        date: "2026-03-16",
+        start_time: "2026-03-16T00:15:00Z",
+      }),
+    ];
+    const assignments = [
+      makeAssignment({ match_id: "m1", umpire_id: "u1" }),
+      makeAssignment({
+        match_id: "m2",
+        umpire_id: "u1",
+        status: "tentative",
+      }),
+    ];
+
+    const conflicts = findConflicts(assignments, matches);
+
+    expect(conflicts).toEqual([
+      {
+        umpireId: "u1",
+        matchId: "m2",
+        conflictingMatchId: "m1",
+        severity: "soft",
+      },
+      {
+        umpireId: "u1",
+        matchId: "m1",
+        conflictingMatchId: "m2",
+        severity: "soft",
+      },
+    ]);
+  });
+
+  it("still reports a hard conflict once both sides are confirmed", () => {
+    const matches = [
+      makeMatch({
+        id: "m1",
+        date: "2026-03-15",
+        start_time: "2026-03-15T11:00:00Z",
+      }),
+      makeMatch({
+        id: "m2",
+        date: "2026-03-15",
+        start_time: "2026-03-15T11:15:00Z",
+      }),
+    ];
+    const assignments = [
+      makeAssignment({ match_id: "m1", umpire_id: "u1" }),
+      makeAssignment({ match_id: "m2", umpire_id: "u1" }),
+    ];
+
+    const conflicts = findConflicts(assignments, matches);
+
+    expect(conflicts.some((c) => c.severity === "hard")).toBe(true);
   });
 });

@@ -46,9 +46,10 @@ export async function getPollAssignmentContext(
     ? settings.availability_lock_mode
     : "warn";
 
-  // 4. Get assignments for this umpire in this poll
+  // 4. Get assignments for this umpire in this poll. Confirmed only — a
+  // tentative appointment is invisible to the umpire and never locks a slot.
   const { data: assignments } = await supabase
-    .from("assignments")
+    .from("confirmed_assignments")
     .select("match_id")
     .eq("poll_id", pollId)
     .eq("umpire_id", umpireId);

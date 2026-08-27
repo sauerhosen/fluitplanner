@@ -122,6 +122,13 @@ export type TimeSlot = {
   end: Date;
 };
 
+/**
+ * `tentative` is a planner-only sketch: it is never shown to umpires and never
+ * locks their availability. Only umpire-facing reads must filter it out — they
+ * do so by reading the `confirmed_assignments` view instead of the table.
+ */
+export type AssignmentStatus = "tentative" | "confirmed";
+
 export type Assignment = {
   id: string;
   poll_id: string;
@@ -129,7 +136,13 @@ export type Assignment = {
   umpire_id: string;
   created_at: string;
   organization_id: string;
+  status: AssignmentStatus;
 };
+
+/** Runtime type guard for values read from the database. */
+export function isAssignmentStatus(value: unknown): value is AssignmentStatus {
+  return value === "tentative" || value === "confirmed";
+}
 
 export type AvailabilityLockMode = "warn" | "lock";
 

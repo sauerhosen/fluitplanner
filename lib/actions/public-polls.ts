@@ -362,9 +362,11 @@ async function checkAssignmentConflicts(
 ): Promise<ConflictResult | null> {
   const serviceClient = createServiceClient();
 
-  // Get assignments for this umpire in this poll
+  // Get assignments for this umpire in this poll. Reads the confirmed-only
+  // view: a tentative appointment is a planner sketch and must never lock or
+  // warn about an umpire's availability.
   const { data: assignments, error: assignErr } = await serviceClient
-    .from("assignments")
+    .from("confirmed_assignments")
     .select("match_id")
     .eq("poll_id", pollId)
     .eq("umpire_id", umpireId);

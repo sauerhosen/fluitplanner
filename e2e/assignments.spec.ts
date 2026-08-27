@@ -100,6 +100,41 @@ test.describe("Umpire Assignment", () => {
       await expect(firstCell.locator("svg")).not.toBeVisible();
     });
 
+    test("planner can sketch and then confirm a tentative appointment", async ({
+      page,
+    }) => {
+      test.skip(!pollCreated, "Poll was not created");
+
+      await page.goto(pollUrl);
+      await page
+        .getByRole("tab", { name: /assignments/i })
+        .click({ timeout: 10000 });
+
+      const firstCell = page.locator('[data-testid^="cell-"]').first();
+      const hasCells = await firstCell.isVisible().catch(() => false);
+
+      if (!hasCells) {
+        test.skip(true, "No umpire responses — cannot test assignment toggle");
+        return;
+      }
+
+      // Sketching mode: a click leaves a tentative appointment behind.
+      await page.getByTestId("tentative-mode-toggle").click();
+      await firstCell.click();
+      await expect(firstCell).toHaveAttribute("data-status", "tentative");
+
+      // The match is not filled by a sketch, so the bulk action shows up.
+      await expect(page.getByTestId("confirm-tentative")).toBeVisible();
+      await page.getByTestId("confirm-tentative").click();
+      await expect(firstCell).toHaveAttribute("data-status", "confirmed");
+      await expect(page.getByTestId("confirm-tentative")).toBeHidden();
+
+      // Leave the grid as we found it.
+      await page.getByTestId("tentative-mode-toggle").click();
+      await firstCell.click();
+      await expect(firstCell).toHaveAttribute("data-status", "none");
+    });
+
     test("cleanup: delete poll", async ({ page }) => {
       test.skip(!pollCreated, "Poll was not created");
 

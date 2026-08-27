@@ -74,6 +74,10 @@ export type DaySheetColumnLabels = {
 /*  Shared helpers                                                     */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Exports get printed and handed around, so they carry confirmed appointments
+ * only — a tentative sketch must not read as a booking on a day sheet.
+ */
 function buildAssignmentsByMatch(
   assignments: Assignment[],
   umpires: Umpire[],
@@ -85,6 +89,7 @@ function buildAssignmentsByMatch(
 
   const byMatch = new Map<string, string[]>();
   for (const a of assignments) {
+    if (a.status === "tentative") continue;
     const names = byMatch.get(a.match_id) ?? [];
     names.push(umpireNameMap.get(a.umpire_id) ?? "");
     byMatch.set(a.match_id, names);

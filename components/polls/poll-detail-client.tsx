@@ -29,7 +29,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Pencil, Check, Trash2, ArrowRightLeft } from "lucide-react";
+import {
+  Pencil,
+  PencilLine,
+  Check,
+  Trash2,
+  ArrowRightLeft,
+} from "lucide-react";
 import { ExportDropdown } from "./export-dropdown";
 import { useTranslations, useFormatter } from "next-intl";
 import { DateRangePicker } from "@/components/shared/date-range-picker";
@@ -74,6 +80,7 @@ export function PollDetailClient({
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("matches");
   const [transposed, setTransposed] = useState(true);
+  const [tentativeMode, setTentativeMode] = useState(false);
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
   const [liveAssignments, setLiveAssignments] = useState<Assignment[]>(
     initialPoll.assignments,
@@ -326,16 +333,29 @@ export function PollDetailClient({
               activeTab={activeTab}
             />
             {activeTab === "assignments" && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="hidden sm:inline-flex"
-                onClick={() => setTransposed((prev) => !prev)}
-                aria-label={t("swapRowsAndColumns")}
-              >
-                <ArrowRightLeft className="mr-2 h-4 w-4" />
-                {t("swapAxes")}
-              </Button>
+              <>
+                <Button
+                  variant={tentativeMode ? "default" : "outline"}
+                  size="sm"
+                  aria-pressed={tentativeMode}
+                  data-testid="tentative-mode-toggle"
+                  title={t("tentativeModeHint")}
+                  onClick={() => setTentativeMode((prev) => !prev)}
+                >
+                  <PencilLine className="mr-2 h-4 w-4" />
+                  {t("tentativeMode")}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="hidden sm:inline-flex"
+                  onClick={() => setTransposed((prev) => !prev)}
+                  aria-label={t("swapRowsAndColumns")}
+                >
+                  <ArrowRightLeft className="mr-2 h-4 w-4" />
+                  {t("swapAxes")}
+                </Button>
+              </>
             )}
           </div>
         </div>
@@ -501,6 +521,7 @@ export function PollDetailClient({
             assignments={poll.assignments}
             umpires={umpires}
             transposed={transposed}
+            tentativeMode={tentativeMode}
             clubName={clubName}
             onAssignmentsChange={setLiveAssignments}
             onNoteSaved={refreshPoll}
