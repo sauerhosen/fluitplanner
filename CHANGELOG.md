@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.15.1](https://github.com/sauerhosen/fluitplanner/compare/v2.15.0...v2.15.1) (2026-08-27)
+
+
+### Bug Fixes
+
+* **ui:** make the sticky toolbar trigger, and the page it sits on, correct ([39aa70c](https://github.com/sauerhosen/fluitplanner/commit/39aa70cbc499cff0995d3e44f3568e782170d898))
+
 ## [2.15.0](https://github.com/sauerhosen/fluitplanner/compare/v2.14.0...v2.15.0) (2026-08-27)
 
 
