@@ -9,16 +9,8 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { useTranslations, useFormatter } from "next-intl";
-import {
-  startOfWeek,
-  endOfWeek,
-  startOfMonth,
-  endOfMonth,
-  addDays,
-  addMonths,
-  subMonths,
-} from "date-fns";
 import { useMemo, useState } from "react";
+import { useDateRangePresets } from "@/hooks/use-date-range-presets";
 import type { DateRange } from "react-day-picker";
 
 type Props = {
@@ -32,39 +24,7 @@ export function DateRangePicker({ value, onChange }: Props) {
   const [open, setOpen] = useState(false);
 
   const today = useMemo(() => new Date(), []);
-
-  const presets = useMemo<{ label: string; range: DateRange | undefined }[]>(
-    () => [
-      {
-        label: t("presetThisWeek"),
-        range: {
-          from: startOfWeek(today, { weekStartsOn: 1 }),
-          to: endOfWeek(today, { weekStartsOn: 1 }),
-        },
-      },
-      {
-        label: t("presetNextTwoWeeks"),
-        range: { from: today, to: addDays(today, 14) },
-      },
-      {
-        label: t("presetThisMonth"),
-        range: { from: startOfMonth(today), to: endOfMonth(today) },
-      },
-      {
-        label: t("presetNextTwoMonths"),
-        range: { from: today, to: addMonths(today, 2) },
-      },
-      {
-        label: t("presetPastMonth"),
-        range: {
-          from: startOfMonth(subMonths(today, 1)),
-          to: endOfMonth(subMonths(today, 1)),
-        },
-      },
-      { label: t("presetAll"), range: undefined },
-    ],
-    [today, t],
-  );
+  const presets = useDateRangePresets();
 
   function handlePreset(range: DateRange | undefined) {
     onChange(range);
