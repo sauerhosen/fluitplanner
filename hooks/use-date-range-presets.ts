@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import {
+  startOfDay,
   startOfWeek,
   endOfWeek,
   startOfMonth,
@@ -27,7 +28,11 @@ export type DateRangePreset = {
  */
 export function useDateRangePresets(): DateRangePreset[] {
   const t = useTranslations("common");
-  const today = useMemo(() => new Date(), []);
+  // Midnight, not "now": the picker and the phone's tools menu each hold their
+  // own instance, and a range set in one is matched against the other's
+  // presets. Two `new Date()` calls milliseconds apart would never compare
+  // equal, leaving the menu unable to show which preset is active.
+  const today = useMemo(() => startOfDay(new Date()), []);
 
   return useMemo(
     () => [
