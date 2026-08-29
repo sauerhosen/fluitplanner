@@ -1,5 +1,22 @@
 # Changelog
 
+## [2.17.0](https://github.com/sauerhosen/fluitplanner/compare/v2.16.0...v2.17.0) (2026-08-29)
+
+
+### Features
+
+* fit the assignment grid on a phone ([58de80d](https://github.com/sauerhosen/fluitplanner/commit/58de80dec134657232d43baf30b6065fd18e8c0d))
+* fold the poll toolbar's tools into a menu on phones ([0435756](https://github.com/sauerhosen/fluitplanner/commit/0435756280c1f626b11af44c4b82d0a6fb6ad0a9))
+* make the assignment grid usable on a phone ([7deb167](https://github.com/sauerhosen/fluitplanner/commit/7deb167649bca93c675bae6ca949d58fc92e5d2e))
+
+
+### Bug Fixes
+
+* cap the assignment grid's height on phones only ([83c259b](https://github.com/sauerhosen/fluitplanner/commit/83c259babf26a6a0841b0ace93a1358faed47ca6))
+* give every date-preset instance the same midnight ([44ef8bd](https://github.com/sauerhosen/fluitplanner/commit/44ef8bdc6221c15f57e8d7f916a4c46f443e5d3f))
+* keep the match header visible while scrolling the assignment grid ([675d8c6](https://github.com/sauerhosen/fluitplanner/commit/675d8c68aef35fdaebb121c0a7ec6fd94c0d1a8b))
+* pin the grid header without a second scrollbar ([506345d](https://github.com/sauerhosen/fluitplanner/commit/506345dc8f850f446c0f01198c652de7a09c92ec))
+
 ## [2.16.0](https://github.com/sauerhosen/fluitplanner/compare/v2.15.1...v2.16.0) (2026-08-27)
 
 
