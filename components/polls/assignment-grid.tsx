@@ -620,13 +620,16 @@ export function AssignmentGrid({
   return (
     <div className="flex flex-col gap-2">
       {renderTentativeBar()}
-      <div className="scrollbar-visible overflow-x-auto pb-2">
+      {/* Vertical scrolling lives in this container rather than the page, which
+          is what lets the match header stick: a sticky thead can only pin to
+          the scrollport of its own overflow ancestor. */}
+      <div className="scrollbar-visible overflow-auto max-h-[70vh] pb-2">
         <table className="min-w-full text-sm border-collapse">
-          <thead>
-            <tr>
+          <thead className="sticky top-0 z-20">
+            <tr className="bg-background">
               <th
                 rowSpan={2}
-                className="text-left p-1 sm:p-2 font-medium sticky left-0 z-10 bg-background min-w-24 sm:min-w-32 align-bottom"
+                className="text-left p-1 sm:p-2 font-medium sticky left-0 z-30 bg-background min-w-24 sm:min-w-32 align-bottom"
               >
                 {t("umpireColumnHeader")}
               </th>
@@ -634,13 +637,13 @@ export function AssignmentGrid({
                 <th
                   key={group.date}
                   colSpan={group.matches.length}
-                  className={`p-1 pb-0 text-center font-semibold text-xs capitalize ${gi > 0 ? "border-l-2 border-border" : ""}`}
+                  className={`bg-background p-1 pb-0 text-center font-semibold text-xs capitalize ${gi > 0 ? "border-l-2 border-border" : ""}`}
                 >
                   {group.label}
                 </th>
               ))}
             </tr>
-            <tr>
+            <tr className="bg-background">
               {sortedMatches.map((match, i) => {
                 const prevMatch = sortedMatches[i - 1];
                 const showBorder =
@@ -648,7 +651,7 @@ export function AssignmentGrid({
                 return (
                   <th
                     key={match.id}
-                    className={`relative p-1 sm:p-2 pt-0 text-center font-medium whitespace-nowrap min-w-14 sm:min-w-24 ${showBorder ? "border-l-2 border-border" : ""}`}
+                    className={`relative bg-background p-1 sm:p-2 pt-0 text-center font-medium whitespace-nowrap min-w-14 sm:min-w-24 ${showBorder ? "border-l-2 border-border" : ""}`}
                   >
                     <div className="flex flex-col items-center gap-0.5">
                       {match.start_time && (
@@ -682,6 +685,14 @@ export function AssignmentGrid({
                   </th>
                 );
               })}
+            </tr>
+            {/* A collapsed border on a sticky header is dropped while it is
+                pinned, so the header's bottom edge is a row of its own. */}
+            <tr className="bg-background">
+              <td
+                colSpan={1 + sortedMatches.length}
+                className="h-px bg-border p-0"
+              />
             </tr>
           </thead>
           <tbody>
