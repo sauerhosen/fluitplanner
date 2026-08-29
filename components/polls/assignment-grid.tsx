@@ -1,6 +1,13 @@
 "use client";
 
-import { Fragment, useState, useMemo, useCallback, useEffect } from "react";
+import {
+  Fragment,
+  useState,
+  useMemo,
+  useCallback,
+  useEffect,
+  useRef,
+} from "react";
 import { Check, Ban, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -30,6 +37,7 @@ import type {
 import { MatchNoteButton } from "@/components/matches/match-note-button";
 import { UmpireNoteButton } from "@/components/umpires/umpire-note-button";
 import { useTranslations, useFormatter } from "next-intl";
+import { usePinnedTableHeader } from "@/hooks/use-pinned-table-header";
 
 type Props = {
   pollId: string;
@@ -80,6 +88,9 @@ export function AssignmentGrid({
   onUmpireNoteSaved,
 }: Props) {
   const [assignments, setAssignments] = useState(initialAssignments);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const headRef = useRef<HTMLTableSectionElement>(null);
+  const headerOffset = usePinnedTableHeader(scrollRef, headRef);
   const [saving, setSaving] = useState<string | null>(null);
   const [bulkPending, setBulkPending] = useState(false);
   const t = useTranslations("polls");
@@ -620,14 +631,16 @@ export function AssignmentGrid({
   return (
     <div className="flex flex-col gap-2">
       {renderTentativeBar()}
-      {/* On a phone, vertical scrolling lives in this container rather than the
-          page, which is what lets the match header stick: a sticky thead can
-          only pin to the scrollport of its own overflow ancestor. From `sm` up
-          the cap is lifted, so the grid grows with the page as it always has
-          and the header scrolls away with it. */}
-      <div className="scrollbar-visible overflow-auto max-h-[70vh] sm:max-h-none pb-2">
+      <div ref={scrollRef} className="scrollbar-visible overflow-x-auto pb-2">
         <table className="min-w-full text-sm border-collapse">
-          <thead className="sticky top-0 z-20">
+          {/* Offset by hand rather than `sticky`, which cannot reach the page's
+              scrollport from inside a horizontal scroller — see
+              `usePinnedTableHeader`. The offset is 0 above `sm`. */}
+          <thead
+            ref={headRef}
+            className="relative z-20"
+            style={{ top: headerOffset }}
+          >
             <tr className="bg-background">
               <th
                 rowSpan={2}
