@@ -14,6 +14,7 @@ import {
 } from "@/lib/actions/assignments";
 import { mapMatchesToSlots } from "@/lib/domain/match-slot-mapping";
 import { stripClubPrefix } from "@/lib/domain/team-names";
+import { shortenUmpireName } from "@/lib/domain/umpire-names";
 import {
   findConflicts,
   type AssignmentConflict,
@@ -625,7 +626,7 @@ export function AssignmentGrid({
             <tr>
               <th
                 rowSpan={2}
-                className="text-left p-2 font-medium sticky left-0 z-10 bg-background min-w-32 align-bottom"
+                className="text-left p-1 sm:p-2 font-medium sticky left-0 z-10 bg-background min-w-24 sm:min-w-32 align-bottom"
               >
                 {t("umpireColumnHeader")}
               </th>
@@ -647,7 +648,7 @@ export function AssignmentGrid({
                 return (
                   <th
                     key={match.id}
-                    className={`relative p-2 pt-0 text-center font-medium whitespace-nowrap min-w-24 ${showBorder ? "border-l-2 border-border" : ""}`}
+                    className={`relative p-1 sm:p-2 pt-0 text-center font-medium whitespace-nowrap min-w-14 sm:min-w-24 ${showBorder ? "border-l-2 border-border" : ""}`}
                   >
                     <div className="flex flex-col items-center gap-0.5">
                       {match.start_time && (
@@ -659,11 +660,11 @@ export function AssignmentGrid({
                           })}
                         </span>
                       )}
-                      <span className="flex flex-col items-center text-[11px] leading-tight">
-                        <span>
+                      <span className="flex w-full max-w-12 sm:max-w-none flex-col items-center text-[10px] sm:text-[11px] leading-tight">
+                        <span className="w-full truncate">
                           {stripClubPrefix(match.home_team, clubName)}
                         </span>
-                        <span className="text-muted-foreground">
+                        <span className="w-full truncate text-muted-foreground">
                           {match.away_team}
                         </span>
                       </span>
@@ -686,9 +687,16 @@ export function AssignmentGrid({
           <tbody>
             {umpires.map((u) => (
               <tr key={u.id} className="border-b">
-                <td className="p-2 font-medium sticky left-0 z-10 bg-background whitespace-nowrap">
-                  <div className="flex items-center gap-2">
-                    <span>{u.name}</span>
+                <td className="p-1 sm:p-2 font-medium sticky left-0 z-10 bg-background whitespace-nowrap">
+                  <div className="flex items-center gap-1 sm:gap-2">
+                    {/* The full name is what the column is widest for, so on a
+                        phone the surname collapses to initials; both are
+                        rendered and swapped by breakpoint to keep one markup
+                        path (and the full name searchable by the browser). */}
+                    <span className="sm:hidden" title={u.name}>
+                      {shortenUmpireName(u.name)}
+                    </span>
+                    <span className="hidden sm:inline">{u.name}</span>
                     {renderUmpireCount(u.id)}
                     <UmpireNoteButton
                       umpire={u}
