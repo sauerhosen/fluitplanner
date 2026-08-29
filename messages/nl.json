@@ -253,7 +253,9 @@
     "closePoll": "Peiling sluiten",
     "reopenPoll": "Peiling heropenen",
     "matchesTab": "Wedstrijden ({count})",
+    "matchesTabShort": "Wedstrijden",
     "responsesTab": "Reacties ({count})",
+    "responsesTabShort": "Reacties",
     "assignmentsTab": "Indelingen",
     "swapAxes": "Assen wisselen",
     "swapRowsAndColumns": "Rijen en kolommen wisselen",
@@ -298,7 +300,8 @@
     "copyFailed": "Kopiëren naar klembord mislukt.",
     "noDataToExport": "Geen gegevens om te exporteren.",
     "daySheet": "Dagoverzicht",
-    "daySheetMatch": "Wedstrijd"
+    "daySheetMatch": "Wedstrijd",
+    "toolsMenu": "Weergaveopties"
   },
   "pollResponse": {
     "loadingPoll": "Peiling laden...",

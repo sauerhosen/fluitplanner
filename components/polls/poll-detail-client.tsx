@@ -51,6 +51,7 @@ import {
   ChevronLeft,
 } from "lucide-react";
 import { ExportDropdown } from "./export-dropdown";
+import { PollToolbarMenu } from "./poll-toolbar-menu";
 import { useTranslations, useFormatter } from "next-intl";
 import { DateRangePicker } from "@/components/shared/date-range-picker";
 import type { DateRange } from "react-day-picker";
@@ -378,15 +379,38 @@ export function PollDetailClient({
           className="justify-between"
         >
           <TabsList>
+            {/* The counts are the widest part of the row and the least urgent,
+                so a phone gets the bare labels and the tools keep their seat. */}
             <TabsTrigger value="matches">
-              {t("matchesTab", { count: filteredMatches.length })}
+              <span className="sm:hidden">{t("matchesTabShort")}</span>
+              <span className="hidden sm:inline">
+                {t("matchesTab", { count: filteredMatches.length })}
+              </span>
             </TabsTrigger>
             <TabsTrigger value="responses">
-              {t("responsesTab", { count: uniqueRespondentCount })}
+              <span className="sm:hidden">{t("responsesTabShort")}</span>
+              <span className="hidden sm:inline">
+                {t("responsesTab", { count: uniqueRespondentCount })}
+              </span>
             </TabsTrigger>
             <TabsTrigger value="assignments">{t("assignmentsTab")}</TabsTrigger>
           </TabsList>
-          <div className="flex items-center gap-2">
+          <PollToolbarMenu
+            className="sm:hidden"
+            pollTitle={poll.title ?? ""}
+            slots={filteredSlots}
+            matches={filteredMatches}
+            responses={liveResponses}
+            assignments={liveAssignments}
+            umpires={umpires}
+            activeTab={activeTab}
+            dateRange={dateRange}
+            onDateRangeChange={setDateRange}
+            tentativeMode={tentativeMode}
+            onTentativeModeChange={setTentativeMode}
+            onSwapAxes={() => setTransposed((prev) => !prev)}
+          />
+          <div className="hidden items-center gap-2 sm:flex">
             <DateRangePicker value={dateRange} onChange={setDateRange} />
             <ExportDropdown
               pollTitle={poll.title ?? ""}
@@ -413,7 +437,6 @@ export function PollDetailClient({
                 <Button
                   variant="outline"
                   size="sm"
-                  className="hidden sm:inline-flex"
                   onClick={() => setTransposed((prev) => !prev)}
                   aria-label={t("swapRowsAndColumns")}
                 >

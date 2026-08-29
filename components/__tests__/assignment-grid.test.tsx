@@ -259,6 +259,15 @@ describe("AssignmentGrid", () => {
     expect(screen.getByText("Umpire")).toBeInTheDocument();
   });
 
+  it("offers a phone-sized umpire name alongside the full one", () => {
+    render(<AssignmentGrid {...defaultProps} transposed />);
+
+    // Both are rendered; the breakpoint decides which one is visible.
+    expect(screen.getByText("Jan dV")).toBeInTheDocument();
+    expect(screen.getByText("Jan de Vries")).toBeInTheDocument();
+    expect(screen.getByText("Piet B.")).toBeInTheDocument();
+  });
+
   it("shows no note icon for matches without notes", () => {
     render(<AssignmentGrid {...defaultProps} />);
 

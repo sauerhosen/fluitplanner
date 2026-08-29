@@ -253,7 +253,9 @@
     "closePoll": "Close Poll",
     "reopenPoll": "Reopen Poll",
     "matchesTab": "Matches ({count})",
+    "matchesTabShort": "Matches",
     "responsesTab": "Responses ({count})",
+    "responsesTabShort": "Responses",
     "assignmentsTab": "Assignments",
     "swapAxes": "Swap axes",
     "swapRowsAndColumns": "Swap rows and columns",
@@ -298,7 +300,8 @@
     "copyFailed": "Failed to copy to clipboard.",
     "noDataToExport": "No data to export.",
     "daySheet": "Day sheet",
-    "daySheetMatch": "Match"
+    "daySheetMatch": "Match",
+    "toolsMenu": "View tools"
   },
   "pollResponse": {
     "loadingPoll": "Loading poll...",

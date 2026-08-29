@@ -1,6 +1,13 @@
 "use client";
 
-import { Fragment, useState, useMemo, useCallback, useEffect } from "react";
+import {
+  Fragment,
+  useState,
+  useMemo,
+  useCallback,
+  useEffect,
+  useRef,
+} from "react";
 import { Check, Ban, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +21,7 @@ import {
 } from "@/lib/actions/assignments";
 import { mapMatchesToSlots } from "@/lib/domain/match-slot-mapping";
 import { stripClubPrefix } from "@/lib/domain/team-names";
+import { shortenUmpireName } from "@/lib/domain/umpire-names";
 import {
   findConflicts,
   type AssignmentConflict,
@@ -29,6 +37,7 @@ import type {
 import { MatchNoteButton } from "@/components/matches/match-note-button";
 import { UmpireNoteButton } from "@/components/umpires/umpire-note-button";
 import { useTranslations, useFormatter } from "next-intl";
+import { usePinnedTableHeader } from "@/hooks/use-pinned-table-header";
 
 type Props = {
   pollId: string;
@@ -79,6 +88,9 @@ export function AssignmentGrid({
   onUmpireNoteSaved,
 }: Props) {
   const [assignments, setAssignments] = useState(initialAssignments);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const headRef = useRef<HTMLTableSectionElement>(null);
+  const headerOffset = usePinnedTableHeader(scrollRef, headRef);
   const [saving, setSaving] = useState<string | null>(null);
   const [bulkPending, setBulkPending] = useState(false);
   const t = useTranslations("polls");
@@ -619,13 +631,20 @@ export function AssignmentGrid({
   return (
     <div className="flex flex-col gap-2">
       {renderTentativeBar()}
-      <div className="scrollbar-visible overflow-x-auto pb-2">
+      <div ref={scrollRef} className="scrollbar-visible overflow-x-auto pb-2">
         <table className="min-w-full text-sm border-collapse">
-          <thead>
-            <tr>
+          {/* Offset by hand rather than `sticky`, which cannot reach the page's
+              scrollport from inside a horizontal scroller — see
+              `usePinnedTableHeader`. The offset is 0 above `sm`. */}
+          <thead
+            ref={headRef}
+            className="relative z-20"
+            style={{ top: headerOffset }}
+          >
+            <tr className="bg-background">
               <th
                 rowSpan={2}
-                className="text-left p-2 font-medium sticky left-0 z-10 bg-background min-w-32 align-bottom"
+                className="text-left p-1 sm:p-2 font-medium sticky left-0 z-30 bg-background min-w-24 sm:min-w-32 align-bottom"
               >
                 {t("umpireColumnHeader")}
               </th>
@@ -633,13 +652,13 @@ export function AssignmentGrid({
                 <th
                   key={group.date}
                   colSpan={group.matches.length}
-                  className={`p-1 pb-0 text-center font-semibold text-xs capitalize ${gi > 0 ? "border-l-2 border-border" : ""}`}
+                  className={`bg-background p-1 pb-0 text-center font-semibold text-xs capitalize ${gi > 0 ? "border-l-2 border-border" : ""}`}
                 >
                   {group.label}
                 </th>
               ))}
             </tr>
-            <tr>
+            <tr className="bg-background">
               {sortedMatches.map((match, i) => {
                 const prevMatch = sortedMatches[i - 1];
                 const showBorder =
@@ -647,7 +666,7 @@ export function AssignmentGrid({
                 return (
                   <th
                     key={match.id}
-                    className={`relative p-2 pt-0 text-center font-medium whitespace-nowrap min-w-24 ${showBorder ? "border-l-2 border-border" : ""}`}
+                    className={`relative bg-background p-1 sm:p-2 pt-0 text-center font-medium whitespace-nowrap min-w-14 sm:min-w-24 ${showBorder ? "border-l-2 border-border" : ""}`}
                   >
                     <div className="flex flex-col items-center gap-0.5">
                       {match.start_time && (
@@ -659,11 +678,11 @@ export function AssignmentGrid({
                           })}
                         </span>
                       )}
-                      <span className="flex flex-col items-center text-[11px] leading-tight">
-                        <span>
+                      <span className="flex w-full max-w-12 sm:max-w-none flex-col items-center text-[10px] sm:text-[11px] leading-tight">
+                        <span className="w-full truncate">
                           {stripClubPrefix(match.home_team, clubName)}
                         </span>
-                        <span className="text-muted-foreground">
+                        <span className="w-full truncate text-muted-foreground">
                           {match.away_team}
                         </span>
                       </span>
@@ -682,13 +701,28 @@ export function AssignmentGrid({
                 );
               })}
             </tr>
+            {/* A collapsed border on a sticky header is dropped while it is
+                pinned, so the header's bottom edge is a row of its own. */}
+            <tr className="bg-background">
+              <td
+                colSpan={1 + sortedMatches.length}
+                className="h-px bg-border p-0"
+              />
+            </tr>
           </thead>
           <tbody>
             {umpires.map((u) => (
               <tr key={u.id} className="border-b">
-                <td className="p-2 font-medium sticky left-0 z-10 bg-background whitespace-nowrap">
-                  <div className="flex items-center gap-2">
-                    <span>{u.name}</span>
+                <td className="p-1 sm:p-2 font-medium sticky left-0 z-10 bg-background whitespace-nowrap">
+                  <div className="flex items-center gap-1 sm:gap-2">
+                    {/* The full name is what the column is widest for, so on a
+                        phone the surname collapses to initials; both are
+                        rendered and swapped by breakpoint to keep one markup
+                        path (and the full name searchable by the browser). */}
+                    <span className="sm:hidden" title={u.name}>
+                      {shortenUmpireName(u.name)}
+                    </span>
+                    <span className="hidden sm:inline">{u.name}</span>
                     {renderUmpireCount(u.id)}
                     <UmpireNoteButton
                       umpire={u}

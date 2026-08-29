@@ -63,6 +63,11 @@ type Props = {
   assignments: Assignment[];
   umpires: Umpire[];
   activeTab: string;
+  /**
+   * "button" is the toolbar's own trigger; "menu" folds the same actions into
+   * a submenu of an enclosing dropdown, which is how a phone reaches them.
+   */
+  variant?: "button" | "menu";
 };
 
 export function ExportDropdown({
@@ -73,6 +78,7 @@ export function ExportDropdown({
   assignments,
   umpires,
   activeTab,
+  variant = "button",
 }: Props) {
   const t = useTranslations("polls");
   const format = useFormatter();
@@ -290,6 +296,89 @@ export function ExportDropdown({
     }
   }
 
+  const items = (
+    <>
+      <DropdownMenuLabel>{t("exportAs")}</DropdownMenuLabel>
+      <DropdownMenuSeparator />
+      <DropdownMenuGroup>
+        <DropdownMenuItem onClick={handleExportXlsx}>
+          <FileSpreadsheet className="mr-2 h-4 w-4" />
+          {t("exportXlsx")}
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={handleExportHtml}>
+          <Code className="mr-2 h-4 w-4" />
+          {t("exportHtml")}
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={handleExportMarkdown}>
+          <FileText className="mr-2 h-4 w-4" />
+          {t("exportMarkdown")}
+        </DropdownMenuItem>
+      </DropdownMenuGroup>
+      <DropdownMenuSeparator />
+      <DropdownMenuItem onClick={handleCopyMarkdown}>
+        {copiedMd ? (
+          <Check className="mr-2 h-4 w-4" />
+        ) : (
+          <Copy className="mr-2 h-4 w-4" />
+        )}
+        {copiedMd ? t("copied") : t("copyMarkdown")}
+      </DropdownMenuItem>
+      {target === "assignments" && uniqueDates.length > 0 && (
+        <>
+          <DropdownMenuSeparator />
+          <DropdownMenuLabel>{t("daySheet")}</DropdownMenuLabel>
+          {uniqueDates.map((date) => (
+            <DropdownMenuSub key={date.iso}>
+              <DropdownMenuSubTrigger>
+                <CalendarDays className="mr-2 h-4 w-4" />
+                {date.label}
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent>
+                <DropdownMenuItem
+                  onClick={() => handleDaySheet("xlsx", date.iso)}
+                >
+                  <FileSpreadsheet className="mr-2 h-4 w-4" />
+                  {t("exportXlsx")}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => handleDaySheet("html", date.iso)}
+                >
+                  <Code className="mr-2 h-4 w-4" />
+                  {t("exportHtml")}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => handleDaySheet("markdown", date.iso)}
+                >
+                  <FileText className="mr-2 h-4 w-4" />
+                  {t("exportMarkdown")}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={() => handleDaySheet("copy", date.iso)}
+                >
+                  <Copy className="mr-2 h-4 w-4" />
+                  {t("copyMarkdown")}
+                </DropdownMenuItem>
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+          ))}
+        </>
+      )}
+    </>
+  );
+
+  if (variant === "menu") {
+    return (
+      <DropdownMenuSub>
+        <DropdownMenuSubTrigger inset>
+          <Download className="mr-2 h-4 w-4" />
+          {t("export")}
+        </DropdownMenuSubTrigger>
+        <DropdownMenuSubContent>{items}</DropdownMenuSubContent>
+      </DropdownMenuSub>
+    );
+  }
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -298,74 +387,7 @@ export function ExportDropdown({
           {t("export")}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuLabel>{t("exportAs")}</DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        <DropdownMenuGroup>
-          <DropdownMenuItem onClick={handleExportXlsx}>
-            <FileSpreadsheet className="mr-2 h-4 w-4" />
-            {t("exportXlsx")}
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={handleExportHtml}>
-            <Code className="mr-2 h-4 w-4" />
-            {t("exportHtml")}
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={handleExportMarkdown}>
-            <FileText className="mr-2 h-4 w-4" />
-            {t("exportMarkdown")}
-          </DropdownMenuItem>
-        </DropdownMenuGroup>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={handleCopyMarkdown}>
-          {copiedMd ? (
-            <Check className="mr-2 h-4 w-4" />
-          ) : (
-            <Copy className="mr-2 h-4 w-4" />
-          )}
-          {copiedMd ? t("copied") : t("copyMarkdown")}
-        </DropdownMenuItem>
-        {target === "assignments" && uniqueDates.length > 0 && (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuLabel>{t("daySheet")}</DropdownMenuLabel>
-            {uniqueDates.map((date) => (
-              <DropdownMenuSub key={date.iso}>
-                <DropdownMenuSubTrigger>
-                  <CalendarDays className="mr-2 h-4 w-4" />
-                  {date.label}
-                </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent>
-                  <DropdownMenuItem
-                    onClick={() => handleDaySheet("xlsx", date.iso)}
-                  >
-                    <FileSpreadsheet className="mr-2 h-4 w-4" />
-                    {t("exportXlsx")}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => handleDaySheet("html", date.iso)}
-                  >
-                    <Code className="mr-2 h-4 w-4" />
-                    {t("exportHtml")}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => handleDaySheet("markdown", date.iso)}
-                  >
-                    <FileText className="mr-2 h-4 w-4" />
-                    {t("exportMarkdown")}
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    onClick={() => handleDaySheet("copy", date.iso)}
-                  >
-                    <Copy className="mr-2 h-4 w-4" />
-                    {t("copyMarkdown")}
-                  </DropdownMenuItem>
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
-            ))}
-          </>
-        )}
-      </DropdownMenuContent>
+      <DropdownMenuContent align="end">{items}</DropdownMenuContent>
     </DropdownMenu>
   );
 }
