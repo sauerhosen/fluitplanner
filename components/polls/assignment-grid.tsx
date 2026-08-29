@@ -620,10 +620,12 @@ export function AssignmentGrid({
   return (
     <div className="flex flex-col gap-2">
       {renderTentativeBar()}
-      {/* Vertical scrolling lives in this container rather than the page, which
-          is what lets the match header stick: a sticky thead can only pin to
-          the scrollport of its own overflow ancestor. */}
-      <div className="scrollbar-visible overflow-auto max-h-[70vh] pb-2">
+      {/* On a phone, vertical scrolling lives in this container rather than the
+          page, which is what lets the match header stick: a sticky thead can
+          only pin to the scrollport of its own overflow ancestor. From `sm` up
+          the cap is lifted, so the grid grows with the page as it always has
+          and the header scrolls away with it. */}
+      <div className="scrollbar-visible overflow-auto max-h-[70vh] sm:max-h-none pb-2">
         <table className="min-w-full text-sm border-collapse">
           <thead className="sticky top-0 z-20">
             <tr className="bg-background">
