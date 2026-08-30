@@ -670,6 +670,14 @@ describe("revokePendingInvite", () => {
     expect(mockDeleteUser).toHaveBeenCalledWith("user-2");
   });
 
+  it("refuses to revoke the signed-in master admin's own invite", async () => {
+    const { revokePendingInvite } = await import("@/lib/actions/admin");
+    await expect(revokePendingInvite("user-1")).rejects.toThrow(
+      "You cannot revoke your own invite",
+    );
+    expect(mockDeleteUser).not.toHaveBeenCalled();
+  });
+
   it("refuses to revoke an accepted user", async () => {
     mockGetUserById.mockResolvedValue({
       data: {
@@ -764,6 +772,52 @@ describe("deleteUser", () => {
       "Database error deleting user",
     );
     expect(mockUpdateUserById).not.toHaveBeenCalled();
+  });
+
+  it("puts the memberships back when the account survives a failed delete", async () => {
+    // First .eq() is the snapshot read, second is the membership delete.
+    mockServiceEq
+      .mockResolvedValueOnce({
+        data: [{ organization_id: "org-1", role: "planner" }],
+        error: null,
+      })
+      .mockResolvedValue({ data: null, error: null });
+    mockDeleteUser.mockResolvedValue({
+      data: null,
+      error: { message: "Database error deleting user", status: 500 },
+    });
+    mockServiceRpc.mockResolvedValue({ data: false, error: null });
+
+    const { deleteUser } = await import("@/lib/actions/admin");
+    await expect(deleteUser("user-2")).rejects.toThrow(
+      "Database error deleting user",
+    );
+    expect(mockServiceInsert).toHaveBeenCalledWith([
+      { organization_id: "org-1", role: "planner", user_id: "user-2" },
+    ]);
+  });
+
+  it("says so when the memberships could not be put back", async () => {
+    mockServiceEq
+      .mockResolvedValueOnce({
+        data: [{ organization_id: "org-1", role: "planner" }],
+        error: null,
+      })
+      .mockResolvedValue({ data: null, error: null });
+    mockServiceInsert.mockResolvedValue({
+      data: null,
+      error: { message: "insert failed" },
+    });
+    mockDeleteUser.mockResolvedValue({
+      data: null,
+      error: { message: "Database error deleting user", status: 500 },
+    });
+    mockServiceRpc.mockResolvedValue({ data: false, error: null });
+
+    const { deleteUser } = await import("@/lib/actions/admin");
+    await expect(deleteUser("user-2")).rejects.toThrow(
+      "club memberships could not be restored",
+    );
   });
 
   it("throws rather than guessing when the reference probe itself fails", async () => {

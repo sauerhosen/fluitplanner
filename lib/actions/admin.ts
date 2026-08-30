@@ -50,9 +50,15 @@ async function listAllAuthUsers(
   let page = 1;
   const perPage = 1000;
   while (true) {
-    const {
-      data: { users },
-    } = await serviceClient.auth.admin.listUsers({ page, perPage });
+    // On failure the admin client resolves with an empty user list rather than
+    // rejecting, so the error has to be checked — otherwise an outage looks
+    // exactly like "this deployment has no accounts".
+    const { data, error } = await serviceClient.auth.admin.listUsers({
+      page,
+      perPage,
+    });
+    if (error) throw new Error(error.message);
+    const users = data?.users ?? [];
     all.push(...users);
     if (users.length < perPage) break;
     page++;
@@ -257,16 +263,31 @@ export async function resendInvite(userId: string): Promise<void> {
 }
 
 export async function revokePendingInvite(userId: string): Promise<void> {
-  await requireMasterAdmin();
+  const { user } = await requireMasterAdmin();
+  // Revoking deletes the account, so it needs the same self-protection as
+  // deleteUser — a master admin whose own email was never confirmed shows up
+  // as a pending invite too.
+  if (user.id === userId) {
+    throw new Error("You cannot revoke your own invite");
+  }
+
   const serviceClient = createServiceClient();
 
   await requirePendingUser(serviceClient, userId);
+  const memberships = await readAllMemberships(serviceClient, userId);
   await removeAllMemberships(serviceClient, userId);
 
   // A pending invite has never signed in, so it cannot own records — a
   // foreign-key failure here is a real error, not a reason to disable.
   const { error } = await serviceClient.auth.admin.deleteUser(userId);
-  if (error) throw new Error(error.message);
+  if (error) {
+    const restored = await restoreMemberships(
+      serviceClient,
+      userId,
+      memberships,
+    );
+    throw new Error(failedDeleteMessage(error.message, restored));
+  }
 }
 
 /**
@@ -283,6 +304,10 @@ export async function deleteUser(userId: string): Promise<DeleteUserResult> {
   }
 
   const serviceClient = createServiceClient();
+  // Memberships are themselves a blocking reference, so they have to go before
+  // the delete can be attempted — snapshot them so they can be put back if the
+  // delete then fails for an unrelated reason.
+  const memberships = await readAllMemberships(serviceClient, userId);
   await removeAllMemberships(serviceClient, userId);
 
   const { error } = await serviceClient.auth.admin.deleteUser(userId);
@@ -294,7 +319,15 @@ export async function deleteUser(userId: string): Promise<DeleteUserResult> {
     "auth_user_is_referenced",
     { target_user: userId },
   );
-  if (probeError || !stillReferenced) throw new Error(error.message);
+  if (probeError || !stillReferenced) {
+    // The account survives, so it must not be left stranded without its clubs.
+    const restored = await restoreMemberships(
+      serviceClient,
+      userId,
+      memberships,
+    );
+    throw new Error(failedDeleteMessage(error.message, restored));
+  }
 
   // `created_by` on matches, umpires, polls and clubs references auth.users
   // with no cascade — deliberately, so deleting a planner never takes their
@@ -344,6 +377,51 @@ async function banUser(
     ban_duration: INDEFINITE_BAN,
   });
   if (error) throw new Error(error.message);
+}
+
+type MembershipSnapshot = { organization_id: string; role: string };
+
+/**
+ * Snapshot a user's club memberships so a delete that had to clear them can put
+ * them back when it turns out the account is staying.
+ */
+async function readAllMemberships(
+  serviceClient: ReturnType<typeof createServiceClient>,
+  userId: string,
+): Promise<MembershipSnapshot[]> {
+  const { data, error } = await serviceClient
+    .from("organization_members")
+    .select("organization_id, role")
+    .eq("user_id", userId);
+  if (error) throw new Error(error.message);
+  return (data ?? []) as MembershipSnapshot[];
+}
+
+/**
+ * Puts a snapshot back. Returns false if it could not — the caller is already
+ * throwing, and an admin whose user is now stranded without clubs needs to be
+ * told that rather than left to discover it.
+ */
+async function restoreMemberships(
+  serviceClient: ReturnType<typeof createServiceClient>,
+  userId: string,
+  memberships: MembershipSnapshot[],
+): Promise<boolean> {
+  if (memberships.length === 0) return true;
+  const { error } = await serviceClient
+    .from("organization_members")
+    .insert(memberships.map((m) => ({ ...m, user_id: userId })));
+  return !error;
+}
+
+/**
+ * The message for a failed delete, widened when the compensating restore also
+ * failed and the account is left without its club memberships.
+ */
+function failedDeleteMessage(originalMessage: string, restored: boolean) {
+  return restored
+    ? originalMessage
+    : `${originalMessage}. The account's club memberships could not be restored and must be added again.`;
 }
 
 /**

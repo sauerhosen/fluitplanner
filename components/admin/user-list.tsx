@@ -268,13 +268,17 @@ export function UserList({
                                   <DropdownMenuSubContent>
                                     <DropdownMenuRadioGroup
                                       value={m.role}
-                                      onValueChange={(role) =>
+                                      onValueChange={(role) => {
+                                        // Radix fires this for the already
+                                        // selected item too — don't round-trip
+                                        // to the server for a no-op.
+                                        if (role === m.role) return;
                                         handleRoleChange(
                                           user.id,
                                           m.organization_id,
                                           role as UserMembership["role"],
-                                        )
-                                      }
+                                        );
+                                      }}
                                     >
                                       <DropdownMenuRadioItem value="planner">
                                         {t("planner")}
@@ -314,14 +318,16 @@ export function UserList({
                               >
                                 {t("resendInvite")}
                               </DropdownMenuItem>
-                              <DropdownMenuItem
-                                variant="destructive"
-                                onClick={() =>
-                                  handleRevokeInvite(user.id, user.email)
-                                }
-                              >
-                                {t("revokeInvite")}
-                              </DropdownMenuItem>
+                              {user.id !== currentUserId && (
+                                <DropdownMenuItem
+                                  variant="destructive"
+                                  onClick={() =>
+                                    handleRevokeInvite(user.id, user.email)
+                                  }
+                                >
+                                  {t("revokeInvite")}
+                                </DropdownMenuItem>
+                              )}
                             </>
                           )}
 
