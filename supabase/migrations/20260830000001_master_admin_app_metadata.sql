@@ -6,15 +6,25 @@
 -- the property this flag needs. The invite flow already uses app_metadata for
 -- `invited_to_org` for the same reason.
 
--- 1. Copy the flag into app_metadata for every user who currently has it.
+-- 1. Promote the known master admins into app_metadata.
+--
+--    Deliberately an allow list rather than "everyone who currently has the
+--    flag": the old location is user-writable, so promoting on its say-so would
+--    turn a self-assigned flag into a real one. Add an address here only after
+--    confirming it is an intended master admin.
+--
+--    To audit a database before applying this:
+--      select id, email, created_at from auth.users
+--      where raw_user_meta_data ->> 'is_master_admin' = 'true';
 update auth.users
 set raw_app_meta_data =
   coalesce(raw_app_meta_data, '{}'::jsonb) || jsonb_build_object('is_master_admin', true)
-where raw_user_meta_data ->> 'is_master_admin' = 'true';
+where email in ('okke@palmboom.com')
+  and raw_user_meta_data ->> 'is_master_admin' = 'true';
 
--- 2. Drop it from user_metadata so the old (spoofable) location stops being read
---    anywhere. Removes self-assigned values too — they never conferred access
---    once the policies below are in place.
+-- 2. Drop the flag from user_metadata for EVERYONE, so any self-assigned value
+--    is discarded rather than carried forward. Nothing reads this location once
+--    the policies below are in place.
 update auth.users
 set raw_user_meta_data = raw_user_meta_data - 'is_master_admin'
 where raw_user_meta_data ? 'is_master_admin';

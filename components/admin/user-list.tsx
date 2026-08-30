@@ -60,12 +60,13 @@ export function UserList({
   const [inviteEmail, setInviteEmail] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
 
-  async function refreshUsers() {
+  /** Returns false when the list could not be reloaded. */
+  async function refreshUsers(): Promise<boolean> {
     try {
-      const data = await getUsers();
-      setUsers(data);
+      setUsers(await getUsers());
+      return true;
     } catch {
-      // Silently fail — list remains stale
+      return false;
     }
   }
 
@@ -79,8 +80,13 @@ export function UserList({
     setFeedback(null);
     try {
       const message = await action();
+      // The mutation landed. If the reload did not, say so — otherwise the
+      // table keeps showing the state from before the change.
+      if (!(await refreshUsers())) {
+        setFeedback({ type: "error", text: t("listOutOfDate") });
+        return;
+      }
       if (message) setFeedback({ type: "success", text: message });
-      await refreshUsers();
     } catch (err) {
       setFeedback({
         type: "error",

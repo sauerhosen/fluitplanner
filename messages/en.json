@@ -551,7 +551,8 @@
     "disableUser": "Disable user",
     "enableUser": "Enable user",
     "confirmDisableUser": "Disable {email}? They lose access to every club and can no longer sign in.",
-    "userDisabledInstead": "{email} created matches or umpires that still exist, so the account was disabled instead of deleted."
+    "userDisabledInstead": "{email} created matches or umpires that still exist, so the account was disabled instead of deleted.",
+    "listOutOfDate": "Done, but the list could not be refreshed. Reload the page to see the current state."
   },
   "noAccess": {
     "title": "No Access",

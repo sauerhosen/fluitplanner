@@ -74,6 +74,14 @@ create policy "Club admins can manage members of their club"
   with check (public.is_club_admin(organization_id));
 ```
 
+A review of this doc suggested dropping the write policy entirely and doing membership
+mutations with the service client after `requireClubAdmin()` instead. Don't. Every server
+action in this repo writes through the user-scoped client (`lib/actions/umpires.ts:11`,
+`lib/actions/managed-teams.ts:24`), so RLS _is_ the enforcement layer, not a client-side
+convenience — moving these writes to the service client would make the action's own check the
+only thing standing between a club admin and every club's members. The tenant pin belongs in
+the action, as above; the policy is the second lock behind it.
+
 Two guards worth writing tests for:
 
 1. A club admin must not be able to move a row to a **different** `organization_id` —

@@ -204,6 +204,21 @@ describe("UserList", () => {
     await waitFor(() => expect(enableUser).toHaveBeenCalledWith("user-2"));
   });
 
+  it("warns when the list could not be reloaded after a change", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    getUsers.mockRejectedValue(new Error("network down"));
+
+    renderList([user({})]);
+    await openRowMenu("planner@example.com");
+    await userEvent.click(screen.getByText("Delete user"));
+
+    expect(
+      await screen.findByText(
+        "Done, but the list could not be refreshed. Reload the page to see the current state.",
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("does not offer to disable the signed-in admin's own account", async () => {
     renderList([
       user({ id: "user-1", email: "me@example.com", is_master_admin: true }),

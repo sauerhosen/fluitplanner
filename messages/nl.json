@@ -551,7 +551,8 @@
     "disableUser": "Gebruiker uitschakelen",
     "enableUser": "Gebruiker inschakelen",
     "confirmDisableUser": "{email} uitschakelen? Ze verliezen toegang tot alle clubs en kunnen niet meer inloggen.",
-    "userDisabledInstead": "{email} heeft wedstrijden of scheidsrechters aangemaakt die nog bestaan; het account is daarom uitgeschakeld in plaats van verwijderd."
+    "userDisabledInstead": "{email} heeft wedstrijden of scheidsrechters aangemaakt die nog bestaan; het account is daarom uitgeschakeld in plaats van verwijderd.",
+    "listOutOfDate": "Gelukt, maar de lijst kon niet worden ververst. Herlaad de pagina om de huidige status te zien."
   },
   "noAccess": {
     "title": "Geen toegang",
