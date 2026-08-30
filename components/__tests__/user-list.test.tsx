@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { render } from "@/__tests__/helpers/render";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
@@ -89,6 +89,38 @@ afterEach(() => {
 });
 
 describe("UserList", () => {
+  it("offers a primary action to invite someone who has no account yet", async () => {
+    renderList([user({})]);
+
+    await userEvent.click(
+      screen.getByRole("button", { name: /Invite Planner/i }),
+    );
+
+    // Opens with an empty address, rather than prefilled from a row
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByLabelText("Email address")).toHaveValue("");
+  });
+
+  it("still offers the invite action when there are no users at all", async () => {
+    renderList([]);
+
+    expect(screen.getByText("No users found.")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Invite Planner/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("prefills the address when inviting an existing user to another club", async () => {
+    renderList([user({})]);
+    await openRowMenu("planner@example.com");
+    await userEvent.click(screen.getByText("Invite to organization"));
+
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByLabelText("Email address")).toHaveValue(
+      "planner@example.com",
+    );
+  });
+
   it("changes a member's role within an organization", async () => {
     renderList([user({})]);
     await openRowMenu("planner@example.com");

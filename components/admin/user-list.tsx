@@ -38,9 +38,10 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal } from "lucide-react";
+import { MoreHorizontal, Plus } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useFormatter } from "next-intl";
+import { PageHeader } from "@/components/shared/page-header";
 import { InvitePlannerDialog } from "./invite-planner-dialog";
 
 type Feedback = { type: "error" | "success"; text: string };
@@ -57,6 +58,8 @@ export function UserList({
   const t = useTranslations("admin");
   const format = useFormatter();
   const [users, setUsers] = useState<UserWithMemberships[]>(initialUsers);
+  // null = dialog closed. "" = inviting someone new; an address = inviting an
+  // existing account to another club from its row menu.
   const [inviteEmail, setInviteEmail] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
 
@@ -158,17 +161,47 @@ export function UserList({
     </p>
   );
 
+  const header = (
+    <PageHeader
+      title={<h1 className="truncate text-xl font-semibold">{t("users")}</h1>}
+      actions={
+        <Button onClick={() => setInviteEmail("")}>
+          <Plus className="mr-2 h-4 w-4" />
+          {t("invitePlanner")}
+        </Button>
+      }
+    />
+  );
+
+  const inviteDialog = (
+    <InvitePlannerDialog
+      open={inviteEmail !== null}
+      onOpenChange={(open) => {
+        if (!open) setInviteEmail(null);
+      }}
+      onSaved={refreshUsers}
+      organizations={organizations}
+      email={inviteEmail ?? ""}
+    />
+  );
+
   if (users.length === 0) {
     return (
-      <div className="flex flex-col items-center gap-4 py-12">
-        {feedbackBanner}
-        <p className="text-muted-foreground">{t("noUsers")}</p>
+      <div className="flex flex-col gap-6">
+        {header}
+        <div className="flex flex-col items-center gap-4 py-12">
+          {feedbackBanner}
+          <p className="text-muted-foreground">{t("noUsers")}</p>
+        </div>
+        {inviteDialog}
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-6">
+      {header}
+
       {feedbackBanner}
 
       <div className="rounded-md border">
@@ -375,15 +408,7 @@ export function UserList({
         </Table>
       </div>
 
-      <InvitePlannerDialog
-        open={inviteEmail !== null}
-        onOpenChange={(open) => {
-          if (!open) setInviteEmail(null);
-        }}
-        onSaved={refreshUsers}
-        organizations={organizations}
-        email={inviteEmail ?? ""}
-      />
+      {inviteDialog}
     </div>
   );
 }
