@@ -95,6 +95,10 @@ export function UserList({
         type: "error",
         text: err instanceof Error ? err.message : t("errorOccurred"),
       });
+      // A failed action is not a no-op: a delete that could not go through may
+      // still have cleared the account's club memberships, and a disable bans
+      // before it clears them. Reload so the table shows what actually stuck.
+      await refreshUsers();
     }
   }
 

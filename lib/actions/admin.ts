@@ -144,10 +144,14 @@ export async function invitePlanner(
     if (error) throw new Error(error.message);
 
     // Store invited_to_org in app_metadata (admin-only writable, not spoofable)
+    // This is what /auth/confirm redeems, so a failure here has to be reported:
+    // the invite mail is already out, but accepting it would join nothing.
     if (inviteData?.user) {
-      await serviceClient.auth.admin.updateUserById(inviteData.user.id, {
-        app_metadata: { invited_to_org: organizationId },
-      });
+      const { error: stampError } =
+        await serviceClient.auth.admin.updateUserById(inviteData.user.id, {
+          app_metadata: { invited_to_org: organizationId },
+        });
+      if (stampError) throw new Error(stampError.message);
     }
   }
 }
@@ -254,11 +258,15 @@ export async function resendInvite(userId: string): Promise<void> {
   );
   if (error) throw new Error(error.message);
 
-  // Re-stamp the target org so /auth/confirm can still auto-join them.
+  // Re-stamp the target org so /auth/confirm can still auto-join them. If that
+  // fails the invite is already on its way but would no longer join any club,
+  // so it has to be reported rather than swallowed.
   if (invitedToOrg) {
-    await serviceClient.auth.admin.updateUserById(userId, {
-      app_metadata: { invited_to_org: invitedToOrg },
-    });
+    const { error: stampError } = await serviceClient.auth.admin.updateUserById(
+      userId,
+      { app_metadata: { invited_to_org: invitedToOrg } },
+    );
+    if (stampError) throw new Error(stampError.message);
   }
 }
 
@@ -333,7 +341,23 @@ export async function deleteUser(userId: string): Promise<DeleteUserResult> {
   // with no cascade — deliberately, so deleting a planner never takes their
   // club's data with it. Disable instead: the rows keep a valid owner, and the
   // account can no longer sign in or belong to a club.
-  await banUser(serviceClient, userId);
+  try {
+    await banUser(serviceClient, userId);
+  } catch (banError) {
+    // Neither deleted nor disabled — the account is still active, so it must
+    // not be left stranded without its clubs either.
+    const restored = await restoreMemberships(
+      serviceClient,
+      userId,
+      memberships,
+    );
+    throw new Error(
+      failedDeleteMessage(
+        banError instanceof Error ? banError.message : String(banError),
+        restored,
+      ),
+    );
+  }
   return { outcome: "disabled" };
 }
 

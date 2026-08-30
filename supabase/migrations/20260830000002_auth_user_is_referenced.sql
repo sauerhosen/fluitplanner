@@ -23,14 +23,23 @@ declare
   referenced boolean;
 begin
   for fk in
+    -- conkey and confkey line up positionally, so the ordinality is what pairs
+    -- a referencing column with the auth.users column it points at. Without
+    -- that pairing a composite foreign key would have every one of its columns
+    -- compared against the uuid, including columns of another type.
     select c.conrelid::regclass as tbl, a.attname as col
     from pg_catalog.pg_constraint c
     join pg_catalog.unnest(c.conkey) with ordinality as k(attnum, ord) on true
+    join pg_catalog.unnest(c.confkey) with ordinality as fk_ref(attnum, ord)
+      on fk_ref.ord = k.ord
     join pg_catalog.pg_attribute a
       on a.attrelid = c.conrelid and a.attnum = k.attnum
+    join pg_catalog.pg_attribute ref
+      on ref.attrelid = c.confrelid and ref.attnum = fk_ref.attnum
     where c.contype = 'f'
       and c.confrelid = 'auth.users'::regclass
       and c.confdeltype in ('a', 'r')
+      and ref.attname = 'id'
   loop
     execute pg_catalog.format(
       'select exists (select 1 from %s where %I = $1)', fk.tbl, fk.col

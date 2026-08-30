@@ -22,11 +22,25 @@ set raw_app_meta_data =
 where email in ('okke@palmboom.com')
   and raw_user_meta_data ->> 'is_master_admin' = 'true';
 
--- 2. Drop the flag from user_metadata for EVERYONE, so any self-assigned value
---    is discarded rather than carried forward. Nothing reads this location once
---    the policies below are in place.
+-- 2. Retire the flag from user_metadata for EVERYONE, so any self-assigned
+--    value is discarded rather than carried forward. Nothing reads this
+--    location once the policies below are in place.
+--
+--    The old value is kept under a renamed key rather than deleted. Step 1 is
+--    an allow list, so an account left off it is demoted here — and deleting
+--    the flag outright would erase the only evidence that it ever held one.
+--    The new key is non-authoritative: nothing reads it, and it stays
+--    user-writable, so it confers nothing. It exists to be audited:
+--
+--      select email, raw_user_meta_data ->> 'former_is_master_admin_claim'
+--      from auth.users
+--      where raw_user_meta_data ? 'former_is_master_admin_claim';
 update auth.users
-set raw_user_meta_data = raw_user_meta_data - 'is_master_admin'
+set raw_user_meta_data =
+  (raw_user_meta_data - 'is_master_admin')
+  || jsonb_build_object(
+       'former_is_master_admin_claim', raw_user_meta_data -> 'is_master_admin'
+     )
 where raw_user_meta_data ? 'is_master_admin';
 
 -- 3. Single source of truth for the check, so future policies don't re-spell it.
