@@ -11,6 +11,8 @@ const updateMemberRole = vi.fn();
 const resendInvite = vi.fn();
 const revokePendingInvite = vi.fn();
 const deleteUser = vi.fn();
+const disableUser = vi.fn();
+const enableUser = vi.fn();
 
 vi.mock("@/lib/actions/admin", () => ({
   getUsers: (...args: unknown[]) => getUsers(...args),
@@ -19,6 +21,8 @@ vi.mock("@/lib/actions/admin", () => ({
   resendInvite: (...args: unknown[]) => resendInvite(...args),
   revokePendingInvite: (...args: unknown[]) => revokePendingInvite(...args),
   deleteUser: (...args: unknown[]) => deleteUser(...args),
+  disableUser: (...args: unknown[]) => disableUser(...args),
+  enableUser: (...args: unknown[]) => enableUser(...args),
   invitePlanner: vi.fn(),
 }));
 
@@ -40,6 +44,7 @@ function user(overrides: Partial<UserWithMemberships>): UserWithMemberships {
     created_at: "2026-01-02",
     is_master_admin: false,
     is_pending_invite: false,
+    is_disabled: false,
     memberships: [
       {
         organization_id: "org-1",
@@ -74,7 +79,9 @@ beforeEach(() => {
   updateMemberRole.mockResolvedValue(undefined);
   resendInvite.mockResolvedValue(undefined);
   revokePendingInvite.mockResolvedValue(undefined);
-  deleteUser.mockResolvedValue(undefined);
+  deleteUser.mockResolvedValue({ outcome: "deleted" });
+  disableUser.mockResolvedValue(undefined);
+  enableUser.mockResolvedValue(undefined);
 });
 
 afterEach(() => {
@@ -137,11 +144,9 @@ describe("UserList", () => {
     await waitFor(() => expect(deleteUser).toHaveBeenCalledWith("user-2"));
   });
 
-  it("surfaces the reason a delete was refused", async () => {
+  it("says so when a delete became a disable", async () => {
     vi.spyOn(window, "confirm").mockReturnValue(true);
-    deleteUser.mockRejectedValue(
-      new Error("This user created matches or umpires that still exist."),
-    );
+    deleteUser.mockResolvedValue({ outcome: "disabled" });
 
     renderList([user({})]);
     await openRowMenu("planner@example.com");
@@ -149,8 +154,62 @@ describe("UserList", () => {
 
     expect(
       await screen.findByText(
-        "This user created matches or umpires that still exist.",
+        "planner@example.com created matches or umpires that still exist, so the account was disabled instead of deleted.",
       ),
     ).toBeInTheDocument();
+  });
+
+  it("surfaces the reason an action failed", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    deleteUser.mockRejectedValue(new Error("auth service unavailable"));
+
+    renderList([user({})]);
+    await openRowMenu("planner@example.com");
+    await userEvent.click(screen.getByText("Delete user"));
+
+    expect(
+      await screen.findByText("auth service unavailable"),
+    ).toBeInTheDocument();
+  });
+
+  it("disables another user after confirmation", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    renderList([user({})]);
+    await openRowMenu("planner@example.com");
+    await userEvent.click(screen.getByText("Disable user"));
+
+    await waitFor(() => expect(disableUser).toHaveBeenCalledWith("user-2"));
+  });
+
+  it("offers only enable and delete for a disabled account", async () => {
+    renderList([user({ is_disabled: true, memberships: [] })]);
+    expect(screen.getByText("Disabled")).toBeInTheDocument();
+
+    await openRowMenu("planner@example.com");
+
+    expect(screen.getByText("Enable user")).toBeInTheDocument();
+    expect(screen.getByText("Delete user")).toBeInTheDocument();
+    expect(screen.queryByText("Disable user")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Invite to organization"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("re-enables a disabled account", async () => {
+    renderList([user({ is_disabled: true, memberships: [] })]);
+    await openRowMenu("planner@example.com");
+    await userEvent.click(screen.getByText("Enable user"));
+
+    await waitFor(() => expect(enableUser).toHaveBeenCalledWith("user-2"));
+  });
+
+  it("does not offer to disable the signed-in admin's own account", async () => {
+    renderList([
+      user({ id: "user-1", email: "me@example.com", is_master_admin: true }),
+    ]);
+    await openRowMenu("me@example.com");
+
+    expect(screen.queryByText("Disable user")).not.toBeInTheDocument();
   });
 });

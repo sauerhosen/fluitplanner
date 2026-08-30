@@ -28,6 +28,12 @@ async function requireMasterAdmin() {
 const MEMBER_ROLES = ["planner", "viewer"] as const;
 
 /**
+ * GoTrue bans are expressed as a duration, so "indefinite" is spelled as a
+ * century. `ban_duration: "none"` lifts it again.
+ */
+const INDEFINITE_BAN = "876000h";
+
+/**
  * Fetch every auth user, paginating past the 1000-per-page admin API limit.
  */
 async function listAllAuthUsers(
@@ -38,6 +44,7 @@ async function listAllAuthUsers(
     email?: string;
     created_at: string;
     email_confirmed_at?: string | null;
+    banned_until?: string | null;
     app_metadata?: Record<string, unknown>;
   }> = [];
   let page = 1;
@@ -161,6 +168,7 @@ export async function getUsers(): Promise<UserWithMemberships[]> {
     is_master_admin: u.app_metadata?.is_master_admin === true,
     // Invited but never confirmed — the invite is still outstanding.
     is_pending_invite: !u.email_confirmed_at,
+    is_disabled: isBanned(u.banned_until),
     memberships: (memberships ?? [])
       .filter((m) => m.user_id === u.id)
       .map((m) => ({
@@ -253,45 +261,103 @@ export async function revokePendingInvite(userId: string): Promise<void> {
   const serviceClient = createServiceClient();
 
   await requirePendingUser(serviceClient, userId);
-  await deleteAuthUserWithMemberships(serviceClient, userId);
+  await removeAllMemberships(serviceClient, userId);
+
+  // A pending invite has never signed in, so it cannot own records — a
+  // foreign-key failure here is a real error, not a reason to disable.
+  const { error } = await serviceClient.auth.admin.deleteUser(userId);
+  if (error) throw new Error(error.message);
 }
 
-export async function deleteUser(userId: string): Promise<void> {
+/**
+ * `deleted` — the account is gone.
+ * `disabled` — the account still owns records (matches, umpires, clubs it
+ * created), so it was banned and stripped of its memberships instead.
+ */
+export type DeleteUserResult = { outcome: "deleted" | "disabled" };
+
+export async function deleteUser(userId: string): Promise<DeleteUserResult> {
   const { user } = await requireMasterAdmin();
   if (user.id === userId) {
     throw new Error("You cannot delete your own account");
   }
 
   const serviceClient = createServiceClient();
-  await deleteAuthUserWithMemberships(serviceClient, userId);
+  await removeAllMemberships(serviceClient, userId);
+
+  const { error } = await serviceClient.auth.admin.deleteUser(userId);
+  if (!error) return { outcome: "deleted" };
+
+  // GoTrue collapses every database failure into a generic 500, so the error
+  // itself cannot tell a blocking reference apart from an outage. Ask Postgres.
+  const { data: stillReferenced, error: probeError } = await serviceClient.rpc(
+    "auth_user_is_referenced",
+    { target_user: userId },
+  );
+  if (probeError || !stillReferenced) throw new Error(error.message);
+
+  // `created_by` on matches, umpires, polls and clubs references auth.users
+  // with no cascade — deliberately, so deleting a planner never takes their
+  // club's data with it. Disable instead: the rows keep a valid owner, and the
+  // account can no longer sign in or belong to a club.
+  await banUser(serviceClient, userId);
+  return { outcome: "disabled" };
+}
+
+export async function disableUser(userId: string): Promise<void> {
+  const { user } = await requireMasterAdmin();
+  if (user.id === userId) {
+    throw new Error("You cannot disable your own account");
+  }
+
+  const serviceClient = createServiceClient();
+  await banUser(serviceClient, userId);
+  await removeAllMemberships(serviceClient, userId);
 }
 
 /**
- * Memberships reference auth.users without a cascade, so they have to go first.
- * Other tables (matches, umpires, organizations) reference auth.users through
- * `created_by` and are deliberately *not* cascaded — deleting a planner must
- * never silently take their club's data with it.
+ * Lifts the ban so the account can sign in again. Club memberships are not
+ * restored — a re-enabled user has to be invited back to their clubs, the same
+ * as any other returning account.
  */
-async function deleteAuthUserWithMemberships(
+export async function enableUser(userId: string): Promise<void> {
+  await requireMasterAdmin();
+  const serviceClient = createServiceClient();
+
+  const { error } = await serviceClient.auth.admin.updateUserById(userId, {
+    ban_duration: "none",
+  });
+  if (error) throw new Error(error.message);
+}
+
+function isBanned(bannedUntil: string | null | undefined): boolean {
+  if (!bannedUntil) return false;
+  const until = new Date(bannedUntil).getTime();
+  return Number.isFinite(until) && until > Date.now();
+}
+
+async function banUser(
   serviceClient: ReturnType<typeof createServiceClient>,
   userId: string,
 ): Promise<void> {
-  const { error: membershipError } = await serviceClient
+  const { error } = await serviceClient.auth.admin.updateUserById(userId, {
+    ban_duration: INDEFINITE_BAN,
+  });
+  if (error) throw new Error(error.message);
+}
+
+/**
+ * Memberships reference auth.users without a cascade, so they have to go before
+ * any delete attempt — and a disabled account should not sit on a club roster
+ * either.
+ */
+async function removeAllMemberships(
+  serviceClient: ReturnType<typeof createServiceClient>,
+  userId: string,
+): Promise<void> {
+  const { error } = await serviceClient
     .from("organization_members")
     .delete()
     .eq("user_id", userId);
-  if (membershipError) throw new Error(membershipError.message);
-
-  const { error } = await serviceClient.auth.admin.deleteUser(userId);
-  if (error) {
-    const isForeignKeyViolation =
-      (error as { code?: string }).code === "23503" ||
-      error.message.includes("foreign key constraint");
-    if (isForeignKeyViolation) {
-      throw new Error(
-        "This user created matches or umpires that still exist. Remove them from their clubs instead of deleting the account.",
-      );
-    }
-    throw new Error(error.message);
-  }
+  if (error) throw new Error(error.message);
 }

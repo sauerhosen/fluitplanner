@@ -162,9 +162,13 @@ until the switch is tested end to end.
 
 ## Out of scope
 
-Creating and disabling clubs stays on the root domain. A club admin cannot create a club, and
-account deletion stays master-admin-only because it can fail on `created_by` foreign keys
-across several tables (see `deleteAuthUserWithMemberships` in `lib/actions/admin.ts`).
+Creating and disabling clubs stays on the root domain. A club admin cannot create a club.
+
+Account deletion and disabling stay master-admin-only. They act on `auth.users`, which is
+global — a club admin removing someone from their club must not be able to take away that
+person's access to a _different_ club. `removeClubMember()` deletes the membership row and
+nothing else. Deleting or disabling the account itself remains a root-domain action
+(`deleteUser` / `disableUser` in `lib/actions/admin.ts`).
 
 ## Test plan
 

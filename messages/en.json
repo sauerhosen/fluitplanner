@@ -546,7 +546,12 @@
     "actionsFor": "Actions for {email}",
     "inviteResent": "Invite re-sent to {email}.",
     "confirmRevokeInvite": "Revoke the pending invite for {email}? Their account will be removed.",
-    "confirmDeleteUser": "Permanently delete {email}? This removes their account and every club membership."
+    "confirmDeleteUser": "Permanently delete {email}? If they created matches or umpires, the account is disabled instead so that data is kept.",
+    "disabled": "Disabled",
+    "disableUser": "Disable user",
+    "enableUser": "Enable user",
+    "confirmDisableUser": "Disable {email}? They lose access to every club and can no longer sign in.",
+    "userDisabledInstead": "{email} created matches or umpires that still exist, so the account was disabled instead of deleted."
   },
   "noAccess": {
     "title": "No Access",

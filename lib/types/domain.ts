@@ -116,6 +116,8 @@ export type UserWithMemberships = {
   is_master_admin: boolean;
   /** Invited but never confirmed — the invite is still outstanding. */
   is_pending_invite: boolean;
+  /** Banned and stripped of club memberships — cannot sign in. */
+  is_disabled: boolean;
   memberships: UserMembership[];
 };
 

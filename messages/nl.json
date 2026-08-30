@@ -546,7 +546,12 @@
     "actionsFor": "Acties voor {email}",
     "inviteResent": "Uitnodiging opnieuw verstuurd naar {email}.",
     "confirmRevokeInvite": "Openstaande uitnodiging voor {email} intrekken? Hun account wordt verwijderd.",
-    "confirmDeleteUser": "{email} definitief verwijderen? Dit verwijdert het account en alle clublidmaatschappen."
+    "confirmDeleteUser": "{email} definitief verwijderen? Als ze wedstrijden of scheidsrechters hebben aangemaakt, wordt het account uitgeschakeld in plaats van verwijderd zodat die gegevens behouden blijven.",
+    "disabled": "Uitgeschakeld",
+    "disableUser": "Gebruiker uitschakelen",
+    "enableUser": "Gebruiker inschakelen",
+    "confirmDisableUser": "{email} uitschakelen? Ze verliezen toegang tot alle clubs en kunnen niet meer inloggen.",
+    "userDisabledInstead": "{email} heeft wedstrijden of scheidsrechters aangemaakt die nog bestaan; het account is daarom uitgeschakeld in plaats van verwijderd."
   },
   "noAccess": {
     "title": "Geen toegang",
