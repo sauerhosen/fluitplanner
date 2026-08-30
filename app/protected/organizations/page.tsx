@@ -14,7 +14,7 @@ export default async function OrganizationsPage() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!rootDomain || !user?.user_metadata?.is_master_admin)
+  if (!rootDomain || !user?.app_metadata?.is_master_admin)
     redirect("/protected");
 
   const [t, organizations] = await Promise.all([

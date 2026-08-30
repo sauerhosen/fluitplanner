@@ -24,7 +24,7 @@ export default async function ProtectedLayout({
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  const isMasterAdmin = isRoot && !!user?.user_metadata?.is_master_admin;
+  const isMasterAdmin = isRoot && !!user?.app_metadata?.is_master_admin;
 
   return (
     <main className="min-h-screen flex flex-col items-center">

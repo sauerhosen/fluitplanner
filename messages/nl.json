@@ -538,7 +538,15 @@
     "status": "Status",
     "invalidSlug": "Ongeldige slug: moet kleine letters, cijfers en streepjes bevatten, minimaal 2 tekens",
     "saving": "Opslaan...",
-    "errorOccurred": "Er is een fout opgetreden. Probeer het opnieuw."
+    "errorOccurred": "Er is een fout opgetreden. Probeer het opnieuw.",
+    "pendingInvite": "Uitnodiging open",
+    "resendInvite": "Uitnodiging opnieuw sturen",
+    "revokeInvite": "Uitnodiging intrekken",
+    "deleteUser": "Gebruiker verwijderen",
+    "actionsFor": "Acties voor {email}",
+    "inviteResent": "Uitnodiging opnieuw verstuurd naar {email}.",
+    "confirmRevokeInvite": "Openstaande uitnodiging voor {email} intrekken? Hun account wordt verwijderd.",
+    "confirmDeleteUser": "{email} definitief verwijderen? Dit verwijdert het account en alle clublidmaatschappen."
   },
   "noAccess": {
     "title": "Geen toegang",

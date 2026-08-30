@@ -114,6 +114,8 @@ export type UserWithMemberships = {
   email: string;
   created_at: string;
   is_master_admin: boolean;
+  /** Invited but never confirmed — the invite is still outstanding. */
+  is_pending_invite: boolean;
   memberships: UserMembership[];
 };
 

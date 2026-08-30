@@ -14,7 +14,7 @@ export default async function UsersPage() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!rootDomain || !user?.user_metadata?.is_master_admin)
+  if (!rootDomain || !user?.app_metadata?.is_master_admin)
     redirect("/protected");
 
   const [t, users, organizations] = await Promise.all([
@@ -28,7 +28,11 @@ export default async function UsersPage() {
       <PageHeader
         title={<h1 className="truncate text-xl font-semibold">{t("users")}</h1>}
       />
-      <UserList users={users} organizations={organizations} />
+      <UserList
+        users={users}
+        organizations={organizations}
+        currentUserId={user.id}
+      />
     </div>
   );
 }

@@ -1,0 +1,156 @@
+import { screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { render } from "@/__tests__/helpers/render";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { UserList } from "@/components/admin/user-list";
+import type { Organization, UserWithMemberships } from "@/lib/types/domain";
+
+const getUsers = vi.fn();
+const removeUserFromOrg = vi.fn();
+const updateMemberRole = vi.fn();
+const resendInvite = vi.fn();
+const revokePendingInvite = vi.fn();
+const deleteUser = vi.fn();
+
+vi.mock("@/lib/actions/admin", () => ({
+  getUsers: (...args: unknown[]) => getUsers(...args),
+  removeUserFromOrg: (...args: unknown[]) => removeUserFromOrg(...args),
+  updateMemberRole: (...args: unknown[]) => updateMemberRole(...args),
+  resendInvite: (...args: unknown[]) => resendInvite(...args),
+  revokePendingInvite: (...args: unknown[]) => revokePendingInvite(...args),
+  deleteUser: (...args: unknown[]) => deleteUser(...args),
+  invitePlanner: vi.fn(),
+}));
+
+const organizations: Organization[] = [
+  {
+    id: "org-1",
+    name: "Club Alpha",
+    slug: "club-alpha",
+    is_active: true,
+    created_at: "2026-01-01",
+    created_by: "user-1",
+  },
+];
+
+function user(overrides: Partial<UserWithMemberships>): UserWithMemberships {
+  return {
+    id: "user-2",
+    email: "planner@example.com",
+    created_at: "2026-01-02",
+    is_master_admin: false,
+    is_pending_invite: false,
+    memberships: [
+      {
+        organization_id: "org-1",
+        organization_name: "Club Alpha",
+        organization_slug: "club-alpha",
+        role: "planner",
+      },
+    ],
+    ...overrides,
+  };
+}
+
+function renderList(users: UserWithMemberships[]) {
+  return render(
+    <UserList
+      users={users}
+      organizations={organizations}
+      currentUserId="user-1"
+    />,
+  );
+}
+
+async function openRowMenu(email: string) {
+  await userEvent.click(
+    screen.getByRole("button", { name: `Actions for ${email}` }),
+  );
+}
+
+beforeEach(() => {
+  getUsers.mockResolvedValue([]);
+  removeUserFromOrg.mockResolvedValue(undefined);
+  updateMemberRole.mockResolvedValue(undefined);
+  resendInvite.mockResolvedValue(undefined);
+  revokePendingInvite.mockResolvedValue(undefined);
+  deleteUser.mockResolvedValue(undefined);
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+describe("UserList", () => {
+  it("changes a member's role within an organization", async () => {
+    renderList([user({})]);
+    await openRowMenu("planner@example.com");
+    // The club name appears both as a membership badge and as the submenu
+    // trigger — target the menu item.
+    await userEvent.click(screen.getByRole("menuitem", { name: "Club Alpha" }));
+    await userEvent.click(
+      await screen.findByRole("menuitemradio", { name: "Viewer" }),
+    );
+
+    await waitFor(() =>
+      expect(updateMemberRole).toHaveBeenCalledWith(
+        "user-2",
+        "org-1",
+        "viewer",
+      ),
+    );
+  });
+
+  it("offers resend and revoke only while an invite is pending", async () => {
+    renderList([user({ is_pending_invite: true })]);
+    expect(screen.getByText("Pending invite")).toBeInTheDocument();
+
+    await openRowMenu("planner@example.com");
+    expect(screen.getByText("Resend invite")).toBeInTheDocument();
+    expect(screen.getByText("Revoke invite")).toBeInTheDocument();
+  });
+
+  it("hides resend and revoke for a user who has accepted", async () => {
+    renderList([user({})]);
+    await openRowMenu("planner@example.com");
+
+    expect(screen.queryByText("Resend invite")).not.toBeInTheDocument();
+    expect(screen.queryByText("Revoke invite")).not.toBeInTheDocument();
+  });
+
+  it("does not offer to delete the signed-in admin's own account", async () => {
+    renderList([
+      user({ id: "user-1", email: "me@example.com", is_master_admin: true }),
+    ]);
+    await openRowMenu("me@example.com");
+
+    expect(screen.queryByText("Delete user")).not.toBeInTheDocument();
+  });
+
+  it("deletes another user after confirmation", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    renderList([user({})]);
+    await openRowMenu("planner@example.com");
+    await userEvent.click(screen.getByText("Delete user"));
+
+    await waitFor(() => expect(deleteUser).toHaveBeenCalledWith("user-2"));
+  });
+
+  it("surfaces the reason a delete was refused", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    deleteUser.mockRejectedValue(
+      new Error("This user created matches or umpires that still exist."),
+    );
+
+    renderList([user({})]);
+    await openRowMenu("planner@example.com");
+    await userEvent.click(screen.getByText("Delete user"));
+
+    expect(
+      await screen.findByText(
+        "This user created matches or umpires that still exist.",
+      ),
+    ).toBeInTheDocument();
+  });
+});
