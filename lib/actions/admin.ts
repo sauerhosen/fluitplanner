@@ -294,7 +294,7 @@ export async function revokePendingInvite(userId: string): Promise<void> {
       userId,
       memberships,
     );
-    throw new Error(failedDeleteMessage(error.message, restored));
+    throw new Error(compensatedFailureMessage(error.message, restored));
   }
 }
 
@@ -334,7 +334,7 @@ export async function deleteUser(userId: string): Promise<DeleteUserResult> {
       userId,
       memberships,
     );
-    throw new Error(failedDeleteMessage(error.message, restored));
+    throw new Error(compensatedFailureMessage(error.message, restored));
   }
 
   // `created_by` on matches, umpires, polls and clubs references auth.users
@@ -352,7 +352,7 @@ export async function deleteUser(userId: string): Promise<DeleteUserResult> {
       memberships,
     );
     throw new Error(
-      failedDeleteMessage(
+      compensatedFailureMessage(
         banError instanceof Error ? banError.message : String(banError),
         restored,
       ),
@@ -368,8 +368,30 @@ export async function disableUser(userId: string): Promise<void> {
   }
 
   const serviceClient = createServiceClient();
-  await banUser(serviceClient, userId);
+
+  // Memberships go first, then the ban. A ban does not invalidate an access
+  // token that is already issued, so for up to its lifetime the only thing
+  // actually denying club data is RLS no longer finding a membership row.
+  // Snapshot them so the account is left exactly as it was if the ban fails.
+  const memberships = await readAllMemberships(serviceClient, userId);
   await removeAllMemberships(serviceClient, userId);
+
+  try {
+    await banUser(serviceClient, userId);
+  } catch (banError) {
+    // Still an active account, so it must not be left without its clubs.
+    const restored = await restoreMemberships(
+      serviceClient,
+      userId,
+      memberships,
+    );
+    throw new Error(
+      compensatedFailureMessage(
+        banError instanceof Error ? banError.message : String(banError),
+        restored,
+      ),
+    );
+  }
 }
 
 /**
@@ -439,10 +461,10 @@ async function restoreMemberships(
 }
 
 /**
- * The message for a failed delete, widened when the compensating restore also
- * failed and the account is left without its club memberships.
+ * The message for an action that failed after it had already cleared the
+ * account's memberships, widened when putting them back failed too.
  */
-function failedDeleteMessage(originalMessage: string, restored: boolean) {
+function compensatedFailureMessage(originalMessage: string, restored: boolean) {
   return restored
     ? originalMessage
     : `${originalMessage}. The account's club memberships could not be restored and must be added again.`;

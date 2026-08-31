@@ -844,8 +844,8 @@ describe("deleteUser", () => {
 /* ================================================================== */
 
 describe("disableUser", () => {
-  it("bans the account and strips its club memberships", async () => {
-    mockServiceEq.mockResolvedValue({ data: null, error: null });
+  it("strips club memberships before making the ban stick", async () => {
+    mockServiceEq.mockResolvedValue({ data: [], error: null });
     mockUpdateUserById.mockResolvedValue({ data: {}, error: null });
 
     const { disableUser } = await import("@/lib/actions/admin");
@@ -857,6 +857,43 @@ describe("disableUser", () => {
     expect(mockServiceFrom).toHaveBeenCalledWith("organization_members");
     expect(mockServiceDelete).toHaveBeenCalled();
     expect(mockServiceEq).toHaveBeenCalledWith("user_id", "user-2");
+
+    // Order matters: a ban alone does not cut club access for an already
+    // issued token — dropping the memberships is what RLS acts on.
+    expect(mockServiceDelete.mock.invocationCallOrder[0]).toBeLessThan(
+      mockUpdateUserById.mock.invocationCallOrder[0],
+    );
+  });
+
+  it("puts the memberships back when the ban fails", async () => {
+    // First .eq() is the snapshot read, the rest are the delete.
+    mockServiceEq
+      .mockResolvedValueOnce({
+        data: [{ organization_id: "org-1", role: "planner" }],
+        error: null,
+      })
+      .mockResolvedValue({ data: null, error: null });
+    mockUpdateUserById.mockResolvedValue({
+      data: null,
+      error: { message: "ban failed" },
+    });
+
+    const { disableUser } = await import("@/lib/actions/admin");
+    await expect(disableUser("user-2")).rejects.toThrow("ban failed");
+
+    expect(mockServiceInsert).toHaveBeenCalledWith([
+      { organization_id: "org-1", role: "planner", user_id: "user-2" },
+    ]);
+  });
+
+  it("never bans when the memberships could not be removed", async () => {
+    mockServiceEq
+      .mockResolvedValueOnce({ data: [], error: null })
+      .mockResolvedValue({ data: null, error: { message: "delete failed" } });
+
+    const { disableUser } = await import("@/lib/actions/admin");
+    await expect(disableUser("user-2")).rejects.toThrow("delete failed");
+    expect(mockUpdateUserById).not.toHaveBeenCalled();
   });
 
   it("refuses to disable the signed-in master admin", async () => {
@@ -867,15 +904,26 @@ describe("disableUser", () => {
     expect(mockUpdateUserById).not.toHaveBeenCalled();
   });
 
-  it("throws when the ban fails", async () => {
-    mockServiceEq.mockResolvedValue({ data: null, error: null });
+  it("says so when the memberships could not be put back either", async () => {
+    mockServiceEq
+      .mockResolvedValueOnce({
+        data: [{ organization_id: "org-1", role: "planner" }],
+        error: null,
+      })
+      .mockResolvedValue({ data: null, error: null });
+    mockServiceInsert.mockResolvedValue({
+      data: null,
+      error: { message: "insert failed" },
+    });
     mockUpdateUserById.mockResolvedValue({
       data: null,
       error: { message: "ban failed" },
     });
 
     const { disableUser } = await import("@/lib/actions/admin");
-    await expect(disableUser("user-2")).rejects.toThrow("ban failed");
+    await expect(disableUser("user-2")).rejects.toThrow(
+      "club memberships could not be restored",
+    );
   });
 });
 
