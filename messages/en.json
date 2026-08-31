@@ -463,7 +463,7 @@
     "hockeySyncTrackError": "Failed to track the team. Please try again.",
     "hockeySyncSearchError": "Could not reach the Match Center. Please try again later.",
     "mcpTitle": "Claude / MCP connection",
-    "mcpDescription": "Connect your own AI assistant (such as Claude) to this club via the Model Context Protocol. A token gives the assistant read access to matches, polls, availability and assignments, and lets it write tentative assignment drafts — confirming always happens here in the app. Treat a token like a password.",
+    "mcpDescription": "Connect your own AI assistant (such as Claude) to this club via the Model Context Protocol. A token lets the assistant read matches, polls, availability, assignments and the umpire roster, and write on your behalf: tentative assignment drafts, match and umpire notes, new matches and polls, and clearing sync review flags. It can never confirm assignments, contact umpires, or delete anything — confirming always happens here in the app. Treat a token like a password.",
     "mcpEndpointLabel": "Server URL",
     "mcpTokenNamePlaceholder": "Token name (e.g. Claude on my laptop)",
     "mcpCreateToken": "Create token",

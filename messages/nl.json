@@ -463,7 +463,7 @@
     "hockeySyncTrackError": "Team volgen mislukt. Probeer het opnieuw.",
     "hockeySyncSearchError": "Het Match Center is niet bereikbaar. Probeer het later opnieuw.",
     "mcpTitle": "Claude / MCP-koppeling",
-    "mcpDescription": "Koppel je eigen AI-assistent (zoals Claude) aan deze club via het Model Context Protocol. Een token geeft de assistent leestoegang tot wedstrijden, polls, beschikbaarheid en aanwijzingen, en laat hem voorlopige concept-aanwijzingen schrijven — bevestigen gebeurt altijd hier in de app. Behandel een token als een wachtwoord.",
+    "mcpDescription": "Koppel je eigen AI-assistent (zoals Claude) aan deze club via het Model Context Protocol. Een token laat de assistent wedstrijden, polls, beschikbaarheid, aanwijzingen en het scheidsrechterbestand lezen, en namens jou schrijven: voorlopige concept-aanwijzingen, notities bij wedstrijden en scheidsrechters, nieuwe wedstrijden en polls, en het afvinken van sync-controlemarkeringen. Het kan nooit aanwijzingen bevestigen, scheidsrechters benaderen of iets verwijderen — bevestigen gebeurt altijd hier in de app. Behandel een token als een wachtwoord.",
     "mcpEndpointLabel": "Server-URL",
     "mcpTokenNamePlaceholder": "Tokennaam (bijv. Claude op mijn laptop)",
     "mcpCreateToken": "Token aanmaken",

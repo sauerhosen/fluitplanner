@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { createHash } from "node:crypto";
 import {
   generateSecret,
@@ -62,5 +62,20 @@ describe("isCimdClientId", () => {
     expect(isCimdClientId("http://example.com/client.json")).toBe(false);
     expect(isCimdClientId("fpd_abc")).toBe(false);
     expect(isCimdClientId("urn:example")).toBe(false);
+  });
+
+  it("rejects loopback and IP-literal hosts in production (SSRF guard)", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    try {
+      expect(isCimdClientId("http://localhost:9999/client.json")).toBe(false);
+      expect(isCimdClientId("https://localhost/client.json")).toBe(false);
+      expect(isCimdClientId("https://127.0.0.1/client.json")).toBe(false);
+      expect(isCimdClientId("https://10.0.0.5/client.json")).toBe(false);
+      expect(isCimdClientId("https://[::1]/client.json")).toBe(false);
+      expect(isCimdClientId("https://foo.localhost/client.json")).toBe(false);
+      expect(isCimdClientId("https://client.example/metadata.json")).toBe(true);
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 });

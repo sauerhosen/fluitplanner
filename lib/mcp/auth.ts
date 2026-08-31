@@ -23,8 +23,10 @@ export async function authenticateMcpRequest(
   request: Request,
 ): Promise<McpPlannerContext | null> {
   const header = request.headers.get("authorization");
-  if (!header?.startsWith("Bearer ")) return null;
-  const token = header.slice("Bearer ".length).trim();
+  // RFC 7235: the auth scheme is case-insensitive.
+  const match = header?.match(/^Bearer\s+(.+)$/i);
+  if (!match) return null;
+  const token = match[1].trim();
   if (token.startsWith(MCP_TOKEN_PREFIX)) {
     return authenticatePersonalToken(token);
   }

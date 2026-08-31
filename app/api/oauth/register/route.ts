@@ -9,6 +9,12 @@ export async function POST(request: Request) {
   } catch {
     return errorResponse("invalid_client_metadata", "Body must be JSON");
   }
+  if (body === null || typeof body !== "object" || Array.isArray(body)) {
+    return errorResponse(
+      "invalid_client_metadata",
+      "Body must be a JSON object",
+    );
+  }
   try {
     const metadata = await registerDcrClient(body);
     return Response.json(metadata, {

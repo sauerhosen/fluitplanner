@@ -1029,6 +1029,9 @@ export async function getAttentionItems(ctx: McpPlannerContext) {
   throwDb(openPollsRes.error);
   throwDb(reviewRes.error);
   throwDb(unpolledCandidatesRes.error);
+  const unpolledCandidateIds = (unpolledCandidatesRes.data ?? []).map(
+    (m) => m.id as string,
+  );
 
   const openPolls = openPollsRes.data ?? [];
   const pollIds = openPolls.map((p) => p.id as string);
@@ -1062,7 +1065,13 @@ export async function getAttentionItems(ctx: McpPlannerContext) {
           .from("availability_responses")
           .select("poll_id, umpire_id")
           .in("poll_id", pollIds),
-        client.from("poll_matches").select("match_id"),
+        // Only the unpolled candidates' membership matters — bound the read.
+        unpolledCandidateIds.length
+          ? client
+              .from("poll_matches")
+              .select("match_id")
+              .in("match_id", unpolledCandidateIds)
+          : Promise.resolve({ data: [], error: null }),
       ],
     );
     throwDb(linksRes.error);
@@ -1111,10 +1120,11 @@ export async function getAttentionItems(ctx: McpPlannerContext) {
           roster_size: rosterSize,
         }));
     }
-  } else {
+  } else if (unpolledCandidateIds.length > 0) {
     const { data: allLinks, error: allLinksError } = await client
       .from("poll_matches")
-      .select("match_id");
+      .select("match_id")
+      .in("match_id", unpolledCandidateIds);
     throwDb(allLinksError);
     for (const l of allLinks ?? []) polledMatchIds.add(l.match_id);
   }

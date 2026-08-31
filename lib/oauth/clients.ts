@@ -23,6 +23,24 @@ function isLoopbackHost(hostname: string): boolean {
   return hostname === "localhost" || hostname === "127.0.0.1";
 }
 
+function isProduction(): boolean {
+  return process.env.NODE_ENV === "production";
+}
+
+/**
+ * Hosts our server must never fetch a CIMD document from in production:
+ * loopback and IP literals point at ourselves or the internal network, not
+ * at a public client's published metadata. (Public DNS names that resolve to
+ * internal addresses remain a residual risk, bounded by the https
+ * requirement, no-redirect fetch, timeout, and size cap.)
+ */
+function isForbiddenCimdHost(hostname: string): boolean {
+  if (isLoopbackHost(hostname) || hostname.endsWith(".localhost")) return true;
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(hostname)) return true; // IPv4 literal
+  if (hostname.startsWith("[")) return true; // IPv6 literal
+  return false;
+}
+
 /** https everywhere; plain http only for loopback (local dev tooling). */
 export function isAllowedRedirectUri(uri: string): boolean {
   try {
@@ -97,16 +115,53 @@ export async function registerDcrClient(
   };
 }
 
-/** A CIMD client_id must be an HTTPS URL (loopback http allowed for dev). */
+/**
+ * A CIMD client_id must be an HTTPS URL. Our server fetches it, so in
+ * production loopback/IP-literal hosts are rejected outright; outside
+ * production loopback http is allowed for local testing.
+ */
 export function isCimdClientId(clientId: string): boolean {
   try {
     const u = new URL(clientId);
     if (u.username || u.password) return false;
-    if (u.protocol === "https:") return true;
-    return u.protocol === "http:" && isLoopbackHost(u.hostname);
+    if (u.protocol === "https:") {
+      return !(isProduction() && isForbiddenCimdHost(u.hostname));
+    }
+    return (
+      u.protocol === "http:" && isLoopbackHost(u.hostname) && !isProduction()
+    );
   } catch {
     return false;
   }
+}
+
+/**
+ * Read a response body without buffering past the size cap: count bytes as
+ * chunks arrive and cancel the stream the moment the limit is exceeded, so a
+ * hostile endpoint cannot force an oversized allocation.
+ */
+async function readBodyCapped(res: Response): Promise<string> {
+  if (!res.body) {
+    const text = await res.text();
+    if (text.length > CIMD_MAX_BYTES) {
+      throw new OauthClientError("Client metadata document is too large");
+    }
+    return text;
+  }
+  const reader = res.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > CIMD_MAX_BYTES) {
+      await reader.cancel();
+      throw new OauthClientError("Client metadata document is too large");
+    }
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks).toString("utf8");
 }
 
 async function fetchCimdDocument(url: string): Promise<{
@@ -133,10 +188,7 @@ async function fetchCimdDocument(url: string): Promise<{
       `Client metadata document returned HTTP ${res.status}`,
     );
   }
-  const text = await res.text();
-  if (text.length > CIMD_MAX_BYTES) {
-    throw new OauthClientError("Client metadata document is too large");
-  }
+  const text = await readBodyCapped(res);
   let doc: Record<string, unknown>;
   try {
     doc = JSON.parse(text);

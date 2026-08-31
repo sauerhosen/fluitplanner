@@ -13,6 +13,7 @@ import { getTranslations } from "next-intl/server";
 import { PageHeader } from "@/components/shared/page-header";
 import { McpTokenSettings } from "@/components/settings/mcp-token-settings";
 import { getMcpTokens } from "@/lib/actions/mcp-tokens";
+import { mcpResourceUrl } from "@/lib/oauth/metadata";
 
 async function ManagedTeamsLoader() {
   const teams = await getManagedTeams();
@@ -30,7 +31,7 @@ async function HockeySyncLoader() {
 async function McpTokenLoader() {
   const canEdit = await isPlannerRole();
   const tokens = canEdit ? await getMcpTokens() : [];
-  const endpointUrl = `${process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"}/api/mcp`;
+  const endpointUrl = mcpResourceUrl();
   return (
     <McpTokenSettings
       initialTokens={tokens}
