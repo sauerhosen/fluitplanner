@@ -461,7 +461,21 @@
     "hockeySyncUntrackError": "Failed to remove the team. Please try again.",
     "hockeySyncAlreadyTracked": "This team is already being tracked.",
     "hockeySyncTrackError": "Failed to track the team. Please try again.",
-    "hockeySyncSearchError": "Could not reach the Match Center. Please try again later."
+    "hockeySyncSearchError": "Could not reach the Match Center. Please try again later.",
+    "mcpTitle": "Claude / MCP connection",
+    "mcpDescription": "Connect your own AI assistant (such as Claude) to this club via the Model Context Protocol. A token gives the assistant read access to matches, polls, availability and assignments, and lets it write tentative assignment drafts — confirming always happens here in the app. Treat a token like a password.",
+    "mcpEndpointLabel": "Server URL",
+    "mcpTokenNamePlaceholder": "Token name (e.g. Claude on my laptop)",
+    "mcpCreateToken": "Create token",
+    "mcpNewTokenNotice": "Copy this token now — it will not be shown again.",
+    "mcpCopy": "Copy",
+    "mcpCopied": "Copied",
+    "mcpNoTokens": "No tokens yet.",
+    "mcpCreatedAt": "Created",
+    "mcpLastUsed": "last used",
+    "mcpNever": "never",
+    "mcpRevoke": "Revoke",
+    "mcpRevoked": "revoked"
   },
   "landing": {
     "title": "Fluitplanner",

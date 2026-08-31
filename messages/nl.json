@@ -461,7 +461,21 @@
     "hockeySyncUntrackError": "Team verwijderen mislukt. Probeer het opnieuw.",
     "hockeySyncAlreadyTracked": "Dit team wordt al gevolgd.",
     "hockeySyncTrackError": "Team volgen mislukt. Probeer het opnieuw.",
-    "hockeySyncSearchError": "Het Match Center is niet bereikbaar. Probeer het later opnieuw."
+    "hockeySyncSearchError": "Het Match Center is niet bereikbaar. Probeer het later opnieuw.",
+    "mcpTitle": "Claude / MCP-koppeling",
+    "mcpDescription": "Koppel je eigen AI-assistent (zoals Claude) aan deze club via het Model Context Protocol. Een token geeft de assistent leestoegang tot wedstrijden, polls, beschikbaarheid en aanwijzingen, en laat hem voorlopige concept-aanwijzingen schrijven — bevestigen gebeurt altijd hier in de app. Behandel een token als een wachtwoord.",
+    "mcpEndpointLabel": "Server-URL",
+    "mcpTokenNamePlaceholder": "Tokennaam (bijv. Claude op mijn laptop)",
+    "mcpCreateToken": "Token aanmaken",
+    "mcpNewTokenNotice": "Kopieer dit token nu — het wordt niet nog een keer getoond.",
+    "mcpCopy": "Kopiëren",
+    "mcpCopied": "Gekopieerd",
+    "mcpNoTokens": "Nog geen tokens.",
+    "mcpCreatedAt": "Aangemaakt",
+    "mcpLastUsed": "laatst gebruikt",
+    "mcpNever": "nooit",
+    "mcpRevoke": "Intrekken",
+    "mcpRevoked": "ingetrokken"
   },
   "landing": {
     "title": "Fluitplanner",

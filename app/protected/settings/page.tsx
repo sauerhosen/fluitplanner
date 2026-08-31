@@ -11,6 +11,8 @@ import { HockeySyncSettings } from "@/components/settings/hockey-sync-settings";
 import { getTrackedTeams } from "@/lib/actions/hockey-teams";
 import { getTranslations } from "next-intl/server";
 import { PageHeader } from "@/components/shared/page-header";
+import { McpTokenSettings } from "@/components/settings/mcp-token-settings";
+import { getMcpTokens } from "@/lib/actions/mcp-tokens";
 
 async function ManagedTeamsLoader() {
   const teams = await getManagedTeams();
@@ -23,6 +25,19 @@ async function HockeySyncLoader() {
     isPlannerRole(),
   ]);
   return <HockeySyncSettings initialTeams={teams} canEdit={canEdit} />;
+}
+
+async function McpTokenLoader() {
+  const canEdit = await isPlannerRole();
+  const tokens = canEdit ? await getMcpTokens() : [];
+  const endpointUrl = `${process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"}/api/mcp`;
+  return (
+    <McpTokenSettings
+      initialTokens={tokens}
+      canEdit={canEdit}
+      endpointUrl={endpointUrl}
+    />
+  );
 }
 
 async function AvailabilityLockLoader() {
@@ -69,6 +84,14 @@ export default async function SettingsPage() {
           fallback={<div className="bg-muted h-24 animate-pulse rounded-md" />}
         >
           <AvailabilityLockLoader />
+        </Suspense>
+      </div>
+      <div>
+        <h2 className="mb-4 text-lg font-semibold">{t("mcpTitle")}</h2>
+        <Suspense
+          fallback={<div className="bg-muted h-24 animate-pulse rounded-md" />}
+        >
+          <McpTokenLoader />
         </Suspense>
       </div>
     </div>
