@@ -4,12 +4,16 @@ import { hasEnvVars } from "../utils";
 import { resolveTenantFromHost } from "@/lib/tenant-resolver";
 
 export async function updateSession(request: NextRequest) {
-  // Cron routes authenticate via CRON_SECRET and the MCP server via its own
-  // bearer tokens; both run without a user session or tenant context — skip
-  // auth/tenant handling entirely.
+  // Cron routes authenticate via CRON_SECRET, the MCP server via its own
+  // bearer tokens, and the OAuth token/register/discovery endpoints are
+  // public by design; all run without a user session or tenant context —
+  // skip auth/tenant handling entirely. (/oauth/authorize is NOT skipped:
+  // the consent page needs the session.)
   if (
     request.nextUrl.pathname.startsWith("/api/cron/") ||
-    request.nextUrl.pathname === "/api/mcp"
+    request.nextUrl.pathname === "/api/mcp" ||
+    request.nextUrl.pathname.startsWith("/api/oauth/") ||
+    request.nextUrl.pathname.startsWith("/.well-known/")
   ) {
     return NextResponse.next({ request });
   }
@@ -216,7 +220,12 @@ export async function updateSession(request: NextRequest) {
   ) {
     // no user, potentially respond by redirecting the user to the login page
     const url = request.nextUrl.clone();
+    const next = request.nextUrl.pathname + request.nextUrl.search;
     url.pathname = "/auth/login";
+    url.search = "";
+    // Preserve the destination so login can return there (e.g. the OAuth
+    // consent page); /protected is the login form's default anyway.
+    if (next !== "/protected") url.searchParams.set("next", next);
     return NextResponse.redirect(url);
   }
 

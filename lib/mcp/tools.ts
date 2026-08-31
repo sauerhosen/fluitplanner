@@ -15,6 +15,17 @@ import {
   checkPollAssignments,
   setTentativeAssignments,
   clearTentativeAssignments,
+  explainGapForMatch,
+  setMatchNotes,
+  setUmpireNotes,
+  createMatchForPlanner,
+  updateMatchForPlanner,
+  createPollForPlanner,
+  getSyncStatus,
+  clearReviewFlags,
+  listWithdrawals,
+  getDaySheet,
+  getChaseContext,
 } from "@/lib/mcp/data";
 
 export const MCP_SERVER_INSTRUCTIONS = `Fluitplanner plans which club umpires officiate which field hockey matches. This connection is scoped to one club and one planner; the app remains the system of record.
@@ -295,5 +306,251 @@ export function registerMcpTools(server: McpServer, ctx: McpPlannerContext) {
       },
     },
     (args) => run(() => clearTentativeAssignments(ctx, args.poll_id)),
+  );
+
+  const dateString = z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .describe("Date, YYYY-MM-DD");
+  const timeString = z
+    .string()
+    .regex(/^([01]\d|2[0-3]):[0-5]\d$/)
+    .describe("Local Amsterdam kick-off time, HH:mm (24h)");
+  const matchFields = {
+    time: timeString
+      .or(z.literal(""))
+      .optional()
+      .describe(
+        "Local Amsterdam kick-off time, HH:mm (24h). Empty string clears the time.",
+      ),
+    home_team: z.string().max(200).optional(),
+    away_team: z.string().max(200).optional(),
+    competition: z.string().max(200).nullable().optional(),
+    venue: z.string().max(200).nullable().optional(),
+    field: z.string().max(200).nullable().optional(),
+    required_level: z
+      .union([z.literal(1), z.literal(2), z.literal(3)])
+      .optional()
+      .describe("Minimum umpire level this match requires"),
+    notes: z
+      .string()
+      .max(2000)
+      .nullable()
+      .optional()
+      .describe("Planner note; empty or null clears it"),
+  };
+
+  server.registerTool(
+    "explain_gap",
+    {
+      title: "Explain why a match is unfilled",
+      description:
+        "Why a match is (or is not) fillable: who could still take it (ready), and into which dead end everyone else falls — said no, silent, booked in an overlapping slot, below the required level, or already on the match. Use find_candidates for the full per-umpire detail.",
+      inputSchema: z.object({ match_id: matchId }),
+      annotations: { readOnlyHint: true, destructiveHint: false },
+    },
+    (args) => run(() => explainGapForMatch(ctx, args.match_id)),
+  );
+
+  server.registerTool(
+    "get_day_sheet",
+    {
+      title: "Day sheet",
+      description:
+        "The schedule for a date or date range, read out in conversation: per match the time, venue, field, required level, confirmed umpires, and any unconfirmed tentative names. The official spreadsheet export stays in the app.",
+      inputSchema: z.object({
+        date_from: dateString,
+        date_to: dateString
+          .optional()
+          .describe("Defaults to date_from (a single day)"),
+      }),
+      annotations: { readOnlyHint: true, destructiveHint: false },
+    },
+    (args) =>
+      run(() =>
+        getDaySheet(ctx, args.date_from, args.date_to ?? args.date_from),
+      ),
+  );
+
+  server.registerTool(
+    "get_sync_status",
+    {
+      title: "Match Center sync status",
+      description:
+        "Sync triage for the federation (Match Center) feed: when the last sync ran, what it inserted/updated/flagged, and every match currently flagged for review with its reasons. Clear handled flags with clear_match_review_flags.",
+      inputSchema: z.object({}),
+      annotations: { readOnlyHint: true, destructiveHint: false },
+    },
+    () => run(() => getSyncStatus(ctx)),
+  );
+
+  server.registerTool(
+    "list_availability_withdrawals",
+    {
+      title: "Withdrawn availability",
+      description:
+        "Umpires who changed a yes/if-need-be to no on a slot they were already assigned to, newest first — including whether the change was saved (warn mode) or blocked (lock mode). Assignments are never removed automatically.",
+      inputSchema: z.object({
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .max(200)
+          .optional()
+          .describe("Max rows, default 50"),
+      }),
+      annotations: { readOnlyHint: true, destructiveHint: false },
+    },
+    (args) => run(() => listWithdrawals(ctx, args.limit ?? 50)),
+  );
+
+  server.registerTool(
+    "set_match_notes",
+    {
+      title: "Set match note",
+      description:
+        "Set or clear the planner note on a match (max 2000 characters; empty clears). Only the note is written — schedule fields are untouched.",
+      inputSchema: z.object({
+        match_id: matchId,
+        notes: z
+          .string()
+          .max(2000)
+          .describe("The note; empty string clears it"),
+      }),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+      },
+    },
+    (args) => run(() => setMatchNotes(ctx, args.match_id, args.notes)),
+  );
+
+  server.registerTool(
+    "set_umpire_notes",
+    {
+      title: "Set umpire note",
+      description:
+        "Set or clear this club's private note on a rostered umpire (max 2000 characters; empty clears). The note is per-club and never visible to the umpire.",
+      inputSchema: z.object({
+        umpire_id: umpireId,
+        notes: z
+          .string()
+          .max(2000)
+          .describe("The note; empty string clears it"),
+      }),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+      },
+    },
+    (args) => run(() => setUmpireNotes(ctx, args.umpire_id, args.notes)),
+  );
+
+  server.registerTool(
+    "create_match",
+    {
+      title: "Create match",
+      description:
+        "Add a match (e.g. a friendly) to the club's schedule. The match is not put in any poll automatically. Use update_match to change an existing one; deleting matches is app-only.",
+      inputSchema: z.object({
+        ...matchFields,
+        date: dateString,
+        home_team: z.string().min(1).max(200),
+        away_team: z.string().min(1).max(200),
+      }),
+      annotations: { readOnlyHint: false, destructiveHint: false },
+    },
+    (args) => run(() => createMatchForPlanner(ctx, args)),
+  );
+
+  server.registerTool(
+    "update_match",
+    {
+      title: "Update match",
+      description:
+        "Correct fields on an existing match — move a kick-off, fix a venue, change the required level. Only the provided fields change; date and time stay consistent with each other. Poll slots are not recalculated automatically.",
+      inputSchema: z.object({
+        match_id: matchId,
+        date: dateString.optional(),
+        ...matchFields,
+      }),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+      },
+    },
+    (args) => {
+      const { match_id, ...updates } = args;
+      return run(() => updateMatchForPlanner(ctx, match_id, updates));
+    },
+  );
+
+  server.registerTool(
+    "create_poll",
+    {
+      title: "Create availability poll",
+      description:
+        "Create an open availability poll from a set of match ids; 2-hour time slots are computed automatically from the match times. Returns the poll link for the PLANNER to share — nothing is sent to umpires. Find matches first with list_matches (e.g. by date range).",
+      inputSchema: z.object({
+        title: z.string().min(1).max(200),
+        match_ids: z.array(matchId).min(1).max(200),
+      }),
+      annotations: { readOnlyHint: false, destructiveHint: false },
+    },
+    (args) => run(() => createPollForPlanner(ctx, args.title, args.match_ids)),
+  );
+
+  server.registerTool(
+    "clear_match_review_flags",
+    {
+      title: "Clear sync review flag",
+      description:
+        "Mark a sync-flagged match as handled: clears needs_review and its reasons. The cancelled-upstream marker stays until the planner deletes the match in the app.",
+      inputSchema: z.object({ match_id: matchId }),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+      },
+    },
+    (args) => run(() => clearReviewFlags(ctx, args.match_id)),
+  );
+
+  server.registerPrompt(
+    "draft_chase_message",
+    {
+      title: "Draft a chase message",
+      description:
+        "Draft a ready-to-paste reminder for the umpires who have not filled out an availability poll. The planner sends it themselves.",
+      argsSchema: z.object({
+        poll_id: z.string().describe("Poll id (from list_polls)"),
+        channel: z
+          .string()
+          .optional()
+          .describe("'whatsapp' (default) or 'email'"),
+      }),
+    },
+    async (args) => {
+      const chase = await getChaseContext(ctx, args.poll_id);
+      const channel = args.channel === "email" ? "email" : "whatsapp";
+      return {
+        messages: [
+          {
+            role: "user" as const,
+            content: {
+              type: "text" as const,
+              text: `Draft a friendly ${channel} reminder (in the language the planner is speaking, Dutch by default) for the umpires of ${chase.club} who have not filled out the availability poll "${chase.poll_title ?? ""}".
+
+Data: ${JSON.stringify(chase)}
+
+Guidelines: keep it short and warm, never guilt-trip; include the poll link; if at_risk_slots is non-empty, mention concretely which moments still need people; offer both a group version and, if the list is small, a personal per-name version. End by reminding the planner that THEY send the message — nothing has been sent.`,
+            },
+          },
+        ],
+      };
+    },
   );
 }

@@ -19,8 +19,9 @@ import { useTranslations } from "next-intl";
 
 export function LoginForm({
   className,
+  redirectTo,
   ...props
-}: React.ComponentPropsWithoutRef<"div">) {
+}: React.ComponentPropsWithoutRef<"div"> & { redirectTo?: string }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -40,8 +41,9 @@ export function LoginForm({
         password,
       });
       if (error) throw error;
-      // Update this route to redirect to an authenticated route. The user already has an active session.
-      router.push("/protected");
+      // Return to where the user was headed (e.g. the OAuth consent page);
+      // the page component has already validated redirectTo as a same-site path.
+      router.push(redirectTo ?? "/protected");
     } catch (error: unknown) {
       if (error instanceof Error) {
         setError(error.message);

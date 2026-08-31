@@ -584,5 +584,22 @@
     "verifyButton": "Verifieer mijn e-mail",
     "expiresIn": "Deze code verloopt over 30 minuten.",
     "footer": "Je ontvangt dit bericht omdat iemand toegang heeft aangevraagd tot een peiling met jouw e-mailadres."
+  },
+  "oauth": {
+    "connectTitle": "Toegang goedkeuren",
+    "connectRequest": "{client} wil namens jou verbinden met Fluitplanner.",
+    "scopeIntro": "Voor de gekozen club kan het:",
+    "scopeRead": "Wedstrijden, polls, beschikbaarheid, aanwijzingen en het scheidsrechterbestand lezen",
+    "scopeWrite": "Voorlopige concept-aanwijzingen en plannernotities schrijven, en wedstrijden en polls aanmaken",
+    "scopeNot": "Het kan geen aanwijzingen bevestigen, geen berichten naar scheidsrechters sturen en niets verwijderen.",
+    "clubLabel": "Club",
+    "approve": "Toestaan",
+    "deny": "Weigeren",
+    "error": "Er ging iets mis. Probeer het opnieuw.",
+    "invalidRequestTitle": "Ongeldig verzoek",
+    "invalidRequest": "Dit autorisatieverzoek mist verplichte parameters.",
+    "invalidClient": "De aanvragende applicatie kon niet worden geverifieerd.",
+    "noPlannerRoleTitle": "Geen plannerrol",
+    "noPlannerRole": "Je account is in geen enkele club planner, dus deze koppeling zou nergens toegang toe hebben."
   }
 }

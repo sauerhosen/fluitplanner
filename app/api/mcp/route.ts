@@ -1,6 +1,7 @@
 import { createMcpHandler } from "mcp-handler";
 import { authenticateMcpRequest } from "@/lib/mcp/auth";
 import { registerMcpTools, MCP_SERVER_INSTRUCTIONS } from "@/lib/mcp/tools";
+import { baseUrl } from "@/lib/oauth/metadata";
 
 export const maxDuration = 60;
 
@@ -22,8 +23,10 @@ async function handler(request: Request) {
       {
         status: 401,
         headers: {
-          "WWW-Authenticate":
-            'Bearer realm="fluitplanner-mcp", error="invalid_token"',
+          // resource_metadata points OAuth-capable clients (e.g. claude.ai)
+          // at the discovery flow; header-capable clients can keep using
+          // personal access tokens directly.
+          "WWW-Authenticate": `Bearer realm="fluitplanner-mcp", error="invalid_token", resource_metadata="${baseUrl()}/.well-known/oauth-protected-resource"`,
         },
       },
     );

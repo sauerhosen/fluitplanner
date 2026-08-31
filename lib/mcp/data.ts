@@ -1,7 +1,11 @@
 import { format, addDays } from "date-fns";
+import { nanoid } from "nanoid";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createServiceClient } from "@/lib/supabase/service";
 import { mapMatchesToSlots } from "@/lib/domain/match-slot-mapping";
+import { groupMatchesIntoSlots } from "@/lib/domain/slots";
+import { normalizeNote, MAX_NOTE_LENGTH } from "@/lib/domain/notes";
+import { composeAmsterdamTimestamp } from "@/lib/domain/timezone";
 import type {
   Assignment,
   Match,
@@ -15,6 +19,7 @@ import {
   assessSlotRisk,
   availabilityKey,
   checkAssignmentSet,
+  summarizeGap,
   type AssignmentIssue,
   type AvailabilityAnswer,
   type ProposedAssignment,
@@ -1142,5 +1147,581 @@ export async function getAttentionItems(ctx: McpPlannerContext) {
           matches_awaiting_time: sync.awaiting_time_count,
         }
       : null,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// S2 — explain a gap
+// ---------------------------------------------------------------------------
+
+export async function explainGapForMatch(
+  ctx: McpPlannerContext,
+  matchId: string,
+) {
+  const result = await findCandidatesForMatch(ctx, matchId);
+  const summary = summarizeGap(result.candidates);
+  return {
+    match: result.match,
+    poll: result.poll,
+    slot: result.slot,
+    availability_note: result.availability_note,
+    counts: {
+      ready: summary.ready.length,
+      under_level: summary.under_level.length,
+      booked_elsewhere: summary.booked_elsewhere.length,
+      said_no: summary.said_no.length,
+      no_response: summary.no_response.length,
+      already_assigned: summary.already_assigned.length,
+    },
+    ...summary,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// S3 — match and umpire notes
+// ---------------------------------------------------------------------------
+
+export async function setMatchNotes(
+  ctx: McpPlannerContext,
+  matchId: string,
+  notes: string,
+) {
+  const normalized = normalizeNoteOrUserError(notes);
+  const { data, error } = await db()
+    .from("matches")
+    .update({ notes: normalized })
+    .eq("id", matchId)
+    .eq("organization_id", ctx.organizationId)
+    .select("id, home_team, away_team, notes")
+    .maybeSingle();
+  throwDb(error);
+  if (!data) {
+    throw new McpUserError(
+      `Match ${matchId} not found in this club. Use list_matches to find valid match ids.`,
+    );
+  }
+  return {
+    match_id: data.id,
+    label: `${data.home_team} – ${data.away_team}`,
+    notes: data.notes,
+  };
+}
+
+export async function setUmpireNotes(
+  ctx: McpPlannerContext,
+  umpireId: string,
+  notes: string,
+) {
+  const normalized = normalizeNoteOrUserError(notes);
+  const { data, error } = await db()
+    .from("organization_umpires")
+    .update({ notes: normalized })
+    .eq("organization_id", ctx.organizationId)
+    .eq("umpire_id", umpireId)
+    .select("umpire_id, notes")
+    .maybeSingle();
+  throwDb(error);
+  if (!data) {
+    throw new McpUserError(
+      `Umpire ${umpireId} is not on this club's roster. Use list_umpires to find valid umpire ids.`,
+    );
+  }
+  return { umpire_id: data.umpire_id, notes: data.notes };
+}
+
+function normalizeNoteOrUserError(notes: string): string | null {
+  try {
+    return normalizeNote(notes);
+  } catch {
+    throw new McpUserError(
+      `Note cannot be longer than ${MAX_NOTE_LENGTH} characters.`,
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// S4 — match create and update
+// ---------------------------------------------------------------------------
+
+export type MatchWriteInput = {
+  date?: string;
+  /** Local Amsterdam kick-off "HH:mm"; empty string clears the time. */
+  time?: string;
+  home_team?: string;
+  away_team?: string;
+  competition?: string | null;
+  venue?: string | null;
+  field?: string | null;
+  required_level?: 1 | 2 | 3;
+  notes?: string | null;
+};
+
+/** "2026-09-05 08:30" (club-local render) → "08:30". */
+function localTimeOfDay(iso: string): string {
+  return localFormat.format(new Date(iso)).slice(-5);
+}
+
+function isDuplicateKey(error: { code?: string } | null): boolean {
+  return error?.code === "23505";
+}
+
+export async function createMatchForPlanner(
+  ctx: McpPlannerContext,
+  input: MatchWriteInput,
+) {
+  if (!input.date || !input.home_team?.trim() || !input.away_team?.trim()) {
+    throw new McpUserError("date, home_team and away_team are required.");
+  }
+  const row = {
+    date: input.date,
+    start_time: input.time
+      ? composeAmsterdamTimestamp(input.date, input.time)
+      : null,
+    home_team: input.home_team.trim(),
+    away_team: input.away_team.trim(),
+    competition: input.competition?.trim() || null,
+    venue: input.venue?.trim() || null,
+    field: input.field?.trim() || null,
+    required_level: input.required_level ?? 1,
+    notes: input.notes != null ? normalizeNoteOrUserError(input.notes) : null,
+    created_by: ctx.userId,
+    organization_id: ctx.organizationId,
+  };
+  const { data, error } = await db()
+    .from("matches")
+    .insert(row)
+    .select("*")
+    .single();
+  if (isDuplicateKey(error)) {
+    throw new McpUserError(
+      "A match with this date and these teams already exists in this club.",
+    );
+  }
+  throwDb(error);
+  const match = data as Match;
+  return {
+    created: matchSummary(match),
+    note: "The match is not in any poll yet — use create_poll or add it in the app to collect availability.",
+  };
+}
+
+export async function updateMatchForPlanner(
+  ctx: McpPlannerContext,
+  matchId: string,
+  input: MatchWriteInput,
+) {
+  const client = db();
+  const { data: existingRow, error: fetchError } = await client
+    .from("matches")
+    .select("*")
+    .eq("id", matchId)
+    .eq("organization_id", ctx.organizationId)
+    .maybeSingle();
+  throwDb(fetchError);
+  if (!existingRow) {
+    throw new McpUserError(
+      `Match ${matchId} not found in this club. Use list_matches to find valid match ids.`,
+    );
+  }
+  const existing = existingRow as Match;
+
+  const updates: Record<string, unknown> = {};
+  if (input.home_team !== undefined) {
+    if (!input.home_team.trim())
+      throw new McpUserError("home_team cannot be empty.");
+    updates.home_team = input.home_team.trim();
+  }
+  if (input.away_team !== undefined) {
+    if (!input.away_team.trim())
+      throw new McpUserError("away_team cannot be empty.");
+    updates.away_team = input.away_team.trim();
+  }
+  if (input.competition !== undefined)
+    updates.competition = input.competition?.trim() || null;
+  if (input.venue !== undefined) updates.venue = input.venue?.trim() || null;
+  if (input.field !== undefined) updates.field = input.field?.trim() || null;
+  if (input.required_level !== undefined)
+    updates.required_level = input.required_level;
+  if (input.notes !== undefined)
+    updates.notes =
+      input.notes != null ? normalizeNoteOrUserError(input.notes) : null;
+
+  // Date and time are interdependent: the stored start_time must stay on the
+  // stored date, so recompose it whenever either half changes.
+  const newDate = input.date ?? existing.date;
+  if (input.date !== undefined) updates.date = input.date;
+  if (input.time !== undefined) {
+    updates.start_time = input.time
+      ? composeAmsterdamTimestamp(newDate, input.time)
+      : null;
+  } else if (input.date !== undefined && existing.start_time) {
+    updates.start_time = composeAmsterdamTimestamp(
+      newDate,
+      localTimeOfDay(existing.start_time),
+    );
+  }
+
+  if (Object.keys(updates).length === 0) {
+    throw new McpUserError("No fields to update were provided.");
+  }
+
+  const { data, error } = await client
+    .from("matches")
+    .update(updates)
+    .eq("id", matchId)
+    .eq("organization_id", ctx.organizationId)
+    .select("*")
+    .single();
+  if (isDuplicateKey(error)) {
+    throw new McpUserError(
+      "A match with this date and these teams already exists in this club.",
+    );
+  }
+  throwDb(error);
+  const match = data as Match;
+
+  const scheduleChanged = input.date !== undefined || input.time !== undefined;
+  let caution: string | undefined;
+  if (scheduleChanged) {
+    const { data: links, error: linkError } = await client
+      .from("poll_matches")
+      .select("poll_id")
+      .eq("match_id", matchId);
+    throwDb(linkError);
+    if ((links ?? []).length > 0) {
+      caution =
+        "This match is in a poll; poll time slots are not recalculated automatically. Review the poll in the app.";
+    }
+  }
+  return { updated: matchSummary(match), caution };
+}
+
+// ---------------------------------------------------------------------------
+// S5 — poll creation
+// ---------------------------------------------------------------------------
+
+function siteUrl(): string {
+  return (process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000").replace(
+    /\/$/,
+    "",
+  );
+}
+
+export async function createPollForPlanner(
+  ctx: McpPlannerContext,
+  title: string,
+  matchIds: string[],
+) {
+  const trimmed = title.trim();
+  if (!trimmed) throw new McpUserError("Title is required.");
+  const uniqueIds = [...new Set(matchIds)];
+  if (uniqueIds.length === 0)
+    throw new McpUserError("At least one match is required.");
+
+  const client = db();
+  const { data: matchRows, error: mError } = await client
+    .from("matches")
+    .select("id, start_time")
+    .in("id", uniqueIds)
+    .eq("organization_id", ctx.organizationId);
+  throwDb(mError);
+  const found = new Set((matchRows ?? []).map((m) => m.id as string));
+  const missing = uniqueIds.filter((id) => !found.has(id));
+  if (missing.length > 0) {
+    throw new McpUserError(
+      `These matches were not found in this club: ${missing.join(", ")}.`,
+    );
+  }
+
+  const withTime = (matchRows ?? []).filter((m) => m.start_time !== null) as {
+    id: string;
+    start_time: string;
+  }[];
+  const slots = groupMatchesIntoSlots(withTime);
+  const token = nanoid(12);
+
+  const { data: poll, error: pollError } = await client
+    .from("polls")
+    .insert({
+      title: trimmed,
+      token,
+      status: "open",
+      created_by: ctx.userId,
+      organization_id: ctx.organizationId,
+    })
+    .select("*")
+    .single();
+  throwDb(pollError);
+
+  const { error: pmError } = await client
+    .from("poll_matches")
+    .insert(uniqueIds.map((id) => ({ poll_id: poll.id, match_id: id })));
+  throwDb(pmError);
+
+  if (slots.length > 0) {
+    const { error: slotError } = await client.from("poll_slots").insert(
+      slots.map((s) => ({
+        poll_id: poll.id,
+        start_time: s.start.toISOString(),
+        end_time: s.end.toISOString(),
+      })),
+    );
+    throwDb(slotError);
+  }
+
+  return {
+    poll_id: poll.id as string,
+    title: trimmed,
+    status: "open",
+    match_count: uniqueIds.length,
+    slot_count: slots.length,
+    matches_without_time: uniqueIds.length - withTime.length,
+    url: `${siteUrl()}/poll/${token}`,
+    note: "The poll link is NOT sent to anyone automatically — the planner shares it with the umpires themselves.",
+  };
+}
+
+// ---------------------------------------------------------------------------
+// S6 — sync triage
+// ---------------------------------------------------------------------------
+
+export async function getSyncStatus(ctx: McpPlannerContext) {
+  const client = db();
+  const [stateRes, trackedRes, flaggedRes] = await Promise.all([
+    client
+      .from("hockey_sync_state")
+      .select("*")
+      .eq("organization_id", ctx.organizationId)
+      .maybeSingle(),
+    client
+      .from("tracked_teams")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", ctx.organizationId),
+    client
+      .from("matches")
+      .select(
+        "id, date, start_time, home_team, away_team, review_reasons, cancelled_upstream",
+      )
+      .eq("organization_id", ctx.organizationId)
+      .eq("needs_review", true)
+      .order("date"),
+  ]);
+  throwDb(stateRes.error);
+  throwDb(flaggedRes.error);
+
+  const state = stateRes.data;
+  return {
+    tracked_teams: trackedRes.count ?? 0,
+    sync: state
+      ? {
+          last_synced_at: state.last_synced_at,
+          status: state.last_sync_status,
+          error: state.last_sync_error,
+          last_inserted: state.last_inserted,
+          last_updated: state.last_updated,
+          last_flagged: state.last_flagged,
+          matches_awaiting_time: state.awaiting_time_count,
+        }
+      : null,
+    flagged_matches: (flaggedRes.data ?? []).map((m) => ({
+      id: m.id,
+      date: m.date,
+      local_time: local(m.start_time),
+      label: `${m.home_team} – ${m.away_team}`,
+      reasons: m.review_reasons,
+      cancelled_upstream: m.cancelled_upstream || undefined,
+    })),
+    note:
+      state === null
+        ? "This club has never synced with the Match Center."
+        : undefined,
+  };
+}
+
+export async function clearReviewFlags(
+  ctx: McpPlannerContext,
+  matchId: string,
+) {
+  // cancelled_upstream stays set so the match keeps its cancelled styling
+  // until the planner deletes it (same rule as the app's clear action).
+  const { data, error } = await db()
+    .from("matches")
+    .update({ needs_review: false, review_reasons: [] })
+    .eq("id", matchId)
+    .eq("organization_id", ctx.organizationId)
+    .select("id, home_team, away_team")
+    .maybeSingle();
+  throwDb(error);
+  if (!data) {
+    throw new McpUserError(
+      `Match ${matchId} not found in this club. Use get_sync_status to list flagged matches.`,
+    );
+  }
+  return {
+    match_id: data.id,
+    label: `${data.home_team} – ${data.away_team}`,
+    cleared: true,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// S7 — withdrawn availability
+// ---------------------------------------------------------------------------
+
+export async function listWithdrawals(ctx: McpPlannerContext, limit: number) {
+  const client = db();
+  const { data, error } = await client
+    .from("availability_override_logs")
+    .select("*")
+    .eq("organization_id", ctx.organizationId)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  throwDb(error);
+  const logs = data ?? [];
+
+  const umpireIds = [...new Set(logs.map((l) => l.umpire_id).filter(Boolean))];
+  const matchIds = [...new Set(logs.map((l) => l.match_id).filter(Boolean))];
+  const slotIds = [...new Set(logs.map((l) => l.slot_id).filter(Boolean))];
+
+  const [umpiresRes, matchesRes, slotsRes] = await Promise.all([
+    umpireIds.length
+      ? client.from("umpires").select("id, name").in("id", umpireIds)
+      : Promise.resolve({ data: [], error: null }),
+    matchIds.length
+      ? client
+          .from("matches")
+          .select("id, date, home_team, away_team")
+          .in("id", matchIds)
+          .eq("organization_id", ctx.organizationId)
+      : Promise.resolve({ data: [], error: null }),
+    slotIds.length
+      ? client
+          .from("poll_slots")
+          .select("id, start_time, end_time")
+          .in("id", slotIds)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+  throwDb(umpiresRes.error);
+  throwDb(matchesRes.error);
+  throwDb(slotsRes.error);
+
+  const nameById = new Map((umpiresRes.data ?? []).map((u) => [u.id, u.name]));
+  const matchById = new Map((matchesRes.data ?? []).map((m) => [m.id, m]));
+  const slotById = new Map((slotsRes.data ?? []).map((s) => [s.id, s]));
+
+  return {
+    withdrawals: logs.map((l) => {
+      const match = l.match_id ? matchById.get(l.match_id) : null;
+      const slot = l.slot_id ? slotById.get(l.slot_id) : null;
+      return {
+        at: local(l.created_at),
+        umpire_id: l.umpire_id,
+        umpire: l.umpire_id
+          ? (nameById.get(l.umpire_id) ?? "(removed umpire)")
+          : "(removed umpire)",
+        match_id: l.match_id,
+        match: match
+          ? `${match.home_team} – ${match.away_team} (${match.date})`
+          : null,
+        slot: slot
+          ? `${local(slot.start_time)} – ${local(slot.end_time)}`
+          : null,
+        previous_response: l.previous_response,
+        new_response: l.new_response,
+        policy: l.policy,
+        outcome: l.outcome,
+      };
+    }),
+    note: "outcome 'confirmed' means the withdrawal was saved (warn mode); 'blocked' means it was prevented (lock mode). Assignments are never removed automatically — follow up with the umpire.",
+  };
+}
+
+// ---------------------------------------------------------------------------
+// S8 — day sheet
+// ---------------------------------------------------------------------------
+
+export async function getDaySheet(
+  ctx: McpPlannerContext,
+  dateFrom: string,
+  dateTo: string,
+) {
+  const client = db();
+  const { data: matchRows, error } = await client
+    .from("matches")
+    .select("*")
+    .eq("organization_id", ctx.organizationId)
+    .gte("date", dateFrom)
+    .lte("date", dateTo)
+    .order("date")
+    .order("start_time");
+  throwDb(error);
+  const matches = (matchRows ?? []) as Match[];
+  const matchIds = matches.map((m) => m.id);
+
+  const [assignsRes, roster] = await Promise.all([
+    matchIds.length
+      ? client
+          .from("assignments")
+          .select("match_id, umpire_id, status")
+          .eq("organization_id", ctx.organizationId)
+          .in("match_id", matchIds)
+      : Promise.resolve({ data: [], error: null }),
+    getRoster(client, ctx.organizationId),
+  ]);
+  throwDb(assignsRes.error);
+  const nameById = new Map(roster.map((u) => [u.id, u.name]));
+
+  const byMatch = new Map<string, { name: string; status: string }[]>();
+  for (const a of assignsRes.data ?? []) {
+    const list = byMatch.get(a.match_id) ?? [];
+    list.push({
+      name: nameById.get(a.umpire_id) ?? a.umpire_id,
+      status: a.status,
+    });
+    byMatch.set(a.match_id, list);
+  }
+
+  return {
+    from: dateFrom,
+    to: dateTo,
+    matches: matches.map((m) => {
+      const assigned = byMatch.get(m.id) ?? [];
+      return {
+        date: m.date,
+        time: m.start_time ? local(m.start_time)?.slice(-5) : null,
+        label: matchLabel(m),
+        venue: m.venue,
+        field: m.field,
+        required_level: m.required_level,
+        cancelled_upstream: m.cancelled_upstream || undefined,
+        umpires: assigned
+          .filter((a) => a.status === "confirmed")
+          .map((a) => a.name),
+        tentative: assigned
+          .filter((a) => a.status === "tentative")
+          .map((a) => a.name),
+      };
+    }),
+    note: "The official spreadsheet export lives in the app; this is a conversational read-out. 'tentative' names are unconfirmed drafts.",
+  };
+}
+
+// ---------------------------------------------------------------------------
+// S1 — chase-message context (used by the draft_chase_message prompt)
+// ---------------------------------------------------------------------------
+
+export async function getChaseContext(ctx: McpPlannerContext, pollId: string) {
+  const client = db();
+  const poll = await getPollScoped(client, ctx, pollId);
+  const availability = await getPollAvailability(ctx, pollId);
+  return {
+    poll_title: poll.title,
+    poll_status: poll.status,
+    poll_url: `${siteUrl()}/poll/${poll.token}`,
+    club: ctx.organizationName,
+    non_responders: availability.non_responders,
+    at_risk_slots: availability.slot_risk.filter((s) => s.at_risk),
+    respondents: availability.respondents,
+    roster_size: availability.roster_size,
   };
 }

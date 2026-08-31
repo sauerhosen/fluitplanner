@@ -584,5 +584,22 @@
     "verifyButton": "Verify my email",
     "expiresIn": "This code expires in 30 minutes.",
     "footer": "You received this because someone requested access to a poll with your email address."
+  },
+  "oauth": {
+    "connectTitle": "Authorize access",
+    "connectRequest": "{client} wants to connect to Fluitplanner on your behalf.",
+    "scopeIntro": "For the selected club it will be able to:",
+    "scopeRead": "Read matches, polls, availability, assignments and the umpire roster",
+    "scopeWrite": "Write tentative assignment drafts and planner notes, and create matches and polls",
+    "scopeNot": "It cannot confirm assignments, send messages to umpires, or delete anything.",
+    "clubLabel": "Club",
+    "approve": "Allow",
+    "deny": "Deny",
+    "error": "Something went wrong. Please try again.",
+    "invalidRequestTitle": "Invalid request",
+    "invalidRequest": "This authorization request is missing required parameters.",
+    "invalidClient": "The requesting application could not be verified.",
+    "noPlannerRoleTitle": "No planner role",
+    "noPlannerRole": "Your account is not a planner in any club, so there is nothing this connection could access."
   }
 }

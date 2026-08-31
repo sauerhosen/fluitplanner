@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   assessCandidates,
   checkAssignmentSet,
+  summarizeGap,
   assessSlotRisk,
   availabilityKey,
   EMPTY_WORKLOAD,
@@ -379,5 +380,78 @@ describe("assessSlotRisk", () => {
       yes: 2,
       at_risk: false,
     });
+  });
+});
+
+describe("summarizeGap", () => {
+  function candidate(
+    over: Partial<import("@/lib/mcp/planning").CandidateAssessment> & {
+      umpire_id: string;
+      name: string;
+    },
+  ): import("@/lib/mcp/planning").CandidateAssessment {
+    return {
+      level: 2,
+      availability: "yes",
+      meets_level: true,
+      already_assigned_to_match: false,
+      conflicts: [],
+      notes: null,
+      workload: EMPTY_WORKLOAD,
+      ...over,
+    };
+  }
+
+  it("buckets every candidate into exactly one explanation", () => {
+    const summary = summarizeGap([
+      candidate({ umpire_id: "a", name: "Ready" }),
+      candidate({
+        umpire_id: "b",
+        name: "SameDay",
+        conflicts: [{ match_id: "x", kind: "same_day", status: "confirmed" }],
+      }),
+      candidate({
+        umpire_id: "c",
+        name: "Booked",
+        conflicts: [
+          { match_id: "x", kind: "overlapping_slot", status: "confirmed" },
+        ],
+      }),
+      candidate({ umpire_id: "d", name: "Low", meets_level: false }),
+      candidate({ umpire_id: "e", name: "No", availability: "no" }),
+      candidate({
+        umpire_id: "f",
+        name: "Silent",
+        availability: "no_response",
+      }),
+      candidate({
+        umpire_id: "g",
+        name: "OnIt",
+        already_assigned_to_match: true,
+      }),
+    ]);
+
+    expect(summary.ready.map((r) => r.name)).toEqual(["Ready", "SameDay"]);
+    expect(summary.ready[1].same_day).toBe(true);
+    expect(summary.booked_elsewhere.map((r) => r.name)).toEqual(["Booked"]);
+    expect(summary.under_level.map((r) => r.name)).toEqual(["Low"]);
+    expect(summary.said_no.map((r) => r.name)).toEqual(["No"]);
+    expect(summary.no_response.map((r) => r.name)).toEqual(["Silent"]);
+    expect(summary.already_assigned.map((r) => r.name)).toEqual(["OnIt"]);
+  });
+
+  it("said no beats booked-elsewhere as the explanation", () => {
+    const summary = summarizeGap([
+      candidate({
+        umpire_id: "a",
+        name: "NoAndBusy",
+        availability: "no",
+        conflicts: [
+          { match_id: "x", kind: "overlapping_slot", status: "confirmed" },
+        ],
+      }),
+    ]);
+    expect(summary.said_no).toHaveLength(1);
+    expect(summary.booked_elsewhere).toHaveLength(0);
   });
 });

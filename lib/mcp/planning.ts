@@ -438,3 +438,75 @@ export function assessSlotRisk(args: {
     };
   });
 }
+
+type GapEntry = {
+  umpire_id: string;
+  name: string;
+  level: 1 | 2 | 3;
+  availability: AvailabilityAnswer;
+  /** Has another non-overlapping assignment on the same day. */
+  same_day?: boolean;
+};
+
+export type GapSummary = {
+  /** Available, qualified, clash-free — the direct fixes for the gap. */
+  ready: GapEntry[];
+  /** Available but below the match's required level. */
+  under_level: GapEntry[];
+  /** Available but already booked in an overlapping slot. */
+  booked_elsewhere: GapEntry[];
+  said_no: GapEntry[];
+  no_response: GapEntry[];
+  already_assigned: GapEntry[];
+};
+
+/**
+ * Turn a candidate assessment into an explanation of *why* a match is (or is
+ * not) fillable: who could still take it, and into which dead end everyone
+ * else falls. Input is assessCandidates output for the match.
+ */
+export function summarizeGap(candidates: CandidateAssessment[]): GapSummary {
+  const summary: GapSummary = {
+    ready: [],
+    under_level: [],
+    booked_elsewhere: [],
+    said_no: [],
+    no_response: [],
+    already_assigned: [],
+  };
+
+  for (const c of candidates) {
+    const entry: GapEntry = {
+      umpire_id: c.umpire_id,
+      name: c.name,
+      level: c.level,
+      availability: c.availability,
+    };
+    if (c.already_assigned_to_match) {
+      summary.already_assigned.push(entry);
+      continue;
+    }
+    if (c.availability === "no") {
+      summary.said_no.push(entry);
+      continue;
+    }
+    if (c.availability === "no_response") {
+      summary.no_response.push(entry);
+      continue;
+    }
+    if (c.conflicts.some((x) => x.kind === "overlapping_slot")) {
+      summary.booked_elsewhere.push(entry);
+      continue;
+    }
+    if (!c.meets_level) {
+      summary.under_level.push(entry);
+      continue;
+    }
+    if (c.conflicts.some((x) => x.kind === "same_day")) {
+      entry.same_day = true;
+    }
+    summary.ready.push(entry);
+  }
+
+  return summary;
+}
