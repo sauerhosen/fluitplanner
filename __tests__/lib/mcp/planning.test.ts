@@ -168,6 +168,37 @@ describe("assessCandidates", () => {
     expect(result[0].conflicts).toEqual([]);
   });
 
+  it("ranks a double-booked yes below any clash-free candidate", () => {
+    const overlapping = makeMatch({
+      id: "m2",
+      start_time: "2026-03-15T11:30:00Z",
+    });
+    const roster = [
+      makeUmpire({ id: "u-booked", name: "BookedYes" }),
+      makeUmpire({ id: "u-free", name: "FreeIfb" }),
+      makeUmpire({ id: "u-silent", name: "Silent" }),
+    ];
+    const result = assessCandidates({
+      match,
+      roster,
+      slotResponses: new Map([
+        ["u-booked", "yes"],
+        ["u-free", "if_need_be"],
+      ]),
+      assignments: [makeAssignment({ match_id: "m2", umpire_id: "u-booked" })],
+      matchesById: new Map([
+        [match.id, match],
+        [overlapping.id, overlapping],
+      ]),
+      workloadByUmpire: new Map(),
+    });
+    expect(result.map((c) => c.umpire_id)).toEqual([
+      "u-free",
+      "u-silent",
+      "u-booked",
+    ]);
+  });
+
   it("prefers the umpire with fewer confirmed assignments when otherwise equal", () => {
     const roster = [
       makeUmpire({ id: "u-heavy", name: "Heavy" }),

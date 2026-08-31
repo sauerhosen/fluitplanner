@@ -3,9 +3,11 @@ import { LoginForm } from "@/components/login-form";
 export default async function Page({
   searchParams,
 }: {
-  searchParams: Promise<{ next?: string }>;
+  searchParams: Promise<{ next?: string | string[] }>;
 }) {
-  const { next } = await searchParams;
+  const { next: rawNext } = await searchParams;
+  // A repeated ?next= param arrives as an array — take the first.
+  const next = Array.isArray(rawNext) ? rawNext[0] : rawNext;
   // Same-site paths only — a full URL here would be an open redirect. Reject
   // backslashes too: URL parsing normalizes "/\evil.example" to
   // "//evil.example", which is protocol-relative.

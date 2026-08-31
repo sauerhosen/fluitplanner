@@ -95,7 +95,9 @@ export async function registerDcrClient(
     client_uri: optionalString(body.client_uri),
     logo_uri: optionalString(body.logo_uri),
     redirect_uris: redirectUris,
-    metadata: body,
+    // Only validated fields are persisted — the endpoint is unauthenticated,
+    // so the raw body must not become unbounded stored data.
+    metadata: null,
   };
   const { error } = await createServiceClient()
     .from("oauth_clients")
@@ -246,7 +248,15 @@ export async function getClient(clientId: string): Promise<OauthClient | null> {
     return cached as unknown as OauthClient;
   }
 
-  const doc = await fetchCimdDocument(clientId);
+  let doc: Awaited<ReturnType<typeof fetchCimdDocument>>;
+  try {
+    doc = await fetchCimdDocument(clientId);
+  } catch (error) {
+    // A stale cache beats failing an already-authorized client because its
+    // metadata host had a transient outage (refresh grants go through here).
+    if (cached) return cached as unknown as OauthClient;
+    throw error;
+  }
   const row = {
     client_id: clientId,
     kind: "cimd",

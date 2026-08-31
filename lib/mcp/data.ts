@@ -46,6 +46,37 @@ function throwDb(error: { message: string } | null): void {
   if (error) throw new Error(error.message);
 }
 
+/**
+ * PostgREST sends filters in the query string, so a long `.in()` id list
+ * blows past URL length limits (~300 uuids is already too many). Run such
+ * lookups in batches and concatenate.
+ */
+const IN_BATCH_SIZE = 100;
+
+function batches<T>(items: T[]): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += IN_BATCH_SIZE) {
+    out.push(items.slice(i, i + IN_BATCH_SIZE));
+  }
+  return out;
+}
+
+async function selectInBatches<Row>(
+  ids: string[],
+  query: (batch: string[]) => PromiseLike<{
+    data: Row[] | null;
+    error: { message: string } | null;
+  }>,
+): Promise<Row[]> {
+  const rows: Row[] = [];
+  for (const batch of batches(ids)) {
+    const { data, error } = await query(batch);
+    throwDb(error);
+    rows.push(...(data ?? []));
+  }
+  return rows;
+}
+
 const TIME_ZONE = "Europe/Amsterdam";
 const localFormat = new Intl.DateTimeFormat("sv-SE", {
   timeZone: TIME_ZONE,
@@ -201,18 +232,19 @@ async function getPollGraph(
   throwDb(responsesRes.error);
 
   const matchIds = (pollMatchesRes.data ?? []).map((r) => r.match_id as string);
-  let matches: Match[] = [];
-  if (matchIds.length > 0) {
-    const { data, error } = await client
-      .from("matches")
-      .select("*")
-      .in("id", matchIds)
-      .eq("organization_id", ctx.organizationId)
-      .order("date")
-      .order("start_time");
-    throwDb(error);
-    matches = (data ?? []) as Match[];
-  }
+  const matches = (
+    await selectInBatches<Match>(matchIds, (batch) =>
+      client
+        .from("matches")
+        .select("*")
+        .in("id", batch)
+        .eq("organization_id", ctx.organizationId),
+    )
+  ).sort(
+    (a, b) =>
+      a.date.localeCompare(b.date) ||
+      (a.start_time ?? "").localeCompare(b.start_time ?? ""),
+  );
 
   const slots = (slotsRes.data ?? []) as PollSlot[];
   const responsesBySlot = new Map<
@@ -316,6 +348,10 @@ export async function getContext(ctx: McpPlannerContext) {
         .maybeSingle(),
     ]);
   throwDb(membershipsRes.error);
+  throwDb(rosterCount.error);
+  throwDb(openPolls.error);
+  throwDb(upcoming.error);
+  throwDb(settingsRes.error);
 
   const memberships = (membershipsRes.data ?? []).flatMap((row) => {
     const org = row.organizations as unknown as {
@@ -400,28 +436,28 @@ export async function listMatches(
   let matches = (data ?? []) as Match[];
 
   const matchIds = matches.map((m) => m.id);
-  const [pollLinks, assignments, roster] = await Promise.all([
-    matchIds.length
-      ? client
-          .from("poll_matches")
-          .select("poll_id, match_id")
-          .in("match_id", matchIds)
-      : Promise.resolve({ data: [], error: null }),
-    matchIds.length
-      ? client
+  const [pollLinkRows, assignmentRows, roster] = await Promise.all([
+    selectInBatches<{ poll_id: string; match_id: string }>(matchIds, (batch) =>
+      client
+        .from("poll_matches")
+        .select("poll_id, match_id")
+        .in("match_id", batch),
+    ),
+    selectInBatches<{ match_id: string; umpire_id: string; status: string }>(
+      matchIds,
+      (batch) =>
+        client
           .from("assignments")
           .select("match_id, umpire_id, status")
           .eq("organization_id", ctx.organizationId)
-          .in("match_id", matchIds)
-      : Promise.resolve({ data: [], error: null }),
+          .in("match_id", batch),
+    ),
     getRoster(client, ctx.organizationId),
   ]);
-  throwDb(pollLinks.error);
-  throwDb(assignments.error);
 
   const nameById = new Map(roster.map((u) => [u.id, u.name]));
   const pollsByMatch = new Map<string, string[]>();
-  for (const link of pollLinks.data ?? []) {
+  for (const link of pollLinkRows) {
     const list = pollsByMatch.get(link.match_id) ?? [];
     list.push(link.poll_id);
     pollsByMatch.set(link.match_id, list);
@@ -430,7 +466,7 @@ export async function listMatches(
     string,
     { umpire_id: string; name: string; status: string }[]
   >();
-  for (const a of assignments.data ?? []) {
+  for (const a of assignmentRows) {
     const list = assignedByMatch.get(a.match_id) ?? [];
     list.push({
       umpire_id: a.umpire_id,
@@ -545,6 +581,7 @@ export async function listPolls(ctx: McpPlannerContext) {
   throwDb(links.error);
   throwDb(slots.error);
   throwDb(responses.error);
+  throwDb(rosterCount.error);
 
   const matchCount = new Map<string, number>();
   for (const l of links.data ?? []) {
@@ -845,6 +882,8 @@ async function runPollCheck(
   ctx: McpPlannerContext,
   pollId: string,
   proposed: ProposedAssignment[],
+  /** Assignment row ids about to be replaced — checked as if already gone. */
+  excludeAssignmentIds?: Set<string>,
 ): Promise<{ issues: AssignmentIssue[]; graph: PollGraph }> {
   const graph = await getPollGraph(client, ctx, pollId);
   const [roster, assignments, matchesById] = await Promise.all([
@@ -857,7 +896,9 @@ async function runPollCheck(
     pollMatchIds: new Set(graph.matches.map((m) => m.id)),
     rosterById: new Map(roster.map((u) => [u.id, u])),
     matchesById,
-    existingAssignments: assignments,
+    existingAssignments: excludeAssignmentIds?.size
+      ? assignments.filter((a) => !excludeAssignmentIds.has(a.id))
+      : assignments,
     proposed,
     availabilityByMatchUmpire: buildAvailabilityMap(graph, roster),
   });
@@ -893,17 +934,34 @@ export async function setTentativeAssignments(
   const client = db();
   const poll = await getPollScoped(client, ctx, pollId);
 
+  // Replace mode never deletes up front: the check and insert run first, and
+  // the superseded rows are removed last — so a failure anywhere leaves the
+  // previous draft intact instead of destroying it with nothing written.
+  const proposalKeys = new Set(
+    proposed.map((p) => `${p.match_id}|${p.umpire_id}`),
+  );
+  let obsoleteTentative: { id: string }[] = [];
   if (replaceExistingTentative) {
-    const { error } = await client
+    const { data, error } = await client
       .from("assignments")
-      .delete()
+      .select("id, match_id, umpire_id")
       .eq("poll_id", poll.id)
       .eq("organization_id", ctx.organizationId)
       .eq("status", "tentative");
     throwDb(error);
+    // Re-proposed pairs keep their existing row; only the rest go.
+    obsoleteTentative = (data ?? []).filter(
+      (r) => !proposalKeys.has(`${r.match_id}|${r.umpire_id}`),
+    );
   }
 
-  const { issues } = await runPollCheck(client, ctx, pollId, proposed);
+  const { issues } = await runPollCheck(
+    client,
+    ctx,
+    pollId,
+    proposed,
+    new Set(obsoleteTentative.map((r) => r.id)),
+  );
 
   // Structural errors and duplicate/already-assigned pairs are skipped;
   // warnings (level, availability, same-day) are written anyway — they are
@@ -954,10 +1012,24 @@ export async function setTentativeAssignments(
     throwDb(error);
   }
 
+  if (obsoleteTentative.length > 0) {
+    for (const batch of batches(obsoleteTentative.map((r) => r.id))) {
+      const { error } = await client
+        .from("assignments")
+        .delete()
+        .in("id", batch)
+        .eq("organization_id", ctx.organizationId)
+        .eq("status", "tentative");
+      throwDb(error);
+    }
+  }
+
   return {
     created_tentative: toInsert.length,
     skipped: proposed.length - toInsert.length,
-    cleared_previous_tentative: replaceExistingTentative || undefined,
+    cleared_previous_tentative: replaceExistingTentative
+      ? obsoleteTentative.length
+      : undefined,
     errors: issues.filter((i) => i.severity === "error"),
     warnings: issues.filter((i) => i.severity === "warning"),
     note: "These assignments are tentative drafts. The planner reviews and confirms them in the Fluitplanner app; nothing is visible to umpires until confirmed there.",
@@ -1029,6 +1101,8 @@ export async function getAttentionItems(ctx: McpPlannerContext) {
   throwDb(openPollsRes.error);
   throwDb(reviewRes.error);
   throwDb(unpolledCandidatesRes.error);
+  throwDb(syncRes.error);
+  throwDb(rosterCount.error);
   const unpolledCandidateIds = (unpolledCandidatesRes.data ?? []).map(
     (m) => m.id as string,
   );
@@ -1429,12 +1503,16 @@ export async function createPollForPlanner(
     throw new McpUserError("At least one match is required.");
 
   const client = db();
-  const { data: matchRows, error: mError } = await client
-    .from("matches")
-    .select("id, start_time")
-    .in("id", uniqueIds)
-    .eq("organization_id", ctx.organizationId);
-  throwDb(mError);
+  const matchRows = await selectInBatches<{
+    id: string;
+    start_time: string | null;
+  }>(uniqueIds, (batch) =>
+    client
+      .from("matches")
+      .select("id, start_time")
+      .in("id", batch)
+      .eq("organization_id", ctx.organizationId),
+  );
   const found = new Set((matchRows ?? []).map((m) => m.id as string));
   const missing = uniqueIds.filter((id) => !found.has(id));
   if (missing.length > 0) {
@@ -1517,6 +1595,7 @@ export async function getSyncStatus(ctx: McpPlannerContext) {
       .order("date"),
   ]);
   throwDb(stateRes.error);
+  throwDb(trackedRes.error);
   throwDb(flaggedRes.error);
 
   const state = stateRes.data;
@@ -1593,31 +1672,35 @@ export async function listWithdrawals(ctx: McpPlannerContext, limit: number) {
   const matchIds = [...new Set(logs.map((l) => l.match_id).filter(Boolean))];
   const slotIds = [...new Set(logs.map((l) => l.slot_id).filter(Boolean))];
 
-  const [umpiresRes, matchesRes, slotsRes] = await Promise.all([
-    umpireIds.length
-      ? client.from("umpires").select("id, name").in("id", umpireIds)
-      : Promise.resolve({ data: [], error: null }),
-    matchIds.length
-      ? client
-          .from("matches")
-          .select("id, date, home_team, away_team")
-          .in("id", matchIds)
-          .eq("organization_id", ctx.organizationId)
-      : Promise.resolve({ data: [], error: null }),
-    slotIds.length
-      ? client
+  const [umpireRows, matchRows, slotRows] = await Promise.all([
+    selectInBatches<{ id: string; name: string }>(umpireIds, (batch) =>
+      client.from("umpires").select("id, name").in("id", batch),
+    ),
+    selectInBatches<{
+      id: string;
+      date: string;
+      home_team: string;
+      away_team: string;
+    }>(matchIds, (batch) =>
+      client
+        .from("matches")
+        .select("id, date, home_team, away_team")
+        .in("id", batch)
+        .eq("organization_id", ctx.organizationId),
+    ),
+    selectInBatches<{ id: string; start_time: string; end_time: string }>(
+      slotIds,
+      (batch) =>
+        client
           .from("poll_slots")
           .select("id, start_time, end_time")
-          .in("id", slotIds)
-      : Promise.resolve({ data: [], error: null }),
+          .in("id", batch),
+    ),
   ]);
-  throwDb(umpiresRes.error);
-  throwDb(matchesRes.error);
-  throwDb(slotsRes.error);
 
-  const nameById = new Map((umpiresRes.data ?? []).map((u) => [u.id, u.name]));
-  const matchById = new Map((matchesRes.data ?? []).map((m) => [m.id, m]));
-  const slotById = new Map((slotsRes.data ?? []).map((s) => [s.id, s]));
+  const nameById = new Map(umpireRows.map((u) => [u.id, u.name]));
+  const matchById = new Map(matchRows.map((m) => [m.id, m]));
+  const slotById = new Map(slotRows.map((s) => [s.id, s]));
 
   return {
     withdrawals: logs.map((l) => {
@@ -1668,21 +1751,22 @@ export async function getDaySheet(
   const matches = (matchRows ?? []) as Match[];
   const matchIds = matches.map((m) => m.id);
 
-  const [assignsRes, roster] = await Promise.all([
-    matchIds.length
-      ? client
+  const [assignmentRows, roster] = await Promise.all([
+    selectInBatches<{ match_id: string; umpire_id: string; status: string }>(
+      matchIds,
+      (batch) =>
+        client
           .from("assignments")
           .select("match_id, umpire_id, status")
           .eq("organization_id", ctx.organizationId)
-          .in("match_id", matchIds)
-      : Promise.resolve({ data: [], error: null }),
+          .in("match_id", batch),
+    ),
     getRoster(client, ctx.organizationId),
   ]);
-  throwDb(assignsRes.error);
   const nameById = new Map(roster.map((u) => [u.id, u.name]));
 
   const byMatch = new Map<string, { name: string; status: string }[]>();
-  for (const a of assignsRes.data ?? []) {
+  for (const a of assignmentRows) {
     const list = byMatch.get(a.match_id) ?? [];
     list.push({
       name: nameById.get(a.umpire_id) ?? a.umpire_id,

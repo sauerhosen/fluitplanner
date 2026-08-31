@@ -139,12 +139,15 @@ export function assessCandidates(args: {
   };
 
   results.sort((a, b) => {
+    // An overlapping booking rules a candidate out regardless of what they
+    // answered, so it outranks availability — keeping this list's "best
+    // first" consistent with summarizeGap's "ready" bucket.
     const hardA = a.conflicts.some((c) => c.kind === "overlapping_slot");
     const hardB = b.conflicts.some((c) => c.kind === "overlapping_slot");
     return (
+      Number(hardA) - Number(hardB) ||
       availabilityRank[a.availability] - availabilityRank[b.availability] ||
       Number(b.meets_level) - Number(a.meets_level) ||
-      Number(hardA) - Number(hardB) ||
       a.workload.confirmed - b.workload.confirmed ||
       a.name.localeCompare(b.name)
     );

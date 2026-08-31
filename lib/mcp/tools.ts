@@ -526,7 +526,7 @@ export function registerMcpTools(server: McpServer, ctx: McpPlannerContext) {
       description:
         "Draft a ready-to-paste reminder for the umpires who have not filled out an availability poll. The planner sends it themselves.",
       argsSchema: z.object({
-        poll_id: z.string().describe("Poll id (from list_polls)"),
+        poll_id: pollId,
         channel: z
           .string()
           .optional()
@@ -534,20 +534,31 @@ export function registerMcpTools(server: McpServer, ctx: McpPlannerContext) {
       }),
     },
     async (args) => {
-      const chase = await getChaseContext(ctx, args.poll_id);
-      const channel = args.channel === "email" ? "email" : "whatsapp";
+      // Same failure shape as run(): a bad poll id becomes a usable prompt
+      // message instead of a raw protocol error.
+      let text: string;
+      try {
+        const chase = await getChaseContext(ctx, args.poll_id);
+        const channel = args.channel === "email" ? "email" : "whatsapp";
+        text = `Draft a friendly ${channel} reminder (in the language the planner is speaking, Dutch by default) for the umpires of ${chase.club} who have not filled out the availability poll "${chase.poll_title ?? ""}".
+
+Data: ${JSON.stringify(chase)}
+
+Guidelines: keep it short and warm, never guilt-trip; include the poll link; if at_risk_slots is non-empty, mention concretely which moments still need people; offer both a group version and, if the list is small, a personal per-name version. End by reminding the planner that THEY send the message — nothing has been sent.`;
+      } catch (error) {
+        if (error instanceof McpUserError) {
+          text = `Tell the planner this chase message could not be prepared: ${error.message}`;
+        } else {
+          console.error("[mcp] draft_chase_message failed:", error);
+          text =
+            "Tell the planner the chase message could not be prepared because the request failed unexpectedly, and to try again.";
+        }
+      }
       return {
         messages: [
           {
             role: "user" as const,
-            content: {
-              type: "text" as const,
-              text: `Draft a friendly ${channel} reminder (in the language the planner is speaking, Dutch by default) for the umpires of ${chase.club} who have not filled out the availability poll "${chase.poll_title ?? ""}".
-
-Data: ${JSON.stringify(chase)}
-
-Guidelines: keep it short and warm, never guilt-trip; include the poll link; if at_risk_slots is non-empty, mention concretely which moments still need people; offer both a group version and, if the list is small, a personal per-name version. End by reminding the planner that THEY send the message — nothing has been sent.`,
-            },
+            content: { type: "text" as const, text },
           },
         ],
       };

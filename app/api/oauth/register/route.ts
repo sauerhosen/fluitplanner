@@ -3,9 +3,14 @@ import { corsPreflight, OAUTH_CORS_HEADERS } from "@/lib/oauth/metadata";
 
 /** Dynamic Client Registration (RFC 7591) — public clients, PKCE only. */
 export async function POST(request: Request) {
+  // The endpoint is unauthenticated — bound what it will even parse.
+  const raw = await request.text();
+  if (raw.length > 64 * 1024) {
+    return errorResponse("invalid_client_metadata", "Body too large");
+  }
   let body: Record<string, unknown>;
   try {
-    body = await request.json();
+    body = JSON.parse(raw);
   } catch {
     return errorResponse("invalid_client_metadata", "Body must be JSON");
   }
