@@ -1,12 +1,31 @@
-import { registerDcrClient, OauthClientError } from "@/lib/oauth/clients";
+import {
+  registerDcrClient,
+  readCappedText,
+  OauthClientError,
+  OauthRateLimitError,
+} from "@/lib/oauth/clients";
 import { corsPreflight, OAUTH_CORS_HEADERS } from "@/lib/oauth/metadata";
+
+const MAX_BODY_BYTES = 64 * 1024;
 
 /** Dynamic Client Registration (RFC 7591) — public clients, PKCE only. */
 export async function POST(request: Request) {
-  // The endpoint is unauthenticated — bound what it will even parse.
-  const raw = await request.text();
-  if (raw.length > 64 * 1024) {
+  // The endpoint is unauthenticated — bound what it will even parse. The
+  // declared length rejects the obvious case for free; readCappedText then
+  // enforces the cap while streaming, so an unlabeled or lying body can't
+  // buffer past it either.
+  const declaredLength = Number(request.headers.get("content-length"));
+  if (declaredLength > MAX_BODY_BYTES) {
     return errorResponse("invalid_client_metadata", "Body too large");
+  }
+  let raw: string;
+  try {
+    raw = await readCappedText(request, MAX_BODY_BYTES, "Body");
+  } catch (error) {
+    if (error instanceof OauthClientError) {
+      return errorResponse("invalid_client_metadata", "Body too large");
+    }
+    throw error;
   }
   let body: Record<string, unknown>;
   try {
@@ -27,6 +46,15 @@ export async function POST(request: Request) {
       headers: OAUTH_CORS_HEADERS,
     });
   } catch (error) {
+    if (error instanceof OauthRateLimitError) {
+      return Response.json(
+        { error: "rate_limited", error_description: error.message },
+        {
+          status: 429,
+          headers: { ...OAUTH_CORS_HEADERS, "Retry-After": "3600" },
+        },
+      );
+    }
     if (error instanceof OauthClientError) {
       return errorResponse("invalid_client_metadata", error.message);
     }

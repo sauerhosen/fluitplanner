@@ -1,4 +1,3 @@
-import { format, addDays } from "date-fns";
 import { nanoid } from "nanoid";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createServiceClient } from "@/lib/supabase/service";
@@ -89,8 +88,20 @@ function local(iso: string | null): string | null {
   return iso ? localFormat.format(new Date(iso)) : null;
 }
 
+const localDateFormat = new Intl.DateTimeFormat("sv-SE", {
+  timeZone: TIME_ZONE,
+  dateStyle: "short",
+});
+
+/** Today's calendar date in the club's timezone (the server may run UTC). */
 function today(): string {
-  return format(new Date(), "yyyy-MM-dd");
+  return localDateFormat.format(new Date());
+}
+
+function daysFromToday(days: number): string {
+  const d = new Date(`${today()}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
 }
 
 // ---------------------------------------------------------------------------
@@ -340,7 +351,7 @@ export async function getContext(ctx: McpPlannerContext) {
         .select("id", { count: "exact", head: true })
         .eq("organization_id", ctx.organizationId)
         .gte("date", today())
-        .lte("date", format(addDays(new Date(), 14), "yyyy-MM-dd")),
+        .lte("date", daysFromToday(14)),
       client
         .from("organization_settings")
         .select("availability_lock_mode")
@@ -987,6 +998,19 @@ export async function setTentativeAssignments(
       .map((i) => i.umpire_id),
   );
 
+  // A hard double-booking is an error, not a planner-overridable warning:
+  // the app's bulk-confirm promotes tentative rows without revalidation, so
+  // an overlapping draft must never be written. Block the umpire's pair on
+  // both matches of the clash.
+  const doubleBookedKeys = new Set<string>();
+  for (const i of issues) {
+    if (i.code !== "double_booking" || !i.umpire_id) continue;
+    if (i.match_id) doubleBookedKeys.add(`${i.match_id}|${i.umpire_id}`);
+    if (i.conflicting_match_id) {
+      doubleBookedKeys.add(`${i.conflicting_match_id}|${i.umpire_id}`);
+    }
+  }
+
   const seen = new Set<string>();
   const toInsert = proposed.filter((p) => {
     const key = `${p.match_id}|${p.umpire_id}`;
@@ -995,7 +1019,8 @@ export async function setTentativeAssignments(
     return (
       !blockedKeys.has(key) &&
       !blockedMatches.has(p.match_id) &&
-      !blockedUmpires.has(p.umpire_id)
+      !blockedUmpires.has(p.umpire_id) &&
+      !doubleBookedKeys.has(key)
     );
   });
 
@@ -1063,7 +1088,7 @@ export async function clearTentativeAssignments(
 export async function getAttentionItems(ctx: McpPlannerContext) {
   const client = db();
   const todayStr = today();
-  const weekLater = format(addDays(new Date(), 7), "yyyy-MM-dd");
+  const weekLater = daysFromToday(7);
 
   const [openPollsRes, reviewRes, unpolledCandidatesRes, syncRes, rosterCount] =
     await Promise.all([

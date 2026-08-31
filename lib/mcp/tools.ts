@@ -260,7 +260,7 @@ export function registerMcpTools(server: McpServer, ctx: McpPlannerContext) {
     {
       title: "Write tentative assignments",
       description:
-        "Write a drafted plan into a poll as tentative assignments for the planner to review and confirm in the app. Never touches confirmed assignments; pairs that already exist are skipped and reported. Set replace_existing_tentative to swap out the previous draft.",
+        "Write a drafted plan into a poll as tentative assignments for the planner to review and confirm in the app. Never touches confirmed assignments; pairs that already exist and pairs that would double-book an umpire are skipped and reported. Set replace_existing_tentative to swap out the previous draft.",
       inputSchema: z.object({
         poll_id: pollId,
         assignments: z

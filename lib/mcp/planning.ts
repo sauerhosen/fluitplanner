@@ -175,6 +175,8 @@ export type AssignmentIssue = {
   code: AssignmentIssueCode;
   match_id?: string;
   umpire_id?: string;
+  /** For clash issues: the other match in the pair. */
+  conflicting_match_id?: string;
   detail: string;
 };
 
@@ -371,6 +373,7 @@ export function checkAssignmentSet(args: {
               code: "double_booking",
               umpire_id: umpireId,
               match_id: matchA.id,
+              conflicting_match_id: matchB.id,
               detail: `Umpire is booked on matches ${matchA.id} and ${matchB.id} in overlapping time slots.`,
             });
             continue;
@@ -382,6 +385,7 @@ export function checkAssignmentSet(args: {
             code: "same_day",
             umpire_id: umpireId,
             match_id: matchA.id,
+            conflicting_match_id: matchB.id,
             detail: `Umpire has matches ${matchA.id} and ${matchB.id} on the same day (non-overlapping) — check venues and rest.`,
           });
         }

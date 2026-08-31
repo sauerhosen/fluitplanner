@@ -337,10 +337,13 @@ describe("checkAssignmentSet", () => {
       ],
       availability: [["m1", "u1", "yes"]],
     });
-    expect(issues.some((i) => i.code === "double_booking")).toBe(true);
-    expect(issues.find((i) => i.code === "double_booking")!.severity).toBe(
-      "error",
-    );
+    const clash = issues.find((i) => i.code === "double_booking")!;
+    expect(clash.severity).toBe("error");
+    // Both matches of the pair are identified so callers can block both.
+    expect([clash.match_id, clash.conflicting_match_id].sort()).toEqual([
+      "m1",
+      "m2",
+    ]);
   });
 
   it("audits the existing state when the proposal is empty", () => {

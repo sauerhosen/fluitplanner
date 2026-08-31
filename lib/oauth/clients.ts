@@ -13,6 +13,17 @@ export type OauthClient = {
 /** Client-facing validation errors (safe to echo in an OAuth error response). */
 export class OauthClientError extends Error {}
 
+/** Registration throttled — the route maps this to HTTP 429. */
+export class OauthRateLimitError extends Error {}
+
+/**
+ * Global backstop against unbounded growth of oauth_clients from the
+ * unauthenticated registration endpoint. Identical registrations are reused
+ * before this cap is consulted, so legitimate hosts (which send the same
+ * metadata every time) are unaffected.
+ */
+const DCR_REGISTRATIONS_PER_HOUR = 30;
+
 const MAX_REDIRECT_URIS = 10;
 const CIMD_FETCH_TIMEOUT_MS = 5_000;
 const CIMD_MAX_BYTES = 64 * 1024;
@@ -87,29 +98,87 @@ export async function registerDcrClient(
   body: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
   const redirectUris = validateRedirectUris(body.redirect_uris);
+  const db = createServiceClient();
+  const clientName = optionalString(body.client_name);
+  const clientUri = optionalString(body.client_uri);
+  const logoUri = optionalString(body.logo_uri);
+
+  // Public clients carry no secret, so an identical registration can safely
+  // reuse the existing client_id (codes stay bound to redirect_uri + PKCE).
+  // This keeps repeat registrations from the same host from growing the
+  // table.
+  let reuseQuery = db
+    .from("oauth_clients")
+    .select("client_id, client_uri, logo_uri, redirect_uris")
+    .eq("kind", "dcr")
+    .limit(20);
+  reuseQuery = clientName
+    ? reuseQuery.eq("client_name", clientName)
+    : reuseQuery.is("client_name", null);
+  const { data: existing, error: reuseError } = await reuseQuery;
+  if (reuseError) throw new Error(reuseError.message);
+  const sameUris = (a: string[], b: string[]) =>
+    a.length === b.length &&
+    [...a].sort().join("\n") === [...b].sort().join("\n");
+  const match = (existing ?? []).find(
+    (row) =>
+      sameUris(row.redirect_uris as string[], redirectUris) &&
+      (row.client_uri ?? null) === clientUri &&
+      (row.logo_uri ?? null) === logoUri,
+  );
+  if (match) {
+    return dcrResponse(
+      match.client_id as string,
+      clientName,
+      clientUri,
+      logoUri,
+      redirectUris,
+    );
+  }
+
+  const hourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  const { count, error: countError } = await db
+    .from("oauth_clients")
+    .select("client_id", { count: "exact", head: true })
+    .eq("kind", "dcr")
+    .gt("created_at", hourAgo);
+  if (countError) throw new Error(countError.message);
+  if ((count ?? 0) >= DCR_REGISTRATIONS_PER_HOUR) {
+    throw new OauthRateLimitError(
+      "Too many client registrations; try again later",
+    );
+  }
+
   const clientId = generateDcrClientId();
-  const row = {
+  const { error } = await db.from("oauth_clients").insert({
     client_id: clientId,
     kind: "dcr",
-    client_name: optionalString(body.client_name),
-    client_uri: optionalString(body.client_uri),
-    logo_uri: optionalString(body.logo_uri),
+    client_name: clientName,
+    client_uri: clientUri,
+    logo_uri: logoUri,
     redirect_uris: redirectUris,
     // Only validated fields are persisted — the endpoint is unauthenticated,
     // so the raw body must not become unbounded stored data.
     metadata: null,
-  };
-  const { error } = await createServiceClient()
-    .from("oauth_clients")
-    .insert(row);
+  });
   if (error) throw new Error(error.message);
 
+  return dcrResponse(clientId, clientName, clientUri, logoUri, redirectUris);
+}
+
+function dcrResponse(
+  clientId: string,
+  clientName: string | null,
+  clientUri: string | null,
+  logoUri: string | null,
+  redirectUris: string[],
+): Record<string, unknown> {
   return {
     client_id: clientId,
     client_id_issued_at: Math.floor(Date.now() / 1000),
-    client_name: row.client_name ?? undefined,
-    client_uri: row.client_uri ?? undefined,
-    logo_uri: row.logo_uri ?? undefined,
+    client_name: clientName ?? undefined,
+    client_uri: clientUri ?? undefined,
+    logo_uri: logoUri ?? undefined,
     redirect_uris: redirectUris,
     token_endpoint_auth_method: "none",
     grant_types: ["authorization_code", "refresh_token"],
@@ -138,28 +207,36 @@ export function isCimdClientId(clientId: string): boolean {
 }
 
 /**
- * Read a response body without buffering past the size cap: count bytes as
- * chunks arrive and cancel the stream the moment the limit is exceeded, so a
- * hostile endpoint cannot force an oversized allocation.
+ * Read a Request/Response body without buffering past the size cap: count
+ * bytes as chunks arrive and cancel the stream the moment the limit is
+ * exceeded, so a hostile peer cannot force an oversized allocation.
+ * Throws OauthClientError("<what> is too large") past the cap.
  */
-async function readBodyCapped(res: Response): Promise<string> {
-  if (!res.body) {
-    const text = await res.text();
-    if (text.length > CIMD_MAX_BYTES) {
-      throw new OauthClientError("Client metadata document is too large");
+export async function readCappedText(
+  source: {
+    body: ReadableStream<Uint8Array> | null;
+    text(): Promise<string>;
+  },
+  maxBytes: number,
+  what: string,
+): Promise<string> {
+  if (!source.body) {
+    const text = await source.text();
+    if (text.length > maxBytes) {
+      throw new OauthClientError(`${what} is too large`);
     }
     return text;
   }
-  const reader = res.body.getReader();
+  const reader = source.body.getReader();
   const chunks: Uint8Array[] = [];
   let size = 0;
   for (;;) {
     const { done, value } = await reader.read();
     if (done) break;
     size += value.byteLength;
-    if (size > CIMD_MAX_BYTES) {
+    if (size > maxBytes) {
       await reader.cancel();
-      throw new OauthClientError("Client metadata document is too large");
+      throw new OauthClientError(`${what} is too large`);
     }
     chunks.push(value);
   }
@@ -190,7 +267,11 @@ async function fetchCimdDocument(url: string): Promise<{
       `Client metadata document returned HTTP ${res.status}`,
     );
   }
-  const text = await readBodyCapped(res);
+  const text = await readCappedText(
+    res,
+    CIMD_MAX_BYTES,
+    "Client metadata document",
+  );
   let doc: Record<string, unknown>;
   try {
     doc = JSON.parse(text);
