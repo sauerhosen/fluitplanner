@@ -541,7 +541,21 @@
     "status": "Status",
     "invalidSlug": "Invalid slug: must be lowercase alphanumeric with hyphens, at least 2 characters",
     "saving": "Saving...",
-    "errorOccurred": "An error occurred. Please try again."
+    "errorOccurred": "An error occurred. Please try again.",
+    "pendingInvite": "Pending invite",
+    "resendInvite": "Resend invite",
+    "revokeInvite": "Revoke invite",
+    "deleteUser": "Delete user",
+    "actionsFor": "Actions for {email}",
+    "inviteResent": "Invite re-sent to {email}.",
+    "confirmRevokeInvite": "Revoke the pending invite for {email}? Their account will be removed.",
+    "confirmDeleteUser": "Permanently delete {email}? If they created matches or umpires, the account is disabled instead so that data is kept.",
+    "disabled": "Disabled",
+    "disableUser": "Disable user",
+    "enableUser": "Enable user",
+    "confirmDisableUser": "Disable {email}? They lose access to every club and can no longer sign in.",
+    "userDisabledInstead": "{email} created matches or umpires that still exist, so the account was disabled instead of deleted.",
+    "listOutOfDate": "Done, but the list could not be refreshed. Reload the page to see the current state."
   },
   "noAccess": {
     "title": "No Access",

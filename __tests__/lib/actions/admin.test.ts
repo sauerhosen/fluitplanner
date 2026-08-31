@@ -44,6 +44,8 @@ vi.mock("@/lib/supabase/server", () => ({
 const mockListUsers = vi.fn();
 const mockInviteUserByEmail = vi.fn();
 const mockUpdateUserById = vi.fn();
+const mockGetUserById = vi.fn();
+const mockDeleteUser = vi.fn();
 
 const mockServiceSelect = vi.fn();
 const mockServiceInsert = vi.fn();
@@ -66,6 +68,7 @@ function serviceChainable() {
 }
 
 const mockServiceFrom = vi.fn(() => serviceChainable());
+const mockServiceRpc = vi.fn();
 
 vi.mock("@/lib/supabase/service", () => ({
   createServiceClient: vi.fn(() => ({
@@ -74,9 +77,12 @@ vi.mock("@/lib/supabase/service", () => ({
         listUsers: mockListUsers,
         inviteUserByEmail: mockInviteUserByEmail,
         updateUserById: mockUpdateUserById,
+        getUserById: mockGetUserById,
+        deleteUser: mockDeleteUser,
       },
     },
     from: mockServiceFrom,
+    rpc: mockServiceRpc,
   })),
 }));
 
@@ -97,7 +103,10 @@ function resetChain() {
     mockListUsers,
     mockInviteUserByEmail,
     mockUpdateUserById,
+    mockGetUserById,
+    mockDeleteUser,
     mockServiceFrom,
+    mockServiceRpc,
     mockServiceSelect,
     mockServiceInsert,
     mockServiceUpdate,
@@ -125,10 +134,11 @@ function resetChain() {
   mockServiceEq.mockReturnValue(serviceChainable());
   mockServiceOrder.mockReturnValue(serviceChainable());
   mockServiceSingle.mockResolvedValue({ data: null, error: null });
+  mockServiceRpc.mockResolvedValue({ data: false, error: null });
   mockIsRootDomain.mockResolvedValue(true);
   mockGetUser.mockResolvedValue({
     data: {
-      user: { id: "user-1", user_metadata: { is_master_admin: true } },
+      user: { id: "user-1", app_metadata: { is_master_admin: true } },
     },
     error: null,
   });
@@ -157,7 +167,23 @@ describe("requireMasterAdmin", () => {
 
   it("throws when user doesn't have is_master_admin metadata", async () => {
     mockGetUser.mockResolvedValue({
-      data: { user: { id: "user-1", user_metadata: {} } },
+      data: { user: { id: "user-1", app_metadata: {} } },
+      error: null,
+    });
+    const { getOrganizations } = await import("@/lib/actions/admin");
+    await expect(getOrganizations()).rejects.toThrow("Not a master admin");
+  });
+
+  it("ignores a self-assigned user_metadata flag", async () => {
+    // user_metadata is writable by the user itself, so it must never grant access
+    mockGetUser.mockResolvedValue({
+      data: {
+        user: {
+          id: "user-1",
+          app_metadata: {},
+          user_metadata: { is_master_admin: true },
+        },
+      },
       error: null,
     });
     const { getOrganizations } = await import("@/lib/actions/admin");
@@ -350,13 +376,18 @@ describe("getUsers", () => {
             id: "user-a",
             email: "a@example.com",
             created_at: "2026-01-01",
-            user_metadata: { is_master_admin: true },
+            email_confirmed_at: "2026-01-01",
+            banned_until: null,
+            app_metadata: { is_master_admin: true },
+            user_metadata: {},
           },
           {
             id: "user-b",
             email: "b@example.com",
             created_at: "2026-01-02",
-            user_metadata: {},
+            email_confirmed_at: "2026-01-02",
+            app_metadata: {},
+            user_metadata: { is_master_admin: true },
           },
         ],
       },
@@ -393,11 +424,13 @@ describe("getUsers", () => {
     expect(result[0].id).toBe("user-a");
     expect(result[0].email).toBe("a@example.com");
     expect(result[0].is_master_admin).toBe(true);
+    expect(result[0].is_disabled).toBe(false);
     expect(result[0].memberships).toHaveLength(1);
     expect(result[0].memberships[0].organization_name).toBe("Club Alpha");
     expect(result[0].memberships[0].role).toBe("planner");
 
     expect(result[1].id).toBe("user-b");
+    // user_metadata flag is self-assignable and must not be reported as admin
     expect(result[1].is_master_admin).toBe(false);
     expect(result[1].memberships).toHaveLength(2);
   });
@@ -410,7 +443,8 @@ describe("getUsers", () => {
             id: "user-lonely",
             email: "lonely@example.com",
             created_at: "2026-01-01",
-            user_metadata: {},
+            email_confirmed_at: "2026-01-01",
+            app_metadata: {},
           },
         ],
       },
@@ -424,6 +458,42 @@ describe("getUsers", () => {
 
     expect(result).toHaveLength(1);
     expect(result[0].memberships).toEqual([]);
+  });
+
+  it("reports a banned account as disabled", async () => {
+    const future = new Date(Date.now() + 86_400_000).toISOString();
+    const past = new Date(Date.now() - 86_400_000).toISOString();
+    mockListUsers.mockResolvedValue({
+      data: {
+        users: [
+          {
+            id: "banned",
+            email: "banned@example.com",
+            created_at: "2026-01-01",
+            email_confirmed_at: "2026-01-01",
+            banned_until: future,
+            app_metadata: {},
+          },
+          {
+            id: "expired-ban",
+            email: "back@example.com",
+            created_at: "2026-01-01",
+            email_confirmed_at: "2026-01-01",
+            banned_until: past,
+            app_metadata: {},
+          },
+        ],
+      },
+      error: null,
+    });
+    mockServiceSelect.mockResolvedValue({ data: [], error: null });
+
+    const { getUsers } = await import("@/lib/actions/admin");
+    const result = await getUsers();
+
+    expect(result[0].is_disabled).toBe(true);
+    // A ban that has already lapsed is not a disabled account
+    expect(result[1].is_disabled).toBe(false);
   });
 
   it("throws when memberships query fails", async () => {
@@ -476,5 +546,406 @@ describe("removeUserFromOrg", () => {
     await expect(removeUserFromOrg("user-1", "org-1")).rejects.toThrow(
       "Delete failed",
     );
+  });
+});
+
+/* ================================================================== */
+/*  updateMemberRole                                                   */
+/* ================================================================== */
+
+describe("updateMemberRole", () => {
+  it("updates the role on the membership row", async () => {
+    mockServiceEq
+      .mockReturnValueOnce(serviceChainable())
+      .mockResolvedValueOnce({ data: null, error: null });
+
+    const { updateMemberRole } = await import("@/lib/actions/admin");
+    await updateMemberRole("user-1", "org-1", "viewer");
+
+    expect(mockServiceFrom).toHaveBeenCalledWith("organization_members");
+    expect(mockServiceUpdate).toHaveBeenCalledWith({ role: "viewer" });
+    expect(mockServiceEq).toHaveBeenCalledWith("user_id", "user-1");
+    expect(mockServiceEq).toHaveBeenCalledWith("organization_id", "org-1");
+  });
+
+  it("rejects a role outside the schema's allowed values", async () => {
+    const { updateMemberRole } = await import("@/lib/actions/admin");
+    await expect(
+      // @ts-expect-error deliberately passing an invalid role
+      updateMemberRole("user-1", "org-1", "owner"),
+    ).rejects.toThrow("Invalid role");
+    expect(mockServiceUpdate).not.toHaveBeenCalled();
+  });
+
+  it("throws when the update fails", async () => {
+    mockServiceEq
+      .mockReturnValueOnce(serviceChainable())
+      .mockResolvedValueOnce({ data: null, error: { message: "nope" } });
+
+    const { updateMemberRole } = await import("@/lib/actions/admin");
+    await expect(
+      updateMemberRole("user-1", "org-1", "planner"),
+    ).rejects.toThrow("nope");
+  });
+});
+
+/* ================================================================== */
+/*  resendInvite                                                       */
+/* ================================================================== */
+
+describe("resendInvite", () => {
+  it("re-invites a pending user and restores their target org", async () => {
+    mockGetUserById.mockResolvedValue({
+      data: {
+        user: {
+          id: "user-2",
+          email: "pending@example.com",
+          email_confirmed_at: null,
+          app_metadata: { invited_to_org: "org-9" },
+        },
+      },
+      error: null,
+    });
+    mockInviteUserByEmail.mockResolvedValue({
+      data: { user: { id: "user-2" } },
+      error: null,
+    });
+    mockUpdateUserById.mockResolvedValue({ data: {}, error: null });
+
+    const { resendInvite } = await import("@/lib/actions/admin");
+    await resendInvite("user-2");
+
+    expect(mockInviteUserByEmail).toHaveBeenCalledWith("pending@example.com");
+    expect(mockUpdateUserById).toHaveBeenCalledWith("user-2", {
+      app_metadata: { invited_to_org: "org-9" },
+    });
+  });
+
+  it("refuses to re-invite a user who already accepted", async () => {
+    mockGetUserById.mockResolvedValue({
+      data: {
+        user: {
+          id: "user-3",
+          email: "active@example.com",
+          email_confirmed_at: "2026-03-01",
+          app_metadata: {},
+        },
+      },
+      error: null,
+    });
+
+    const { resendInvite } = await import("@/lib/actions/admin");
+    await expect(resendInvite("user-3")).rejects.toThrow(
+      "User has already accepted their invite",
+    );
+    expect(mockInviteUserByEmail).not.toHaveBeenCalled();
+  });
+});
+
+/* ================================================================== */
+/*  revokePendingInvite                                                */
+/* ================================================================== */
+
+describe("revokePendingInvite", () => {
+  it("deletes memberships then the pending auth user", async () => {
+    mockGetUserById.mockResolvedValue({
+      data: {
+        user: {
+          id: "user-2",
+          email: "pending@example.com",
+          email_confirmed_at: null,
+        },
+      },
+      error: null,
+    });
+    mockServiceEq.mockResolvedValue({ data: null, error: null });
+    mockDeleteUser.mockResolvedValue({ data: null, error: null });
+
+    const { revokePendingInvite } = await import("@/lib/actions/admin");
+    await revokePendingInvite("user-2");
+
+    expect(mockServiceFrom).toHaveBeenCalledWith("organization_members");
+    expect(mockServiceDelete).toHaveBeenCalled();
+    expect(mockServiceEq).toHaveBeenCalledWith("user_id", "user-2");
+    expect(mockDeleteUser).toHaveBeenCalledWith("user-2");
+  });
+
+  it("refuses to revoke the signed-in master admin's own invite", async () => {
+    const { revokePendingInvite } = await import("@/lib/actions/admin");
+    await expect(revokePendingInvite("user-1")).rejects.toThrow(
+      "You cannot revoke your own invite",
+    );
+    expect(mockDeleteUser).not.toHaveBeenCalled();
+  });
+
+  it("refuses to revoke an accepted user", async () => {
+    mockGetUserById.mockResolvedValue({
+      data: {
+        user: {
+          id: "user-3",
+          email: "active@example.com",
+          email_confirmed_at: "2026-03-01",
+        },
+      },
+      error: null,
+    });
+
+    const { revokePendingInvite } = await import("@/lib/actions/admin");
+    await expect(revokePendingInvite("user-3")).rejects.toThrow(
+      "User has already accepted their invite",
+    );
+    expect(mockDeleteUser).not.toHaveBeenCalled();
+  });
+});
+
+/* ================================================================== */
+/*  deleteUser                                                         */
+/* ================================================================== */
+
+describe("deleteUser", () => {
+  it("deletes memberships then the auth user", async () => {
+    mockServiceEq.mockResolvedValue({ data: null, error: null });
+    mockDeleteUser.mockResolvedValue({ data: null, error: null });
+
+    const { deleteUser } = await import("@/lib/actions/admin");
+    await deleteUser("user-2");
+
+    expect(mockServiceFrom).toHaveBeenCalledWith("organization_members");
+    expect(mockServiceDelete).toHaveBeenCalled();
+    expect(mockServiceEq).toHaveBeenCalledWith("user_id", "user-2");
+    expect(mockDeleteUser).toHaveBeenCalledWith("user-2");
+  });
+
+  it("refuses to delete the signed-in master admin", async () => {
+    const { deleteUser } = await import("@/lib/actions/admin");
+    await expect(deleteUser("user-1")).rejects.toThrow(
+      "You cannot delete your own account",
+    );
+    expect(mockDeleteUser).not.toHaveBeenCalled();
+  });
+
+  it("reports a plain delete as deleted", async () => {
+    mockServiceEq.mockResolvedValue({ data: null, error: null });
+    mockDeleteUser.mockResolvedValue({ data: null, error: null });
+
+    const { deleteUser } = await import("@/lib/actions/admin");
+    await expect(deleteUser("user-2")).resolves.toEqual({
+      outcome: "deleted",
+    });
+    expect(mockUpdateUserById).not.toHaveBeenCalled();
+  });
+
+  it("disables the account when records still reference it", async () => {
+    mockServiceEq.mockResolvedValue({ data: null, error: null });
+    // GoTrue hides the underlying Postgres error behind a generic 500
+    mockDeleteUser.mockResolvedValue({
+      data: null,
+      error: { message: "Database error deleting user", status: 500 },
+    });
+    mockServiceRpc.mockResolvedValue({ data: true, error: null });
+    mockUpdateUserById.mockResolvedValue({ data: {}, error: null });
+
+    const { deleteUser } = await import("@/lib/actions/admin");
+    await expect(deleteUser("user-2")).resolves.toEqual({
+      outcome: "disabled",
+    });
+
+    expect(mockServiceRpc).toHaveBeenCalledWith("auth_user_is_referenced", {
+      target_user: "user-2",
+    });
+    // Banned indefinitely rather than deleted, so the created_by rows survive
+    expect(mockUpdateUserById).toHaveBeenCalledWith("user-2", {
+      ban_duration: "876000h",
+    });
+  });
+
+  it("throws when the delete failed but nothing references the account", async () => {
+    mockServiceEq.mockResolvedValue({ data: null, error: null });
+    mockDeleteUser.mockResolvedValue({
+      data: null,
+      error: { message: "Database error deleting user", status: 500 },
+    });
+    mockServiceRpc.mockResolvedValue({ data: false, error: null });
+
+    const { deleteUser } = await import("@/lib/actions/admin");
+    await expect(deleteUser("user-2")).rejects.toThrow(
+      "Database error deleting user",
+    );
+    expect(mockUpdateUserById).not.toHaveBeenCalled();
+  });
+
+  it("puts the memberships back when the account survives a failed delete", async () => {
+    // First .eq() is the snapshot read, second is the membership delete.
+    mockServiceEq
+      .mockResolvedValueOnce({
+        data: [{ organization_id: "org-1", role: "planner" }],
+        error: null,
+      })
+      .mockResolvedValue({ data: null, error: null });
+    mockDeleteUser.mockResolvedValue({
+      data: null,
+      error: { message: "Database error deleting user", status: 500 },
+    });
+    mockServiceRpc.mockResolvedValue({ data: false, error: null });
+
+    const { deleteUser } = await import("@/lib/actions/admin");
+    await expect(deleteUser("user-2")).rejects.toThrow(
+      "Database error deleting user",
+    );
+    expect(mockServiceInsert).toHaveBeenCalledWith([
+      { organization_id: "org-1", role: "planner", user_id: "user-2" },
+    ]);
+  });
+
+  it("says so when the memberships could not be put back", async () => {
+    mockServiceEq
+      .mockResolvedValueOnce({
+        data: [{ organization_id: "org-1", role: "planner" }],
+        error: null,
+      })
+      .mockResolvedValue({ data: null, error: null });
+    mockServiceInsert.mockResolvedValue({
+      data: null,
+      error: { message: "insert failed" },
+    });
+    mockDeleteUser.mockResolvedValue({
+      data: null,
+      error: { message: "Database error deleting user", status: 500 },
+    });
+    mockServiceRpc.mockResolvedValue({ data: false, error: null });
+
+    const { deleteUser } = await import("@/lib/actions/admin");
+    await expect(deleteUser("user-2")).rejects.toThrow(
+      "club memberships could not be restored",
+    );
+  });
+
+  it("throws rather than guessing when the reference probe itself fails", async () => {
+    mockServiceEq.mockResolvedValue({ data: null, error: null });
+    mockDeleteUser.mockResolvedValue({
+      data: null,
+      error: { message: "Database error deleting user", status: 500 },
+    });
+    mockServiceRpc.mockResolvedValue({
+      data: null,
+      error: { message: "rpc unavailable" },
+    });
+
+    const { deleteUser } = await import("@/lib/actions/admin");
+    await expect(deleteUser("user-2")).rejects.toThrow(
+      "Database error deleting user",
+    );
+    expect(mockUpdateUserById).not.toHaveBeenCalled();
+  });
+});
+
+/* ================================================================== */
+/*  disableUser / enableUser                                           */
+/* ================================================================== */
+
+describe("disableUser", () => {
+  it("strips club memberships before making the ban stick", async () => {
+    mockServiceEq.mockResolvedValue({ data: [], error: null });
+    mockUpdateUserById.mockResolvedValue({ data: {}, error: null });
+
+    const { disableUser } = await import("@/lib/actions/admin");
+    await disableUser("user-2");
+
+    expect(mockUpdateUserById).toHaveBeenCalledWith("user-2", {
+      ban_duration: "876000h",
+    });
+    expect(mockServiceFrom).toHaveBeenCalledWith("organization_members");
+    expect(mockServiceDelete).toHaveBeenCalled();
+    expect(mockServiceEq).toHaveBeenCalledWith("user_id", "user-2");
+
+    // Order matters: a ban alone does not cut club access for an already
+    // issued token — dropping the memberships is what RLS acts on.
+    expect(mockServiceDelete.mock.invocationCallOrder[0]).toBeLessThan(
+      mockUpdateUserById.mock.invocationCallOrder[0],
+    );
+  });
+
+  it("puts the memberships back when the ban fails", async () => {
+    // First .eq() is the snapshot read, the rest are the delete.
+    mockServiceEq
+      .mockResolvedValueOnce({
+        data: [{ organization_id: "org-1", role: "planner" }],
+        error: null,
+      })
+      .mockResolvedValue({ data: null, error: null });
+    mockUpdateUserById.mockResolvedValue({
+      data: null,
+      error: { message: "ban failed" },
+    });
+
+    const { disableUser } = await import("@/lib/actions/admin");
+    await expect(disableUser("user-2")).rejects.toThrow("ban failed");
+
+    expect(mockServiceInsert).toHaveBeenCalledWith([
+      { organization_id: "org-1", role: "planner", user_id: "user-2" },
+    ]);
+  });
+
+  it("never bans when the memberships could not be removed", async () => {
+    mockServiceEq
+      .mockResolvedValueOnce({ data: [], error: null })
+      .mockResolvedValue({ data: null, error: { message: "delete failed" } });
+
+    const { disableUser } = await import("@/lib/actions/admin");
+    await expect(disableUser("user-2")).rejects.toThrow("delete failed");
+    expect(mockUpdateUserById).not.toHaveBeenCalled();
+  });
+
+  it("refuses to disable the signed-in master admin", async () => {
+    const { disableUser } = await import("@/lib/actions/admin");
+    await expect(disableUser("user-1")).rejects.toThrow(
+      "You cannot disable your own account",
+    );
+    expect(mockUpdateUserById).not.toHaveBeenCalled();
+  });
+
+  it("says so when the memberships could not be put back either", async () => {
+    mockServiceEq
+      .mockResolvedValueOnce({
+        data: [{ organization_id: "org-1", role: "planner" }],
+        error: null,
+      })
+      .mockResolvedValue({ data: null, error: null });
+    mockServiceInsert.mockResolvedValue({
+      data: null,
+      error: { message: "insert failed" },
+    });
+    mockUpdateUserById.mockResolvedValue({
+      data: null,
+      error: { message: "ban failed" },
+    });
+
+    const { disableUser } = await import("@/lib/actions/admin");
+    await expect(disableUser("user-2")).rejects.toThrow(
+      "club memberships could not be restored",
+    );
+  });
+});
+
+describe("enableUser", () => {
+  it("lifts the ban", async () => {
+    mockUpdateUserById.mockResolvedValue({ data: {}, error: null });
+
+    const { enableUser } = await import("@/lib/actions/admin");
+    await enableUser("user-2");
+
+    expect(mockUpdateUserById).toHaveBeenCalledWith("user-2", {
+      ban_duration: "none",
+    });
+  });
+
+  it("throws when lifting the ban fails", async () => {
+    mockUpdateUserById.mockResolvedValue({
+      data: null,
+      error: { message: "unban failed" },
+    });
+
+    const { enableUser } = await import("@/lib/actions/admin");
+    await expect(enableUser("user-2")).rejects.toThrow("unban failed");
   });
 });
