@@ -1,5 +1,23 @@
 # Changelog
 
+## [2.18.0](https://github.com/sauerhosen/fluitplanner/compare/v2.17.0...v2.18.0) (2026-08-31)
+
+
+### Features
+
+* disable accounts that cannot be deleted instead of failing ([872e6ec](https://github.com/sauerhosen/fluitplanner/commit/872e6ec8180ed9ca5b1bbc893dc7daa7323d22b9))
+* master admin can manage planners across clubs ([fe5368b](https://github.com/sauerhosen/fluitplanner/commit/fe5368bd2a0b55e15ad1972c789bae4db0c7884c))
+* move master admin flag to app_metadata and complete user CRUD ([4e1056a](https://github.com/sauerhosen/fluitplanner/commit/4e1056a1be1e679e8f75d0765f40e05db314e08e))
+
+
+### Bug Fixes
+
+* add a primary action for inviting a new planner ([9660f96](https://github.com/sauerhosen/fluitplanner/commit/9660f967b57b460f4e653b8f5c15c9342da42ae7))
+* address code review findings on user administration ([668dfa9](https://github.com/sauerhosen/fluitplanner/commit/668dfa96ccada375b06a14de55b34f852ad9ecc6))
+* clear memberships before banning in disableUser ([baaf851](https://github.com/sauerhosen/fluitplanner/commit/baaf851a253178f6a0f4de2dba67061350710428))
+* report swallowed admin API errors and keep the retired flag auditable ([304644a](https://github.com/sauerhosen/fluitplanner/commit/304644aa8f7015e4be119f61958af01508f6e8d1))
+* restrict master admin backfill to an allow list ([d0d2375](https://github.com/sauerhosen/fluitplanner/commit/d0d2375ad9a5032e3d0ee34d8c76f74dfc13ea02))
+
 ## [2.17.0](https://github.com/sauerhosen/fluitplanner/compare/v2.16.0...v2.17.0) (2026-08-29)
 
 
