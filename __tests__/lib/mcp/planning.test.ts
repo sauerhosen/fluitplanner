@@ -3,6 +3,8 @@ import {
   assessCandidates,
   checkAssignmentSet,
   summarizeGap,
+  findSwapChains,
+  summarizeSeason,
   assessSlotRisk,
   availabilityKey,
   EMPTY_WORKLOAD,
@@ -487,5 +489,170 @@ describe("summarizeGap", () => {
     ]);
     expect(summary.said_no).toHaveLength(1);
     expect(summary.booked_elsewhere).toHaveLength(0);
+  });
+});
+
+describe("findSwapChains", () => {
+  const target = makeMatch({ id: "t1", start_time: "2026-03-15T11:00:00Z" });
+  const blocking = makeMatch({ id: "m2", start_time: "2026-03-15T11:30:00Z" });
+  const roster = [
+    makeUmpire({ id: "u-mover", name: "Mover" }),
+    makeUmpire({ id: "u-backfill", name: "Backfill" }),
+  ];
+  const matchesById = new Map([
+    [target.id, target],
+    [blocking.id, blocking],
+  ]);
+
+  function chainsFor(over: {
+    blockingStatus?: "tentative" | "confirmed";
+    blockingPoll?: string;
+    backfillAnswerForTarget?: AvailabilityAnswer;
+  }) {
+    const blockingAssignment = makeAssignment({
+      match_id: "m2",
+      umpire_id: "u-mover",
+      status: over.blockingStatus ?? "tentative",
+      poll_id: over.blockingPoll ?? "poll-1",
+    });
+    const candidates = assessCandidates({
+      match: target,
+      roster,
+      slotResponses: new Map([
+        ["u-mover", "yes"],
+        // backfill's answer for the TARGET slot decides direct-readiness
+        ...(over.backfillAnswerForTarget === "yes"
+          ? ([["u-backfill", "yes"]] as ["u-backfill", "yes"][])
+          : []),
+      ]),
+      assignments: [blockingAssignment],
+      matchesById,
+      workloadByUmpire: new Map(),
+    });
+    return findSwapChains({
+      targetMatchId: "t1",
+      candidates,
+      pollAssignments:
+        blockingAssignment.poll_id === "poll-1" ? [blockingAssignment] : [],
+      matchesById,
+      rosterById: new Map(roster.map((u) => [u.id, u])),
+      availabilityByMatchUmpire: new Map([
+        [availabilityKey("m2", "u-backfill"), "yes"],
+        [availabilityKey("t1", "u-mover"), "yes"],
+      ]),
+      allAssignments: [blockingAssignment],
+      workloadByUmpire: new Map(),
+      maxChains: 5,
+    });
+  }
+
+  it("finds a one-move chain freeing a blocked yes", () => {
+    const chains = chainsFor({});
+    expect(chains).toHaveLength(1);
+    expect(chains[0].move).toMatchObject({
+      umpire_id: "u-mover",
+      from_match_id: "m2",
+      to_match_id: "t1",
+      blocking_assignment_status: "tentative",
+    });
+    expect(chains[0].backfill).toMatchObject({
+      umpire_id: "u-backfill",
+      for_match_id: "m2",
+      availability: "yes",
+    });
+  });
+
+  it("reports a confirmed blocker as app-only", () => {
+    const chains = chainsFor({ blockingStatus: "confirmed" });
+    expect(chains[0].move.blocking_assignment_status).toBe("confirmed");
+  });
+
+  it("skips blockers whose booking lives in another poll", () => {
+    expect(chainsFor({ blockingPoll: "poll-other" })).toHaveLength(0);
+  });
+
+  it("excludes backfills who could take the target directly", () => {
+    expect(chainsFor({ backfillAnswerForTarget: "yes" })).toHaveLength(0);
+  });
+
+  it("excludes backfills already on the blocking match via another poll", () => {
+    const blockingAssignment = makeAssignment({
+      match_id: "m2",
+      umpire_id: "u-mover",
+      status: "tentative",
+      poll_id: "poll-1",
+    });
+    const crossPoll = makeAssignment({
+      match_id: "m2",
+      umpire_id: "u-backfill",
+      status: "confirmed",
+      poll_id: "poll-other",
+    });
+    const chains = findSwapChains({
+      targetMatchId: "t1",
+      candidates: assessCandidates({
+        match: target,
+        roster,
+        slotResponses: new Map([["u-mover", "yes"]]),
+        assignments: [blockingAssignment, crossPoll],
+        matchesById,
+        workloadByUmpire: new Map(),
+      }),
+      pollAssignments: [blockingAssignment],
+      matchesById,
+      rosterById: new Map(roster.map((u) => [u.id, u])),
+      availabilityByMatchUmpire: new Map([
+        [availabilityKey("m2", "u-backfill"), "yes"],
+        [availabilityKey("t1", "u-mover"), "yes"],
+      ]),
+      allAssignments: [blockingAssignment, crossPoll],
+      workloadByUmpire: new Map(),
+      maxChains: 5,
+    });
+    expect(chains).toHaveLength(0);
+  });
+});
+
+describe("summarizeSeason", () => {
+  it("aggregates coverage, load, responsiveness, and hard-to-fill", () => {
+    const matches = [
+      makeMatch({ id: "m1", start_time: "2026-03-15T08:00:00Z" }), // filled
+      makeMatch({
+        id: "m2",
+        home_team: "MO12-1",
+        start_time: "2026-03-15T07:00:00Z", // morning local
+      }), // empty
+      makeMatch({ id: "m3", cancelled_upstream: true }),
+    ];
+    const roster = [
+      makeUmpire({ id: "u1", name: "Busy" }),
+      makeUmpire({ id: "u2", name: "Quiet" }),
+    ];
+    const stats = summarizeSeason({
+      matches,
+      confirmedByMatch: new Map([["m1", 2]]),
+      roster,
+      confirmedByUmpire: new Map([["u1", 2]]),
+      pollsAnsweredByUmpire: new Map([["u1", 2]]),
+      totalPolls: 2,
+      localHour: (m) =>
+        m.start_time ? new Date(m.start_time).getUTCHours() + 1 : null,
+    });
+
+    expect(stats.matches).toMatchObject({
+      total: 3,
+      cancelled: 1,
+      filled: 1,
+      empty: 1,
+      coverage_rate: 0.5,
+    });
+    expect(stats.load.most_assigned).toEqual([{ name: "Busy", confirmed: 2 }]);
+    expect(stats.load.never_assigned).toEqual(["Quiet"]);
+    expect(stats.responsiveness.always_silent).toEqual(["Quiet"]);
+    expect(stats.responsiveness.avg_response_rate).toBe(0.5);
+    expect(stats.hardest_to_fill.teams).toEqual([
+      { team: "MO12-1", unfilled: 1 },
+    ]);
+    expect(stats.hardest_to_fill.times_of_day.morning).toBe(1);
   });
 });
