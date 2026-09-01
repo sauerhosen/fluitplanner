@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.20.0](https://github.com/sauerhosen/fluitplanner/compare/v2.19.1...v2.20.0) (2026-09-01)
+
+
+### Features
+
+* add add_matches_to_poll MCP tool ([6db6701](https://github.com/sauerhosen/fluitplanner/commit/6db67015cf77d8156b7be7824d3989fb213f003e))
+* add add_matches_to_poll MCP tool ([080efda](https://github.com/sauerhosen/fluitplanner/commit/080efda6c7b1ef2fc241b57a3d045e2c1c20cd1a))
+
+
+### Bug Fixes
+
+* make add_matches_to_poll non-destructive when a write fails ([de207da](https://github.com/sauerhosen/fluitplanner/commit/de207da28b47fe6ede1836f6c035a7e50026b1fd))
+
 ## [2.19.1](https://github.com/sauerhosen/fluitplanner/compare/v2.19.0...v2.19.1) (2026-09-01)
 
 
