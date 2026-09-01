@@ -22,6 +22,11 @@ import {
   updateMatchForPlanner,
   createPollForPlanner,
   addMatchesToPollForPlanner,
+  removeMatchesFromPollForPlanner,
+  suggestSwapsForMatch,
+  getSeasonStats,
+  updatePollResponseForPlanner,
+  triggerSync,
   getSyncStatus,
   clearReviewFlags,
   listWithdrawals,
@@ -31,7 +36,7 @@ import {
 
 export const MCP_SERVER_INSTRUCTIONS = `Fluitplanner plans which club umpires officiate which field hockey matches. This connection is scoped to one club and one planner; the app remains the system of record.
 
-Typical session: start with get_context, then get_attention_items. To draft a plan for a poll: get_poll_availability (who can, who is silent), get_assignments (current state), get_umpire_workload (fairness), find_candidates per hard-to-fill match, validate with check_assignments, and write the draft with set_tentative_assignments. When proposing names, state the reasoning per match: availability, level, absence of clashes, and workload.
+Typical session: start with get_context, then get_attention_items. To draft a plan for a poll: get_poll_availability (who can, who is silent), get_assignments (current state), get_umpire_workload (fairness), find_candidates per hard-to-fill match (suggest_swaps when nobody free can take it directly), validate with check_assignments, and write the draft with set_tentative_assignments. When proposing names, state the reasoning per match: availability, level, absence of clashes, and workload.
 
 Everything written through this server is a tentative draft. Confirming assignments, opening/closing polls, and contacting umpires are deliberate human actions in the app — never claim to have done them. Availability polls use 2-hour time slots that start at least 20 minutes before the match, so availability is per slot, not per exact match time.`;
 
@@ -520,6 +525,114 @@ export function registerMcpTools(server: McpServer, ctx: McpPlannerContext) {
     },
     (args) =>
       run(() => addMatchesToPollForPlanner(ctx, args.poll_id, args.match_ids)),
+  );
+
+  server.registerTool(
+    "remove_matches_from_poll",
+    {
+      title: "Remove matches from a poll",
+      description:
+        "Take matches out of an existing OPEN poll; time slots shrink automatically and tentative drafts on the removed matches are dropped. Matches with CONFIRMED assignments in the poll are refused (unassign in the app first), and an emptied poll stays — polls are never deleted here. Counterpart of add_matches_to_poll.",
+      inputSchema: z.object({
+        poll_id: pollId,
+        match_ids: z.array(matchId).min(1).max(200),
+      }),
+      annotations: { readOnlyHint: false, destructiveHint: true },
+    },
+    (args) =>
+      run(() =>
+        removeMatchesFromPollForPlanner(ctx, args.poll_id, args.match_ids),
+      ),
+  );
+
+  server.registerTool(
+    "suggest_swaps",
+    {
+      title: "Suggest swaps for a match",
+      description:
+        "Repair options for a match that needs an umpire: who could take it directly, plus one-move swap chains — an available, qualified umpire freed from an overlapping booking in the same poll, with a replacement to backfill the vacated match. Use when find_candidates comes up empty; swaps touching confirmed assignments are app actions.",
+      inputSchema: z.object({
+        match_id: matchId,
+        max_swaps: z
+          .number()
+          .int()
+          .min(1)
+          .max(20)
+          .optional()
+          .describe("Max swap chains to return, default 5"),
+      }),
+      annotations: { readOnlyHint: true, destructiveHint: false },
+    },
+    (args) =>
+      run(() => suggestSwapsForMatch(ctx, args.match_id, args.max_swaps ?? 5)),
+  );
+
+  server.registerTool(
+    "get_season_stats",
+    {
+      title: "Season statistics",
+      description:
+        "Season-level numbers: match coverage (filled/partial/empty), load distribution across umpires (most assigned, never assigned), poll responsiveness (reliable responders, the always-silent), and what is hardest to fill by team and time of day. Optionally bounded by a date range.",
+      inputSchema: z.object({
+        date_from: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/)
+          .optional()
+          .describe("Earliest match date, YYYY-MM-DD; omit for all data"),
+        date_to: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/)
+          .optional()
+          .describe("Latest match date, YYYY-MM-DD; omit for all data"),
+      }),
+      annotations: { readOnlyHint: true, destructiveHint: false },
+    },
+    (args) => run(() => getSeasonStats(ctx, args.date_from, args.date_to)),
+  );
+
+  server.registerTool(
+    "update_poll_response",
+    {
+      title: "Edit an umpire's poll answer",
+      description:
+        'Record an availability change an umpire communicated outside the poll ("Anne texted she can\'t anymore"): set their answer for one slot to yes/if_need_be/no, or null to clear it. This overwrites what the umpire entered and is visible to them; existing assignments are never removed automatically — the result says when one is affected.',
+      inputSchema: z.object({
+        poll_id: pollId,
+        slot_id: z.uuid().describe("Slot id (from get_poll_availability)"),
+        umpire_id: umpireId,
+        response: z
+          .enum(["yes", "if_need_be", "no"])
+          .nullable()
+          .describe("The new answer, or null to clear the response entirely"),
+      }),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: true,
+      },
+    },
+    (args) =>
+      run(() =>
+        updatePollResponseForPlanner(
+          ctx,
+          args.poll_id,
+          args.slot_id,
+          args.umpire_id,
+          args.response,
+        ),
+      ),
+  );
+
+  server.registerTool(
+    "trigger_sync",
+    {
+      title: "Run Match Center sync",
+      description:
+        "Run the federation (Match Center) sync for this club now — same as the app's sync button, including its 15-minute cooldown. Returns what was inserted, updated, and flagged; review flags via get_sync_status.",
+      inputSchema: z.object({}),
+      annotations: { readOnlyHint: false, destructiveHint: false },
+    },
+    () => run(() => triggerSync(ctx)),
   );
 
   server.registerTool(

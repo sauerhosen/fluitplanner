@@ -4,6 +4,8 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { mapMatchesToSlots } from "@/lib/domain/match-slot-mapping";
 import { groupMatchesIntoSlots } from "@/lib/domain/slots";
 import { diffSlots } from "@/lib/domain/diff-slots";
+import { createHockeyDeps } from "@/lib/hockey/deps";
+import { syncWithLease } from "@/lib/hockey/sync";
 import { normalizeNote, MAX_NOTE_LENGTH } from "@/lib/domain/notes";
 import { composeAmsterdamTimestamp } from "@/lib/domain/timezone";
 import type {
@@ -21,6 +23,8 @@ import {
   availabilityKey,
   checkAssignmentSet,
   summarizeGap,
+  findSwapChains,
+  summarizeSeason,
   type AssignmentIssue,
   type AvailabilityAnswer,
   type ProposedAssignment,
@@ -1797,6 +1801,468 @@ export async function addMatchesToPollForPlanner(
       newIds.length === 0
         ? "Every requested match was already in this poll, but its time slots were out of step with the match times and have been recomputed. The poll link is unchanged and nothing was sent to anyone."
         : "Umpires who already filled out the poll have not answered for any new slots — check get_poll_availability for the new gaps. The poll link is unchanged and nothing was sent to anyone.",
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Swap suggestions — repair a match nobody free can take directly
+// ---------------------------------------------------------------------------
+
+export async function suggestSwapsForMatch(
+  ctx: McpPlannerContext,
+  matchId: string,
+  maxSwaps: number,
+) {
+  const client = db();
+  const { data: matchRow, error } = await client
+    .from("matches")
+    .select("*")
+    .eq("id", matchId)
+    .eq("organization_id", ctx.organizationId)
+    .maybeSingle();
+  throwDb(error);
+  if (!matchRow) {
+    throw new McpUserError(
+      `Match ${matchId} not found in this club. Use list_matches to find valid match ids.`,
+    );
+  }
+  const match = matchRow as Match;
+
+  const { data: links, error: linkError } = await client
+    .from("poll_matches")
+    .select("poll_id, polls!inner (id, status, organization_id)")
+    .eq("match_id", matchId)
+    .eq("polls.organization_id", ctx.organizationId);
+  throwDb(linkError);
+  const pollRows = (links ?? []).map(
+    (l) => l.polls as unknown as { id: string; status: string },
+  );
+  const poll = pollRows.find((p) => p.status === "open") ?? pollRows[0] ?? null;
+  if (!poll) {
+    throw new McpUserError(
+      "This match is not in any poll, so there is no availability to reason over. Use find_candidates for a raw roster view instead.",
+    );
+  }
+
+  const [graph, roster, assignments, matchesById, workloads] =
+    await Promise.all([
+      getPollGraph(client, ctx, poll.id),
+      getRoster(client, ctx.organizationId),
+      getOrgAssignments(client, ctx.organizationId),
+      getOrgMatchesById(client, ctx.organizationId),
+      getWorkloads(client, ctx.organizationId),
+    ]);
+
+  const slotId = graph.slotByMatch.get(matchId);
+  const candidates = assessCandidates({
+    match,
+    roster,
+    slotResponses: slotId
+      ? (graph.responsesBySlot.get(slotId) ?? new Map())
+      : new Map(),
+    assignments,
+    matchesById,
+    workloadByUmpire: workloads,
+  });
+
+  const direct = summarizeGap(candidates).ready.map((r) => ({
+    ...r,
+    workload_confirmed: workloads.get(r.umpire_id)?.confirmed ?? 0,
+  }));
+
+  const swaps = findSwapChains({
+    targetMatchId: matchId,
+    candidates,
+    pollAssignments: assignments.filter((a) => a.poll_id === poll.id),
+    matchesById,
+    rosterById: new Map(roster.map((u) => [u.id, u])),
+    availabilityByMatchUmpire: buildAvailabilityMap(graph, roster),
+    allAssignments: assignments,
+    workloadByUmpire: workloads,
+    maxChains: maxSwaps,
+  });
+
+  const label = (id: string) => {
+    const m = matchesById.get(id);
+    return m
+      ? `${matchLabel(m)} (${m.date} ${local(m.start_time)?.slice(-5) ?? ""})`
+      : id;
+  };
+
+  return {
+    match: matchSummary(match),
+    poll_id: poll.id,
+    direct_candidates: direct,
+    swaps: swaps.map((c) => ({
+      ...c,
+      summary: `Move ${c.move.name} from ${label(c.move.from_match_id)} to this match; put ${c.backfill.name} on ${label(c.backfill.for_match_id)}.`,
+    })),
+    note: "Swaps whose blocking assignment is tentative can be executed with set_tentative_assignments; a swap that touches a CONFIRMED assignment must be done by the planner in the app (unassign, then confirm the new pair).",
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Season analytics
+// ---------------------------------------------------------------------------
+
+export async function getSeasonStats(
+  ctx: McpPlannerContext,
+  dateFrom?: string,
+  dateTo?: string,
+) {
+  const client = db();
+  let matchQuery = client
+    .from("matches")
+    .select("*")
+    .eq("organization_id", ctx.organizationId);
+  if (dateFrom) matchQuery = matchQuery.gte("date", dateFrom);
+  if (dateTo) matchQuery = matchQuery.lte("date", dateTo);
+  const { data: matchRows, error: mError } = await matchQuery;
+  throwDb(mError);
+  const matches = (matchRows ?? []) as Match[];
+  const inRange = new Set(matches.map((m) => m.id));
+
+  const [assignments, roster, pollsRes, responsesRes] = await Promise.all([
+    getOrgAssignments(client, ctx.organizationId),
+    getRoster(client, ctx.organizationId),
+    client
+      .from("polls")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", ctx.organizationId),
+    client
+      .from("availability_responses")
+      .select("poll_id, umpire_id, polls!inner(organization_id)")
+      .eq("polls.organization_id", ctx.organizationId),
+  ]);
+  throwDb(pollsRes.error);
+  throwDb(responsesRes.error);
+
+  const confirmedByMatch = new Map<string, number>();
+  const confirmedByUmpire = new Map<string, number>();
+  for (const a of assignments) {
+    if (a.status !== "confirmed" || !inRange.has(a.match_id)) continue;
+    confirmedByMatch.set(
+      a.match_id,
+      (confirmedByMatch.get(a.match_id) ?? 0) + 1,
+    );
+    confirmedByUmpire.set(
+      a.umpire_id,
+      (confirmedByUmpire.get(a.umpire_id) ?? 0) + 1,
+    );
+  }
+
+  const pollsByUmpire = new Map<string, Set<string>>();
+  for (const r of responsesRes.data ?? []) {
+    if (!r.umpire_id) continue;
+    const set = pollsByUmpire.get(r.umpire_id) ?? new Set();
+    set.add(r.poll_id);
+    pollsByUmpire.set(r.umpire_id, set);
+  }
+  const pollsAnsweredByUmpire = new Map(
+    [...pollsByUmpire.entries()].map(([id, set]) => [id, set.size]),
+  );
+
+  const stats = summarizeSeason({
+    matches,
+    confirmedByMatch,
+    roster,
+    confirmedByUmpire,
+    pollsAnsweredByUmpire,
+    totalPolls: pollsRes.count ?? 0,
+    localHour: (m) => {
+      const rendered = local(m.start_time);
+      return rendered ? parseInt(rendered.slice(11, 13), 10) : null;
+    },
+  });
+
+  return {
+    period: { from: dateFrom ?? "(all data)", to: dateTo ?? "(all data)" },
+    ...stats,
+    note: "Poll response counts cover ALL of the club's polls, not only the selected period. Fill counts use confirmed assignments only.",
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Planner-edited poll responses
+// ---------------------------------------------------------------------------
+
+export async function updatePollResponseForPlanner(
+  ctx: McpPlannerContext,
+  pollId: string,
+  slotId: string,
+  umpireId: string,
+  response: "yes" | "if_need_be" | "no" | null,
+) {
+  const client = db();
+  const poll = await getPollScoped(client, ctx, pollId);
+
+  const { data: slot, error: slotError } = await client
+    .from("poll_slots")
+    .select("id, start_time, end_time")
+    .eq("id", slotId)
+    .eq("poll_id", poll.id)
+    .maybeSingle();
+  throwDb(slotError);
+  if (!slot) {
+    throw new McpUserError(
+      `Slot ${slotId} does not belong to this poll. Use get_poll_availability to find slot ids.`,
+    );
+  }
+
+  const roster = await getRoster(client, ctx.organizationId);
+  const umpire = roster.find((u) => u.id === umpireId);
+  if (!umpire) {
+    throw new McpUserError(
+      `Umpire ${umpireId} is not on this club's roster. Use list_umpires to find valid umpire ids.`,
+    );
+  }
+
+  const { data: existing, error: exError } = await client
+    .from("availability_responses")
+    .select("response")
+    .eq("poll_id", poll.id)
+    .eq("slot_id", slotId)
+    .eq("umpire_id", umpireId)
+    .maybeSingle();
+  throwDb(exError);
+  const previous = (existing?.response as string | undefined) ?? null;
+
+  if (response === null) {
+    const { error } = await client
+      .from("availability_responses")
+      .delete()
+      .eq("poll_id", poll.id)
+      .eq("slot_id", slotId)
+      .eq("umpire_id", umpireId);
+    throwDb(error);
+  } else {
+    const { error } = await client.from("availability_responses").upsert(
+      {
+        poll_id: poll.id,
+        slot_id: slotId,
+        umpire_id: umpireId,
+        participant_name: umpire.name,
+        response,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "poll_id,slot_id,umpire_id" },
+    );
+    throwDb(error);
+  }
+
+  // If the umpire is assigned in this slot and the answer became "no", say
+  // so — the assignment is NOT removed automatically, same as the app.
+  let caution: string | undefined;
+  if (response === "no" || response === null) {
+    const graph = await getPollGraph(client, ctx, poll.id);
+    const assignedMatchIds = [...graph.slotByMatch.entries()]
+      .filter(([, sId]) => sId === slotId)
+      .map(([mId]) => mId);
+    if (assignedMatchIds.length > 0) {
+      const { data: assigned, error: aError } = await client
+        .from("assignments")
+        .select("match_id, status")
+        .eq("poll_id", poll.id)
+        .eq("umpire_id", umpireId)
+        .in("match_id", assignedMatchIds);
+      throwDb(aError);
+      if ((assigned ?? []).length > 0) {
+        caution = `${umpire.name} is assigned to a match in this slot (${(assigned ?? []).map((a) => `${a.match_id} ${a.status}`).join(", ")}); the assignment was NOT removed. Rework it with suggest_swaps or in the app.`;
+      }
+    }
+  }
+
+  return {
+    poll_id: poll.id,
+    slot: `${local(slot.start_time)} – ${local(slot.end_time)}`,
+    umpire: umpire.name,
+    previous_response: previous ?? "no_response",
+    new_response: response ?? "no_response",
+    caution,
+    note: "This overwrote the umpire's own answer and is visible to them on the poll page — record why in a note if it wasn't their request.",
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Remove matches from a poll
+// ---------------------------------------------------------------------------
+
+export async function removeMatchesFromPollForPlanner(
+  ctx: McpPlannerContext,
+  pollId: string,
+  matchIds: string[],
+) {
+  const client = db();
+  const poll = await getPollScoped(client, ctx, pollId);
+  if (poll.status !== "open") {
+    throw new McpUserError(
+      "This poll is closed. Reopen it in the app before changing its matches.",
+    );
+  }
+
+  const uniqueIds = [...new Set(matchIds)];
+  const { data: existingPm, error: pmError } = await client
+    .from("poll_matches")
+    .select("match_id")
+    .eq("poll_id", poll.id);
+  throwDb(pmError);
+  const inPoll = new Set((existingPm ?? []).map((r) => r.match_id as string));
+  const toRemove = uniqueIds.filter((id) => inPoll.has(id));
+  const notInPoll = uniqueIds.filter((id) => !inPoll.has(id));
+  if (toRemove.length === 0) {
+    return {
+      poll_id: poll.id,
+      removed: 0,
+      not_in_poll: notInPoll,
+      note: "None of the requested matches are in this poll; nothing changed.",
+    };
+  }
+
+  // Matches with CONFIRMED assignments stay — removing them would orphan a
+  // commitment umpires can already see. Unassign in the app first.
+  const { data: confirmedRows, error: cError } = await client
+    .from("assignments")
+    .select("match_id")
+    .eq("poll_id", poll.id)
+    .eq("status", "confirmed")
+    .in("match_id", toRemove);
+  throwDb(cError);
+  const blocked = [
+    ...new Set((confirmedRows ?? []).map((r) => r.match_id as string)),
+  ];
+  const removable = toRemove.filter((id) => !blocked.includes(id));
+  if (removable.length === 0) {
+    return {
+      poll_id: poll.id,
+      removed: 0,
+      blocked_confirmed: blocked,
+      not_in_poll: notInPoll.length ? notInPoll : undefined,
+      note: "Every removable match has confirmed assignments in this poll. Unassign them in the app first.",
+    };
+  }
+
+  // Drop the tentative drafts on the departing matches.
+  const { data: droppedTentative, error: tError } = await client
+    .from("assignments")
+    .delete()
+    .eq("poll_id", poll.id)
+    .eq("status", "tentative")
+    .in("match_id", removable)
+    .select("id");
+  throwDb(tError);
+
+  // Recompute slots over the remaining matches (same diff the app applies);
+  // removed windows discard their answers — counted and reported.
+  const remainingIds = [...inPoll].filter((id) => !removable.includes(id));
+  const remainingRows = await selectInBatches<{
+    id: string;
+    start_time: string | null;
+  }>(remainingIds, (batch) =>
+    client
+      .from("matches")
+      .select("id, start_time")
+      .in("id", batch)
+      .eq("organization_id", ctx.organizationId),
+  );
+  const withTime = remainingRows.filter((m) => m.start_time !== null) as {
+    id: string;
+    start_time: string;
+  }[];
+  const desiredSlots = groupMatchesIntoSlots(withTime);
+
+  const { data: existingSlots, error: slotError } = await client
+    .from("poll_slots")
+    .select("*")
+    .eq("poll_id", poll.id);
+  throwDb(slotError);
+  const { toAdd, toRemove: slotsToRemove } = diffSlots(
+    (existingSlots ?? []) as PollSlot[],
+    desiredSlots,
+  );
+
+  let discardedResponses = 0;
+  if (slotsToRemove.length > 0) {
+    const removeSlotIds = slotsToRemove.map((s) => s.id);
+    const { count, error: countError } = await client
+      .from("availability_responses")
+      .select("id", { count: "exact", head: true })
+      .in("slot_id", removeSlotIds);
+    throwDb(countError);
+    discardedResponses = count ?? 0;
+    const { error } = await client
+      .from("poll_slots")
+      .delete()
+      .in("id", removeSlotIds);
+    throwDb(error);
+  }
+  if (toAdd.length > 0) {
+    const { error } = await client.from("poll_slots").insert(
+      toAdd.map((s) => ({
+        poll_id: poll.id,
+        start_time: s.start.toISOString(),
+        end_time: s.end.toISOString(),
+      })),
+    );
+    throwDb(error);
+  }
+
+  const { error: delError } = await client
+    .from("poll_matches")
+    .delete()
+    .eq("poll_id", poll.id)
+    .in("match_id", removable);
+  throwDb(delError);
+
+  return {
+    poll_id: poll.id,
+    title: poll.title,
+    removed: removable.length,
+    blocked_confirmed: blocked.length ? blocked : undefined,
+    not_in_poll: notInPoll.length ? notInPoll : undefined,
+    tentative_drafts_dropped: (droppedTentative ?? []).length || undefined,
+    slots_removed: slotsToRemove.length || undefined,
+    slots_added: toAdd.length || undefined,
+    answers_discarded: discardedResponses || undefined,
+    poll_now_empty: remainingIds.length === 0 || undefined,
+    note: "The poll itself is never deleted through this connection; an emptied poll stays for the planner to reuse or delete in the app.",
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Trigger a Match Center sync
+// ---------------------------------------------------------------------------
+
+const MCP_SYNC_COOLDOWN_MS = 15 * 60 * 1000;
+
+export async function triggerSync(ctx: McpPlannerContext) {
+  let result;
+  try {
+    result = await syncWithLease(
+      createHockeyDeps(),
+      ctx.organizationId,
+      MCP_SYNC_COOLDOWN_MS,
+    );
+  } catch (error) {
+    console.error("[mcp] sync failed:", error);
+    throw new McpUserError(
+      "The Match Center sync failed. Check get_sync_status for the recorded error, or try again later.",
+    );
+  }
+  if (result === null) {
+    return {
+      status: "cooldown",
+      note: "A sync ran within the last 15 minutes (or is running now); nothing was started. get_sync_status shows the latest state.",
+    };
+  }
+  return {
+    status: "synced",
+    inserted: result.inserted,
+    updated: result.updated,
+    flagged: result.flagged,
+    cancelled: result.cancelled,
+    matches_awaiting_time: result.awaitingTime,
+    errors: result.errors.length ? result.errors : undefined,
+    note: "Flagged matches need review — get_sync_status lists them; clear handled ones with clear_match_review_flags.",
   };
 }
 

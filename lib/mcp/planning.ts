@@ -517,3 +517,329 @@ export function summarizeGap(candidates: CandidateAssessment[]): GapSummary {
 
   return summary;
 }
+
+export type SwapChain = {
+  /** Reassign this umpire from their blocking match to the target match… */
+  move: {
+    umpire_id: string;
+    name: string;
+    from_match_id: string;
+    to_match_id: string;
+    /** tentative moves are Claude-executable; confirmed ones are app actions */
+    blocking_assignment_status: AssignmentStatus;
+  };
+  /** …and put this umpire on the match that was vacated. */
+  backfill: {
+    umpire_id: string;
+    name: string;
+    for_match_id: string;
+    availability: AvailabilityAnswer;
+    level: 1 | 2 | 3;
+    workload_confirmed: number;
+  };
+};
+
+/**
+ * One-move repair chains for a match nobody free can take directly: an
+ * available, qualified umpire whose only blocker is an overlapping booking
+ * in the SAME poll, paired with a replacement who can absorb the vacated
+ * match. Backfills who could take the target directly are excluded — they
+ * would be direct suggestions, not swaps.
+ */
+export function findSwapChains(args: {
+  targetMatchId: string;
+  candidates: CandidateAssessment[];
+  pollAssignments: Assignment[];
+  matchesById: Map<string, Match>;
+  rosterById: Map<string, RosteredUmpire>;
+  availabilityByMatchUmpire: Map<string, AvailabilityAnswer>;
+  allAssignments: Assignment[];
+  workloadByUmpire: Map<string, UmpireWorkload>;
+  maxChains: number;
+}): SwapChain[] {
+  const {
+    targetMatchId,
+    candidates,
+    pollAssignments,
+    matchesById,
+    rosterById,
+    availabilityByMatchUmpire,
+    allAssignments,
+    workloadByUmpire,
+    maxChains,
+  } = args;
+
+  const byId = new Map(candidates.map((c) => [c.umpire_id, c]));
+  const directReady = new Set(
+    candidates
+      .filter(
+        (c) =>
+          (c.availability === "yes" || c.availability === "if_need_be") &&
+          c.meets_level &&
+          !c.already_assigned_to_match &&
+          !c.conflicts.some((x) => x.kind === "overlapping_slot"),
+      )
+      .map((c) => c.umpire_id),
+  );
+
+  const availabilityRank: Record<AvailabilityAnswer, number> = {
+    yes: 0,
+    if_need_be: 1,
+    no_response: 2,
+    no: 3,
+  };
+
+  const chains: SwapChain[] = [];
+  for (const mover of candidates) {
+    if (mover.availability !== "yes" && mover.availability !== "if_need_be")
+      continue;
+    if (!mover.meets_level || mover.already_assigned_to_match) continue;
+    const overlaps = mover.conflicts.filter(
+      (c) => c.kind === "overlapping_slot",
+    );
+    if (overlaps.length !== 1) continue; // freeing one match must fully unblock
+
+    const blockingMatchId = overlaps[0].match_id;
+    const blocking = pollAssignments.find(
+      (a) => a.match_id === blockingMatchId && a.umpire_id === mover.umpire_id,
+    );
+    if (!blocking) continue; // blocked by another poll — not repairable here
+    const blockingMatch = matchesById.get(blockingMatchId);
+    if (!blockingMatch?.start_time) continue;
+    const blockingSlot = calculateSlot(new Date(blockingMatch.start_time));
+
+    const assignedToBlocking = new Set(
+      pollAssignments
+        .filter((a) => a.match_id === blockingMatchId)
+        .map((a) => a.umpire_id),
+    );
+
+    const backfills = [...rosterById.values()]
+      .filter((r) => {
+        if (r.id === mover.umpire_id) return false;
+        if (assignedToBlocking.has(r.id)) return false;
+        if (directReady.has(r.id)) return false;
+        if (r.level < blockingMatch.required_level) return false;
+        const answer = availabilityByMatchUmpire.get(
+          availabilityKey(blockingMatchId, r.id),
+        );
+        if (answer !== "yes" && answer !== "if_need_be") return false;
+        // Clash-free for the vacated match's window (the mover's row on the
+        // blocking match is the one being vacated, so it doesn't count).
+        return !allAssignments.some((a) => {
+          if (a.umpire_id !== r.id) return false;
+          if (a.match_id === blockingMatchId) return false;
+          const other = matchesById.get(a.match_id);
+          if (!other?.start_time) return false;
+          const slot = calculateSlot(new Date(other.start_time));
+          return slot.start < blockingSlot.end && blockingSlot.start < slot.end;
+        });
+      })
+      .sort((a, b) => {
+        const answerA = availabilityByMatchUmpire.get(
+          availabilityKey(blockingMatchId, a.id),
+        )!;
+        const answerB = availabilityByMatchUmpire.get(
+          availabilityKey(blockingMatchId, b.id),
+        )!;
+        return (
+          availabilityRank[answerA] - availabilityRank[answerB] ||
+          (workloadByUmpire.get(a.id)?.confirmed ?? 0) -
+            (workloadByUmpire.get(b.id)?.confirmed ?? 0) ||
+          a.name.localeCompare(b.name)
+        );
+      });
+
+    for (const backfill of backfills.slice(0, 2)) {
+      chains.push({
+        move: {
+          umpire_id: mover.umpire_id,
+          name: mover.name,
+          from_match_id: blockingMatchId,
+          to_match_id: targetMatchId,
+          blocking_assignment_status: blocking.status,
+        },
+        backfill: {
+          umpire_id: backfill.id,
+          name: backfill.name,
+          for_match_id: blockingMatchId,
+          availability: availabilityByMatchUmpire.get(
+            availabilityKey(blockingMatchId, backfill.id),
+          )!,
+          level: backfill.level,
+          workload_confirmed: workloadByUmpire.get(backfill.id)?.confirmed ?? 0,
+        },
+      });
+    }
+  }
+
+  chains.sort((a, b) => {
+    // Fully Claude-executable chains (tentative blocker) first, then the
+    // mover's availability for the target, then backfill load.
+    const tentA = a.move.blocking_assignment_status === "tentative" ? 0 : 1;
+    const tentB = b.move.blocking_assignment_status === "tentative" ? 0 : 1;
+    const moverA = byId.get(a.move.umpire_id)!;
+    const moverB = byId.get(b.move.umpire_id)!;
+    return (
+      tentA - tentB ||
+      availabilityRank[moverA.availability] -
+        availabilityRank[moverB.availability] ||
+      a.backfill.workload_confirmed - b.backfill.workload_confirmed
+    );
+  });
+
+  return chains.slice(0, maxChains);
+}
+
+export type SeasonStats = {
+  matches: {
+    total: number;
+    cancelled: number;
+    without_time: number;
+    filled: number;
+    partially_filled: number;
+    empty: number;
+    /** filled / (total - cancelled), 0..1 rounded to 2 decimals */
+    coverage_rate: number;
+  };
+  load: {
+    active_umpires: number;
+    avg_confirmed_per_active: number;
+    max_confirmed: number;
+    most_assigned: { name: string; confirmed: number }[];
+    never_assigned: string[];
+  };
+  responsiveness: {
+    polls: number;
+    avg_response_rate: number;
+    always_silent: string[];
+    most_reliable: { name: string; polls_answered: number }[];
+  };
+  hardest_to_fill: {
+    teams: { team: string; unfilled: number }[];
+    times_of_day: { morning: number; afternoon: number; evening: number };
+  };
+};
+
+/** Season-level aggregation for the get_season_stats tool. Pure. */
+export function summarizeSeason(args: {
+  matches: Match[];
+  /** Confirmed-assignment count per match id (matches in range only). */
+  confirmedByMatch: Map<string, number>;
+  roster: RosteredUmpire[];
+  /** Confirmed assignments per umpire, matches in range only. */
+  confirmedByUmpire: Map<string, number>;
+  /** Distinct polls each umpire answered anything in. */
+  pollsAnsweredByUmpire: Map<string, number>;
+  totalPolls: number;
+  /** Local hour of day (0-23) for a match's start, or null. */
+  localHour: (match: Match) => number | null;
+}): SeasonStats {
+  const {
+    matches,
+    confirmedByMatch,
+    roster,
+    confirmedByUmpire,
+    pollsAnsweredByUmpire,
+    totalPolls,
+    localHour,
+  } = args;
+
+  const playable = matches.filter((m) => !m.cancelled_upstream);
+  let filled = 0;
+  let partial = 0;
+  let empty = 0;
+  const unfilledByTeam = new Map<string, number>();
+  const timesOfDay = { morning: 0, afternoon: 0, evening: 0 };
+  for (const m of playable) {
+    const confirmed = confirmedByMatch.get(m.id) ?? 0;
+    if (confirmed >= 2) {
+      filled++;
+      continue;
+    }
+    if (confirmed === 1) partial++;
+    else empty++;
+    unfilledByTeam.set(m.home_team, (unfilledByTeam.get(m.home_team) ?? 0) + 1);
+    const hour = localHour(m);
+    if (hour !== null) {
+      if (hour < 12) timesOfDay.morning++;
+      else if (hour < 17) timesOfDay.afternoon++;
+      else timesOfDay.evening++;
+    }
+  }
+
+  const active = roster.filter((u) => (confirmedByUmpire.get(u.id) ?? 0) > 0);
+  const counts = active.map((u) => confirmedByUmpire.get(u.id) ?? 0);
+  const sum = counts.reduce((a, b) => a + b, 0);
+
+  return {
+    matches: {
+      total: matches.length,
+      cancelled: matches.length - playable.length,
+      without_time: playable.filter((m) => !m.start_time).length,
+      filled,
+      partially_filled: partial,
+      empty,
+      coverage_rate: playable.length
+        ? Math.round((filled / playable.length) * 100) / 100
+        : 1,
+    },
+    load: {
+      active_umpires: active.length,
+      avg_confirmed_per_active: active.length
+        ? Math.round((sum / active.length) * 10) / 10
+        : 0,
+      max_confirmed: counts.length ? Math.max(...counts) : 0,
+      most_assigned: [...active]
+        .sort(
+          (a, b) =>
+            (confirmedByUmpire.get(b.id) ?? 0) -
+            (confirmedByUmpire.get(a.id) ?? 0),
+        )
+        .slice(0, 5)
+        .map((u) => ({
+          name: u.name,
+          confirmed: confirmedByUmpire.get(u.id) ?? 0,
+        })),
+      never_assigned: roster
+        .filter((u) => !(confirmedByUmpire.get(u.id) ?? 0))
+        .map((u) => u.name),
+    },
+    responsiveness: {
+      polls: totalPolls,
+      avg_response_rate:
+        totalPolls && roster.length
+          ? Math.round(
+              (roster.reduce(
+                (acc, u) => acc + (pollsAnsweredByUmpire.get(u.id) ?? 0),
+                0,
+              ) /
+                (totalPolls * roster.length)) *
+                100,
+            ) / 100
+          : 0,
+      always_silent: roster
+        .filter((u) => !(pollsAnsweredByUmpire.get(u.id) ?? 0))
+        .map((u) => u.name),
+      most_reliable: [...roster]
+        .filter((u) => (pollsAnsweredByUmpire.get(u.id) ?? 0) > 0)
+        .sort(
+          (a, b) =>
+            (pollsAnsweredByUmpire.get(b.id) ?? 0) -
+            (pollsAnsweredByUmpire.get(a.id) ?? 0),
+        )
+        .slice(0, 5)
+        .map((u) => ({
+          name: u.name,
+          polls_answered: pollsAnsweredByUmpire.get(u.id) ?? 0,
+        })),
+    },
+    hardest_to_fill: {
+      teams: [...unfilledByTeam.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(([team, unfilled]) => ({ team, unfilled })),
+      times_of_day: timesOfDay,
+    },
+  };
+}
