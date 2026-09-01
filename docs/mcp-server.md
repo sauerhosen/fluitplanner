@@ -76,6 +76,7 @@ Tokens can be revoked in the same settings section; revocation takes effect imme
 | `set_match_notes` / `set_umpire_notes` | write | Capture planner notes the moment they're said (S3) |
 | `create_match` / `update_match` | write | Add a friendly, move a kick-off, fix a venue (S4) |
 | `create_poll` | write | Poll from a plain request; link sharing stays manual (S5) |
+| `add_matches_to_poll` | write | Extend an open poll with matches; slots recomputed, discarded answers reported |
 | `clear_match_review_flags` | write | Mark a sync flag as handled (S6) |
 
 The `draft_chase_message` prompt (S1) gathers non-responders, at-risk slots, and the poll
