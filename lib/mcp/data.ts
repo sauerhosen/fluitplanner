@@ -13,6 +13,7 @@ import type {
   RosteredUmpire,
 } from "@/lib/types/domain";
 import type { McpPlannerContext } from "@/lib/mcp/auth";
+import { baseUrl } from "@/lib/oauth/metadata";
 import {
   assessCandidates,
   assessSlotRisk,
@@ -1509,13 +1510,6 @@ export async function updateMatchForPlanner(
 // S5 — poll creation
 // ---------------------------------------------------------------------------
 
-function siteUrl(): string {
-  return (process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000").replace(
-    /\/$/,
-    "",
-  );
-}
-
 export async function createPollForPlanner(
   ctx: McpPlannerContext,
   title: string,
@@ -1589,7 +1583,7 @@ export async function createPollForPlanner(
     match_count: uniqueIds.length,
     slot_count: slots.length,
     matches_without_time: uniqueIds.length - withTime.length,
-    url: `${siteUrl()}/poll/${token}`,
+    url: `${baseUrl()}/poll/${token}`,
     note: "The poll link is NOT sent to anyone automatically — the planner shares it with the umpires themselves.",
   };
 }
@@ -1836,7 +1830,7 @@ export async function getChaseContext(ctx: McpPlannerContext, pollId: string) {
   return {
     poll_title: poll.title,
     poll_status: poll.status,
-    poll_url: `${siteUrl()}/poll/${poll.token}`,
+    poll_url: `${baseUrl()}/poll/${poll.token}`,
     club: ctx.organizationName,
     non_responders: availability.non_responders,
     at_risk_slots: availability.slot_risk.filter((s) => s.at_risk),
