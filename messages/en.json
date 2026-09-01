@@ -461,7 +461,21 @@
     "hockeySyncUntrackError": "Failed to remove the team. Please try again.",
     "hockeySyncAlreadyTracked": "This team is already being tracked.",
     "hockeySyncTrackError": "Failed to track the team. Please try again.",
-    "hockeySyncSearchError": "Could not reach the Match Center. Please try again later."
+    "hockeySyncSearchError": "Could not reach the Match Center. Please try again later.",
+    "mcpTitle": "Claude / MCP connection",
+    "mcpDescription": "Connect your own AI assistant (such as Claude) to this club via the Model Context Protocol. A token lets the assistant read matches, polls, availability, assignments and the umpire roster, and write on your behalf: tentative assignment drafts, match and umpire notes, new matches and polls, and clearing sync review flags. It can never confirm assignments, contact umpires, or delete anything — confirming always happens here in the app. Treat a token like a password.",
+    "mcpEndpointLabel": "Server URL",
+    "mcpTokenNamePlaceholder": "Token name (e.g. Claude on my laptop)",
+    "mcpCreateToken": "Create token",
+    "mcpNewTokenNotice": "Copy this token now — it will not be shown again.",
+    "mcpCopy": "Copy",
+    "mcpCopied": "Copied",
+    "mcpNoTokens": "No tokens yet.",
+    "mcpCreatedAt": "Created",
+    "mcpLastUsed": "last used",
+    "mcpNever": "never",
+    "mcpRevoke": "Revoke",
+    "mcpRevoked": "revoked"
   },
   "landing": {
     "title": "Fluitplanner",
@@ -570,5 +584,22 @@
     "verifyButton": "Verify my email",
     "expiresIn": "This code expires in 30 minutes.",
     "footer": "You received this because someone requested access to a poll with your email address."
+  },
+  "oauth": {
+    "connectTitle": "Authorize access",
+    "connectRequest": "{client} wants to connect to Fluitplanner on your behalf.",
+    "scopeIntro": "For the selected club it will be able to:",
+    "scopeRead": "Read matches, polls, availability, assignments and the umpire roster",
+    "scopeWrite": "Write tentative assignment drafts and planner notes, and create matches and polls",
+    "scopeNot": "It cannot confirm assignments, send messages to umpires, or delete anything.",
+    "clubLabel": "Club",
+    "approve": "Allow",
+    "deny": "Deny",
+    "error": "Something went wrong. Please try again.",
+    "invalidRequestTitle": "Invalid request",
+    "invalidRequest": "This authorization request is missing required parameters.",
+    "invalidClient": "The requesting application could not be verified.",
+    "noPlannerRoleTitle": "No planner role",
+    "noPlannerRole": "Your account is not a planner in any club, so there is nothing this connection could access."
   }
 }

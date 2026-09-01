@@ -461,7 +461,21 @@
     "hockeySyncUntrackError": "Team verwijderen mislukt. Probeer het opnieuw.",
     "hockeySyncAlreadyTracked": "Dit team wordt al gevolgd.",
     "hockeySyncTrackError": "Team volgen mislukt. Probeer het opnieuw.",
-    "hockeySyncSearchError": "Het Match Center is niet bereikbaar. Probeer het later opnieuw."
+    "hockeySyncSearchError": "Het Match Center is niet bereikbaar. Probeer het later opnieuw.",
+    "mcpTitle": "Claude / MCP-koppeling",
+    "mcpDescription": "Koppel je eigen AI-assistent (zoals Claude) aan deze club via het Model Context Protocol. Een token laat de assistent wedstrijden, polls, beschikbaarheid, aanwijzingen en het scheidsrechterbestand lezen, en namens jou schrijven: voorlopige concept-aanwijzingen, notities bij wedstrijden en scheidsrechters, nieuwe wedstrijden en polls, en het afvinken van sync-controlemarkeringen. Het kan nooit aanwijzingen bevestigen, scheidsrechters benaderen of iets verwijderen — bevestigen gebeurt altijd hier in de app. Behandel een token als een wachtwoord.",
+    "mcpEndpointLabel": "Server-URL",
+    "mcpTokenNamePlaceholder": "Tokennaam (bijv. Claude op mijn laptop)",
+    "mcpCreateToken": "Token aanmaken",
+    "mcpNewTokenNotice": "Kopieer dit token nu — het wordt niet nog een keer getoond.",
+    "mcpCopy": "Kopiëren",
+    "mcpCopied": "Gekopieerd",
+    "mcpNoTokens": "Nog geen tokens.",
+    "mcpCreatedAt": "Aangemaakt",
+    "mcpLastUsed": "laatst gebruikt",
+    "mcpNever": "nooit",
+    "mcpRevoke": "Intrekken",
+    "mcpRevoked": "ingetrokken"
   },
   "landing": {
     "title": "Fluitplanner",
@@ -570,5 +584,22 @@
     "verifyButton": "Verifieer mijn e-mail",
     "expiresIn": "Deze code verloopt over 30 minuten.",
     "footer": "Je ontvangt dit bericht omdat iemand toegang heeft aangevraagd tot een peiling met jouw e-mailadres."
+  },
+  "oauth": {
+    "connectTitle": "Toegang goedkeuren",
+    "connectRequest": "{client} wil namens jou verbinden met Fluitplanner.",
+    "scopeIntro": "Voor de gekozen club kan het:",
+    "scopeRead": "Wedstrijden, polls, beschikbaarheid, aanwijzingen en het scheidsrechterbestand lezen",
+    "scopeWrite": "Voorlopige concept-aanwijzingen en plannernotities schrijven, en wedstrijden en polls aanmaken",
+    "scopeNot": "Het kan geen aanwijzingen bevestigen, geen berichten naar scheidsrechters sturen en niets verwijderen.",
+    "clubLabel": "Club",
+    "approve": "Toestaan",
+    "deny": "Weigeren",
+    "error": "Er ging iets mis. Probeer het opnieuw.",
+    "invalidRequestTitle": "Ongeldig verzoek",
+    "invalidRequest": "Dit autorisatieverzoek mist verplichte parameters.",
+    "invalidClient": "De aanvragende applicatie kon niet worden geverifieerd.",
+    "noPlannerRoleTitle": "Geen plannerrol",
+    "noPlannerRole": "Je account is in geen enkele club planner, dus deze koppeling zou nergens toegang toe hebben."
   }
 }
