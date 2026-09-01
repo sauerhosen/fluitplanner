@@ -1,5 +1,21 @@
 # Changelog
 
+## [2.19.0](https://github.com/sauerhosen/fluitplanner/compare/v2.18.0...v2.19.0) (2026-09-01)
+
+
+### Features
+
+* add MCP server for planner assistant access ([1982ca1](https://github.com/sauerhosen/fluitplanner/commit/1982ca1b8752ddd4bceb108a413219dba3855eb1))
+* add should-have MCP tools and OAuth (CIMD/DCR) for the MCP server ([beebd08](https://github.com/sauerhosen/fluitplanner/commit/beebd08bccf156a9502fb44d412578115ada62c2))
+* MCP server for planner assistant access (tools + OAuth) ([fdd236e](https://github.com/sauerhosen/fluitplanner/commit/fdd236e3ef733d12baa150bc9fbff5827920933e))
+
+
+### Bug Fixes
+
+* address codex review findings on the MCP server ([8d8490a](https://github.com/sauerhosen/fluitplanner/commit/8d8490a0d368080448fae27895096b8b382a23b9))
+* address PR review findings on the MCP server ([207a0ca](https://github.com/sauerhosen/fluitplanner/commit/207a0cad88d75c04f9e33f6b97c49971a72aab4b))
+* address second review round on the MCP server ([2e88970](https://github.com/sauerhosen/fluitplanner/commit/2e88970f72874c7f19f19b93e11db31c6223973a))
+
 ## [2.18.0](https://github.com/sauerhosen/fluitplanner/compare/v2.17.0...v2.18.0) (2026-08-31)
 
 
