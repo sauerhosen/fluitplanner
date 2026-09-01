@@ -574,6 +574,43 @@ describe("findSwapChains", () => {
   it("excludes backfills who could take the target directly", () => {
     expect(chainsFor({ backfillAnswerForTarget: "yes" })).toHaveLength(0);
   });
+
+  it("excludes backfills already on the blocking match via another poll", () => {
+    const blockingAssignment = makeAssignment({
+      match_id: "m2",
+      umpire_id: "u-mover",
+      status: "tentative",
+      poll_id: "poll-1",
+    });
+    const crossPoll = makeAssignment({
+      match_id: "m2",
+      umpire_id: "u-backfill",
+      status: "confirmed",
+      poll_id: "poll-other",
+    });
+    const chains = findSwapChains({
+      targetMatchId: "t1",
+      candidates: assessCandidates({
+        match: target,
+        roster,
+        slotResponses: new Map([["u-mover", "yes"]]),
+        assignments: [blockingAssignment, crossPoll],
+        matchesById,
+        workloadByUmpire: new Map(),
+      }),
+      pollAssignments: [blockingAssignment],
+      matchesById,
+      rosterById: new Map(roster.map((u) => [u.id, u])),
+      availabilityByMatchUmpire: new Map([
+        [availabilityKey("m2", "u-backfill"), "yes"],
+        [availabilityKey("t1", "u-mover"), "yes"],
+      ]),
+      allAssignments: [blockingAssignment, crossPoll],
+      workloadByUmpire: new Map(),
+      maxChains: 5,
+    });
+    expect(chains).toHaveLength(0);
+  });
 });
 
 describe("summarizeSeason", () => {

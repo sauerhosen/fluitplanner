@@ -38,7 +38,7 @@ export const MCP_SERVER_INSTRUCTIONS = `Fluitplanner plans which club umpires of
 
 Typical session: start with get_context, then get_attention_items. To draft a plan for a poll: get_poll_availability (who can, who is silent), get_assignments (current state), get_umpire_workload (fairness), find_candidates per hard-to-fill match (suggest_swaps when nobody free can take it directly), validate with check_assignments, and write the draft with set_tentative_assignments. When proposing names, state the reasoning per match: availability, level, absence of clashes, and workload.
 
-Everything written through this server is a tentative draft. Confirming assignments, opening/closing polls, and contacting umpires are deliberate human actions in the app — never claim to have done them. Availability polls use 2-hour time slots that start at least 20 minutes before the match, so availability is per slot, not per exact match time.`;
+Assignments written through this server are tentative drafts; confirming assignments, opening/closing polls, and contacting umpires are deliberate human actions in the app — never claim to have done them. Other writes are immediate and some are irreversible: removing matches from a poll discards umpires' answers for dropped slots, and editing a poll response overwrites the umpire's own entry — state such consequences when proposing or reporting them. Availability polls use 2-hour time slots that start at least 20 minutes before the match, so availability is per slot, not per exact match time.`;
 
 const pollId = z.uuid().describe("Poll id (from list_polls)");
 const matchId = z.uuid().describe("Match id (from list_matches)");

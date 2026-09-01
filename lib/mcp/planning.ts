@@ -608,8 +608,12 @@ export function findSwapChains(args: {
     if (!blockingMatch?.start_time) continue;
     const blockingSlot = calculateSlot(new Date(blockingMatch.start_time));
 
+    // Anyone booked on the blocking match in ANY poll is out as a backfill
+    // — a match can sit in several polls, and a cross-poll assignment still
+    // means they already officiate it. (The mover's own row is the one being
+    // vacated; they are excluded by id below.)
     const assignedToBlocking = new Set(
-      pollAssignments
+      allAssignments
         .filter((a) => a.match_id === blockingMatchId)
         .map((a) => a.umpire_id),
     );
@@ -624,8 +628,9 @@ export function findSwapChains(args: {
           availabilityKey(blockingMatchId, r.id),
         );
         if (answer !== "yes" && answer !== "if_need_be") return false;
-        // Clash-free for the vacated match's window (the mover's row on the
-        // blocking match is the one being vacated, so it doesn't count).
+        // Clash-free for the vacated match's window. Rows on the blocking
+        // match itself never reach this check — assignedToBlocking already
+        // excluded those umpires.
         return !allAssignments.some((a) => {
           if (a.umpire_id !== r.id) return false;
           if (a.match_id === blockingMatchId) return false;
