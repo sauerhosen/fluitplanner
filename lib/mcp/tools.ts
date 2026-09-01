@@ -21,6 +21,7 @@ import {
   createMatchForPlanner,
   updateMatchForPlanner,
   createPollForPlanner,
+  addMatchesToPollForPlanner,
   getSyncStatus,
   clearReviewFlags,
   listWithdrawals,
@@ -501,6 +502,24 @@ export function registerMcpTools(server: McpServer, ctx: McpPlannerContext) {
       annotations: { readOnlyHint: false, destructiveHint: false },
     },
     (args) => run(() => createPollForPlanner(ctx, args.title, args.match_ids)),
+  );
+
+  server.registerTool(
+    "add_matches_to_poll",
+    {
+      title: "Add matches to a poll",
+      description:
+        "Add matches to an existing OPEN poll; time slots are extended automatically. Existing availability answers are kept, except when a new match shifts a slot's time window — then that slot's answers are discarded, which is counted and reported. Use create_poll for a new poll; matches already in the poll are skipped.",
+      inputSchema: z.object({
+        poll_id: pollId,
+        match_ids: z.array(matchId).min(1).max(200),
+      }),
+      // Destructive: recomputing the slots can permanently discard answers
+      // umpires have already given, so an auto-approving client must ask.
+      annotations: { readOnlyHint: false, destructiveHint: true },
+    },
+    (args) =>
+      run(() => addMatchesToPollForPlanner(ctx, args.poll_id, args.match_ids)),
   );
 
   server.registerTool(

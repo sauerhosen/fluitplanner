@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createServiceClient } from "@/lib/supabase/service";
 import { mapMatchesToSlots } from "@/lib/domain/match-slot-mapping";
 import { groupMatchesIntoSlots } from "@/lib/domain/slots";
+import { diffSlots } from "@/lib/domain/diff-slots";
 import { normalizeNote, MAX_NOTE_LENGTH } from "@/lib/domain/notes";
 import { composeAmsterdamTimestamp } from "@/lib/domain/timezone";
 import type {
@@ -75,6 +76,36 @@ async function selectInBatches<Row>(
     rows.push(...(data ?? []));
   }
   return rows;
+}
+
+/** Same URL-length rule as selectInBatches, for a counting head request. */
+async function countInBatches(
+  ids: string[],
+  query: (batch: string[]) => PromiseLike<{
+    count: number | null;
+    error: { message: string } | null;
+  }>,
+): Promise<number> {
+  let total = 0;
+  for (const batch of batches(ids)) {
+    const { count, error } = await query(batch);
+    throwDb(error);
+    total += count ?? 0;
+  }
+  return total;
+}
+
+/** Same URL-length rule as selectInBatches, for a delete. */
+async function deleteInBatches(
+  ids: string[],
+  mutate: (batch: string[]) => PromiseLike<{
+    error: { message: string } | null;
+  }>,
+): Promise<void> {
+  for (const batch of batches(ids)) {
+    const { error } = await mutate(batch);
+    throwDb(error);
+  }
 }
 
 const TIME_ZONE = "Europe/Amsterdam";
@@ -1585,6 +1616,187 @@ export async function createPollForPlanner(
     matches_without_time: uniqueIds.length - withTime.length,
     url: `${baseUrl()}/poll/${token}`,
     note: "The poll link is NOT sent to anyone automatically — the planner shares it with the umpires themselves.",
+  };
+}
+
+export async function addMatchesToPollForPlanner(
+  ctx: McpPlannerContext,
+  pollId: string,
+  matchIds: string[],
+) {
+  const client = db();
+  const poll = await getPollScoped(client, ctx, pollId);
+  if (poll.status !== "open") {
+    throw new McpUserError(
+      "This poll is closed. Reopen it in the app before adding matches.",
+    );
+  }
+
+  const uniqueIds = [...new Set(matchIds)];
+  const matchRows = await selectInBatches<{
+    id: string;
+    start_time: string | null;
+  }>(uniqueIds, (batch) =>
+    client
+      .from("matches")
+      .select("id, start_time")
+      .in("id", batch)
+      .eq("organization_id", ctx.organizationId),
+  );
+  const found = new Set(matchRows.map((m) => m.id));
+  const missing = uniqueIds.filter((id) => !found.has(id));
+  if (missing.length > 0) {
+    throw new McpUserError(
+      `These matches were not found in this club: ${missing.join(", ")}. Use list_matches to find valid match ids.`,
+    );
+  }
+
+  const { data: existingPm, error: pmError } = await client
+    .from("poll_matches")
+    .select("match_id")
+    .eq("poll_id", poll.id);
+  throwDb(pmError);
+  const existingIds = new Set(
+    (existingPm ?? []).map((r) => r.match_id as string),
+  );
+  const newIds = uniqueIds.filter((id) => !existingIds.has(id));
+  const alreadyInPoll = uniqueIds.length - newIds.length;
+
+  // No early return when every match is already in the poll: a poll's slots
+  // can drift out of step with its matches (a match added before its
+  // start_time was known, or a kick-off moved afterwards — update_match and
+  // the hockey sync both leave slots alone), and re-adding the match is the
+  // obvious repair. Reconcile the slots first; decide whether anything
+  // actually changed below.
+
+  // Same operation the app performs: recompute the slot groups over ALL of
+  // the poll's matches and diff-apply them. Adding a match can extend an
+  // existing group's window; the old slot is then replaced and its answers
+  // are discarded — the app does this silently, here it is counted and
+  // reported so the planner knows who to re-ask.
+  const mergedIds = [...existingIds, ...newIds];
+  const mergedRows = await selectInBatches<{
+    id: string;
+    start_time: string | null;
+  }>(mergedIds, (batch) =>
+    client
+      .from("matches")
+      .select("id, start_time")
+      .in("id", batch)
+      .eq("organization_id", ctx.organizationId),
+  );
+  const withTime = mergedRows.filter((m) => m.start_time !== null) as {
+    id: string;
+    start_time: string;
+  }[];
+  const desiredSlots = groupMatchesIntoSlots(withTime);
+
+  const { data: existingSlots, error: slotError } = await client
+    .from("poll_slots")
+    .select("*")
+    .eq("poll_id", poll.id);
+  throwDb(slotError);
+
+  const { toAdd, toRemove } = diffSlots(
+    (existingSlots ?? []) as PollSlot[],
+    desiredSlots,
+  );
+
+  if (newIds.length === 0 && toAdd.length === 0 && toRemove.length === 0) {
+    return {
+      poll_id: poll.id,
+      added: 0,
+      already_in_poll: alreadyInPoll,
+      note: "Every requested match was already in this poll and its slots already match the match times; nothing changed.",
+    };
+  }
+
+  // Order matters, and it is the reverse of the obvious one: everything that
+  // can fail runs before anything is destroyed. poll_matches is keyed
+  // (poll_id, match_id), so a concurrent add makes the insert below fail —
+  // and deleting slots first would already have taken the umpires' answers
+  // with it via ON DELETE CASCADE, leaving the planner with neither the
+  // answers nor the match. Same rule as setTentativeAssignments: the
+  // destructive step goes last. poll_slots has no uniqueness constraint, so
+  // the briefly overlapping old and new slots are harmless.
+  if (newIds.length > 0) {
+    const { error: insertError } = await client
+      .from("poll_matches")
+      .insert(newIds.map((id) => ({ poll_id: poll.id, match_id: id })));
+    throwDb(insertError);
+  }
+
+  if (toAdd.length > 0) {
+    const { error } = await client.from("poll_slots").insert(
+      toAdd.map((s) => ({
+        poll_id: poll.id,
+        start_time: s.start.toISOString(),
+        end_time: s.end.toISOString(),
+      })),
+    );
+    throwDb(error);
+  }
+
+  let discardedResponses = 0;
+  if (toRemove.length > 0) {
+    const removeIds = toRemove.map((s) => s.id);
+    discardedResponses = await countInBatches(removeIds, (batch) =>
+      client
+        .from("availability_responses")
+        .select("id", { count: "exact", head: true })
+        .in("slot_id", batch),
+    );
+    await deleteInBatches(removeIds, (batch) =>
+      client.from("poll_slots").delete().in("id", batch),
+    );
+  }
+
+  // Matches already collecting availability in a different open poll would
+  // ask umpires the same question twice — worth flagging, like the app's
+  // match picker does by hiding them.
+  const otherPollLinks = await selectInBatches<{ match_id: string }>(
+    newIds,
+    (batch) =>
+      client
+        .from("poll_matches")
+        .select("match_id, polls!inner(id, status, organization_id)")
+        .in("match_id", batch)
+        .neq("poll_id", poll.id)
+        .eq("polls.status", "open")
+        .eq("polls.organization_id", ctx.organizationId),
+  );
+  const alsoInOtherOpenPoll = [
+    ...new Set(otherPollLinks.map((l) => l.match_id)),
+  ];
+
+  return {
+    poll_id: poll.id,
+    title: poll.title,
+    added: newIds.length,
+    already_in_poll: alreadyInPoll || undefined,
+    matches_without_time:
+      newIds.length - withTime.filter((m) => newIds.includes(m.id)).length ||
+      undefined,
+    slots_added: toAdd.length,
+    slots_replaced: toRemove.length || undefined,
+    answers_discarded:
+      discardedResponses > 0
+        ? {
+            count: discardedResponses,
+            // Deliberately does not blame the added matches: the slots are
+            // recomputed from every match in the poll, so a kick-off that
+            // moved after the poll was built discards answers here too.
+            caution:
+              "The poll's time-slot windows were recomputed and some no longer exist; the answers umpires gave for those slots were discarded. That can be the matches just added, or kick-off times that changed since the poll was built. Use get_poll_availability to see who needs to answer again.",
+          }
+        : undefined,
+    also_in_another_open_poll: alsoInOtherOpenPoll.length
+      ? alsoInOtherOpenPoll
+      : undefined,
+    note:
+      newIds.length === 0
+        ? "Every requested match was already in this poll, but its time slots were out of step with the match times and have been recomputed. The poll link is unchanged and nothing was sent to anyone."
+        : "Umpires who already filled out the poll have not answered for any new slots — check get_poll_availability for the new gaps. The poll link is unchanged and nothing was sent to anyone.",
   };
 }
 
