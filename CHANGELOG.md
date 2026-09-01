@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.21.0](https://github.com/sauerhosen/fluitplanner/compare/v2.20.0...v2.21.0) (2026-09-01)
+
+
+### Features
+
+* add swap, stats, response-edit, remove-matches, and sync MCP tools ([30ff4f9](https://github.com/sauerhosen/fluitplanner/commit/30ff4f95c288cb735c31bc17291a3a8e33f5acbf))
+* five more MCP tools — swaps, season stats, response edits, poll removal, sync ([4dfa7b3](https://github.com/sauerhosen/fluitplanner/commit/4dfa7b3750a6f7b10e5ba2f95ef3072c2f193fdc))
+
+
+### Bug Fixes
+
+* apply code-review findings to the round-2 MCP tools ([c1dad3e](https://github.com/sauerhosen/fluitplanner/commit/c1dad3ebf7aca8b4dca8cca27a8d25b1cc1fbef5))
+
 ## [2.20.0](https://github.com/sauerhosen/fluitplanner/compare/v2.19.1...v2.20.0) (2026-09-01)
 
 
