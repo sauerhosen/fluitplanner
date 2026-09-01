@@ -514,7 +514,9 @@ export function registerMcpTools(server: McpServer, ctx: McpPlannerContext) {
         poll_id: pollId,
         match_ids: z.array(matchId).min(1).max(200),
       }),
-      annotations: { readOnlyHint: false, destructiveHint: false },
+      // Destructive: recomputing the slots can permanently discard answers
+      // umpires have already given, so an auto-approving client must ask.
+      annotations: { readOnlyHint: false, destructiveHint: true },
     },
     (args) =>
       run(() => addMatchesToPollForPlanner(ctx, args.poll_id, args.match_ids)),
