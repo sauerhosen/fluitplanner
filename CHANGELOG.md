@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.19.1](https://github.com/sauerhosen/fluitplanner/compare/v2.19.0...v2.19.1) (2026-09-01)
+
+
+### Bug Fixes
+
+* trim NEXT_PUBLIC_SITE_URL before building URLs and auth headers ([4b5c943](https://github.com/sauerhosen/fluitplanner/commit/4b5c9435bd6f7968144c86d5f98e243d8514b80b))
+* trim NEXT_PUBLIC_SITE_URL before building URLs and auth headers ([192c208](https://github.com/sauerhosen/fluitplanner/commit/192c208d1ea79dd4bd7b545a6a5ecee52727e57d))
+
 ## [2.19.0](https://github.com/sauerhosen/fluitplanner/compare/v2.18.0...v2.19.0) (2026-09-01)
 
 
