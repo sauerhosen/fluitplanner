@@ -6,10 +6,13 @@
  */
 
 export function baseUrl(): string {
-  return (process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000").replace(
-    /\/$/,
-    "",
-  );
+  // Trim before anything else: env values picked up a trailing newline in
+  // the wild (`echo … | vercel env add`), and a newline reaching the 401
+  // WWW-Authenticate header makes Headers construction throw — turning
+  // every unauthenticated MCP request into a 500.
+  return (process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000")
+    .trim()
+    .replace(/\/$/, "");
 }
 
 export function mcpResourceUrl(): string {
