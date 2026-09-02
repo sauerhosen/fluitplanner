@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.23.0](https://github.com/sauerhosen/fluitplanner/compare/v2.22.0...v2.23.0) (2026-09-02)
+
+
+### Features
+
+* **polls:** open the assignments tab when a poll has responses ([c7245c9](https://github.com/sauerhosen/fluitplanner/commit/c7245c91c269f5a97698394f06f7de3225a17ded))
+* **polls:** open the assignments tab when a poll has responses ([82497c9](https://github.com/sauerhosen/fluitplanner/commit/82497c907e3cf3d9e37c2547cfc3b1a62f68da2a))
+
 ## [2.22.0](https://github.com/sauerhosen/fluitplanner/compare/v2.21.1...v2.22.0) (2026-09-02)
 
 
