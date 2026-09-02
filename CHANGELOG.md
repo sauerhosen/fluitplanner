@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.22.0](https://github.com/sauerhosen/fluitplanner/compare/v2.21.1...v2.22.0) (2026-09-02)
+
+
+### Features
+
+* let planners feature specific matches in an availability poll ([2881958](https://github.com/sauerhosen/fluitplanner/commit/2881958017b98cc04b54ad799489c653ef7bc9ab))
+* let planners feature specific matches in an availability poll ([fe163b7](https://github.com/sauerhosen/fluitplanner/commit/fe163b799fcedea8713a9038a96e34b3d7c51ebd))
+
+
+### Bug Fixes
+
+* address code review on featured matches ([56ea68c](https://github.com/sauerhosen/fluitplanner/commit/56ea68c57435c21981feb1a07cdd388c686161e0))
+* allow un-featuring a match whose kick-off time was cleared ([a25db80](https://github.com/sauerhosen/fluitplanner/commit/a25db8014bef10e69838ccf76446384ba4a7512c))
+
 ## [2.21.1](https://github.com/sauerhosen/fluitplanner/compare/v2.21.0...v2.21.1) (2026-09-02)
 
 
