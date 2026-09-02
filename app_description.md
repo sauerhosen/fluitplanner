@@ -1,3 +1,9 @@
+> **Status: historical.** This is the original brief the app was built from, kept because
+> it is the source of the red/green TDD rule and of the 2-hour slot definition. It describes
+> the app as first scoped and has _not_ been updated since — no multi-tenancy, no Hockey.nl
+> sync, no MCP server, no exports. For what the app is today see
+> [`README.md`](README.md) and [`CLAUDE.md`](CLAUDE.md).
+
 App for field hockey umpires to indicate availabiltiy and planner to assign umpires to matches. Field hockey requires two umpires per match.
 
 High-level process:
@@ -30,7 +36,5 @@ Two main interfaces:
    2. polls: modern looking interface to set availability for games (yes, if need be, no) - similar to rallly
    3. ability to go back to poll to change later
 
-Examples (don't have to replite exactly)
-![2a043d272932864eb7998771f0ee00ed.png](./_resources/2a043d272932864eb7998771f0ee00ed.png)
-
-![9a2448a2f315f17afb23fb39b74bc1d3.png](./_resources/9a2448a2f315f17afb23fb39b74bc1d3.png)
+Examples (don't have to replicate exactly): the original brief pointed at two
+Rallly/Doodle screenshots that were never committed to this repository.
