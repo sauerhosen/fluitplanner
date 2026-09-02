@@ -198,7 +198,15 @@
     "reviewDismiss": "Controlemarkering verwijderen",
     "cancelledBadge": "Afgelast",
     "syncPartial": "Synchronisatie voltooid met {problems, plural, one {# probleem} other {# problemen}}: {inserted} toegevoegd, {updated} bijgewerkt, {flagged} gemarkeerd. Mogelijk zijn niet alle teams opgehaald — probeer het later opnieuw.",
-    "reviewDismissError": "Controlemarkering verwijderen mislukt. Probeer het opnieuw."
+    "reviewDismissError": "Controlemarkering verwijderen mislukt. Probeer het opnieuw.",
+    "featureDefaultAddLabel": "Deze wedstrijd in polls aan scheidsrechters tonen",
+    "featureDefaultRemoveLabel": "Deze wedstrijd niet meer in polls tonen",
+    "featureUnavailableNoKickoff": "Geen aanvangstijd, dus deze wedstrijd zit in geen enkel tijdslot",
+    "featureNotInPoll": "Deze wedstrijd zit niet meer in deze poll",
+    "featureMatchNotFound": "Deze wedstrijd bestaat niet meer",
+    "featureToggleError": "Kon niet wijzigen wat scheidsrechters te zien krijgen",
+    "featureShownInOpenPolls": "{count, plural, one {Nu zichtbaar voor scheidsrechters in # open poll} other {Nu zichtbaar voor scheidsrechters in # open polls}}",
+    "featureHiddenInOpenPolls": "{count, plural, one {Verborgen voor scheidsrechters in # open poll} other {Verborgen voor scheidsrechters in # open polls}}"
   },
   "polls": {
     "pageTitle": "Peilingen",
@@ -301,7 +309,13 @@
     "noDataToExport": "Geen gegevens om te exporteren.",
     "daySheet": "Dagoverzicht",
     "daySheetMatch": "Wedstrijd",
-    "toolsMenu": "Weergaveopties"
+    "toolsMenu": "Weergaveopties",
+    "featureAddLabel": "Deze wedstrijd aan scheidsrechters tonen",
+    "featureRemoveLabel": "Deze wedstrijd voor scheidsrechters verbergen",
+    "featureUnavailableNoKickoff": "Geen aanvangstijd, dus deze wedstrijd zit in geen enkel tijdslot",
+    "featureToggleError": "Kon niet wijzigen wat deze poll toont",
+    "featureNotInPoll": "Deze wedstrijd zit niet meer in deze poll",
+    "featureMatchNotFound": "Deze wedstrijd bestaat niet meer"
   },
   "pollResponse": {
     "loadingPoll": "Peiling laden...",
@@ -363,7 +377,8 @@
     "warningDialogNotice": "De planner wordt op de hoogte gesteld van deze wijziging.",
     "warningDialogCancel": "Terug",
     "warningDialogProceed": "Toch doorgaan",
-    "partialSaveBlocked": "Sommige wijzigingen zijn geblokkeerd omdat je bent ingedeeld voor: {matches}. De rest van je wijzigingen is opgeslagen."
+    "partialSaveBlocked": "Sommige wijzigingen zijn geblokkeerd omdat je bent ingedeeld voor: {matches}. De rest van je wijzigingen is opgeslagen.",
+    "featuredMatchLabel": "Uitgelichte wedstrijd:"
   },
   "umpires": {
     "pageTitle": "Scheidsrechters",

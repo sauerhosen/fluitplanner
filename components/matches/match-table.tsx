@@ -36,6 +36,7 @@ import { useTranslations, useFormatter } from "next-intl";
 import { toast } from "sonner";
 import { useSelection } from "@/hooks/use-selection";
 import { MatchNoteButton } from "./match-note-button";
+import { MatchFeatureButton } from "./match-feature-button";
 import { SelectionToolbar } from "@/components/shared/selection-toolbar";
 
 const LEVEL_VARIANTS: Record<number, "default" | "secondary" | "destructive"> =
@@ -312,11 +313,17 @@ export function MatchTable({
                         <TableCell>{match.field ?? "—"}</TableCell>
                         <TableCell>{match.venue ?? "—"}</TableCell>
                         <TableCell>
-                          <MatchNoteButton
-                            match={match}
-                            variant="editor"
-                            onSaved={onDeleted}
-                          />
+                          <div className="flex items-center gap-0.5">
+                            <MatchFeatureButton
+                              match={match}
+                              onToggled={onDeleted}
+                            />
+                            <MatchNoteButton
+                              match={match}
+                              variant="editor"
+                              onSaved={onDeleted}
+                            />
+                          </div>
                         </TableCell>
                         <TableCell>
                           <Badge variant={LEVEL_VARIANTS[match.required_level]}>

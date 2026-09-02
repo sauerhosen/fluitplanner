@@ -33,6 +33,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { MatchNoteButton } from "@/components/matches/match-note-button";
+import { FeatureMatchButton } from "./feature-match-button";
 import { getUmpiresForPoll } from "@/lib/actions/assignments";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -152,6 +153,25 @@ export function PollDetailClient({
     setLiveAssignments(updated.assignments);
     setLiveResponses(updated.responses);
   }, [poll.id]);
+
+  const featuredMatchIds = useMemo(
+    () => new Set(poll.featuredMatchIds),
+    [poll.featuredMatchIds],
+  );
+
+  // The toggle already wrote to the database, so fold the result into local
+  // state rather than refetching the whole poll for one boolean.
+  const handleFeatureToggled = useCallback(
+    (matchId: string, featured: boolean) => {
+      setPoll((prev) => ({
+        ...prev,
+        featuredMatchIds: featured
+          ? [...new Set([...prev.featuredMatchIds, matchId])]
+          : prev.featuredMatchIds.filter((id) => id !== matchId),
+      }));
+    },
+    [],
+  );
 
   // Umpires arrive as a prop from the server, so an umpire note edited in the
   // assignment grid needs its own refetch to be read back.
@@ -567,6 +587,15 @@ export function PollDetailClient({
                                             )}
                                           </span>
                                         )}
+                                        <FeatureMatchButton
+                                          pollId={poll.id}
+                                          matchId={match.id}
+                                          featured={featuredMatchIds.has(
+                                            match.id,
+                                          )}
+                                          disabled={!match.start_time}
+                                          onToggled={handleFeatureToggled}
+                                        />
                                         <MatchNoteButton
                                           match={match}
                                           variant="editor"

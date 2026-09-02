@@ -1,12 +1,16 @@
 import type { Match, PollSlot } from "@/lib/types/domain";
 
+/** Only the fields the mapping actually reads, so narrow query rows fit too. */
+type MatchTiming = Pick<Match, "id" | "start_time">;
+type SlotWindow = Pick<PollSlot, "id" | "start_time" | "end_time">;
+
 /**
  * Maps each match to the poll slot that contains its start time.
  * Returns a Map of matchId -> slotId.
  */
 export function mapMatchesToSlots(
-  matches: Match[],
-  slots: PollSlot[],
+  matches: MatchTiming[],
+  slots: SlotWindow[],
 ): Map<string, string> {
   const result = new Map<string, string>();
 

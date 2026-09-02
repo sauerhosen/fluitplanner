@@ -280,6 +280,8 @@ type PollGraph = {
   poll: Poll;
   slots: PollSlot[];
   matches: Match[];
+  /** Matches whose details this poll reveals on its public page. */
+  featuredMatchIds: Set<string>;
   /** matchId -> slotId, for matches with a start time inside a slot. */
   slotByMatch: Map<string, string>;
   /** slotId -> (umpireId -> answer) */
@@ -301,7 +303,10 @@ async function getPollGraph(
       .select("*")
       .eq("poll_id", pollId)
       .order("start_time"),
-    client.from("poll_matches").select("match_id").eq("poll_id", pollId),
+    client
+      .from("poll_matches")
+      .select("match_id, featured")
+      .eq("poll_id", pollId),
     client
       .from("availability_responses")
       .select("slot_id, umpire_id, response")
@@ -312,6 +317,11 @@ async function getPollGraph(
   throwDb(responsesRes.error);
 
   const matchIds = (pollMatchesRes.data ?? []).map((r) => r.match_id as string);
+  const featuredMatchIds = new Set(
+    (pollMatchesRes.data ?? [])
+      .filter((r) => r.featured)
+      .map((r) => r.match_id as string),
+  );
   const matches = (
     await selectInBatches<Match>(matchIds, (batch) =>
       client
@@ -347,6 +357,7 @@ async function getPollGraph(
     poll,
     slots,
     matches,
+    featuredMatchIds,
     slotByMatch: mapMatchesToSlots(matches, slots),
     responsesBySlot,
     respondents,
@@ -736,7 +747,11 @@ export async function getPollAvailability(
       end: local(slot.end_time),
       matches: graph.matches
         .filter((m) => graph.slotByMatch.get(m.id) === slot.id)
-        .map((m) => ({ id: m.id, label: matchLabel(m) })),
+        .map((m) => ({
+          id: m.id,
+          label: matchLabel(m),
+          featured: graph.featuredMatchIds.has(m.id),
+        })),
       yes: bucket("yes"),
       if_need_be: bucket("if_need_be"),
       no: bucket("no"),
@@ -1407,6 +1422,97 @@ export async function setUmpireNotes(
   return { umpire_id: data.umpire_id, notes: data.notes };
 }
 
+/**
+ * Reveal or hide match details for specific matches inside one poll.
+ *
+ * This publishes: a featured match's teams become visible to anyone holding
+ * the poll link, with no login. Matches with no kick-off time belong to no
+ * slot and are reported back as skipped rather than silently stored.
+ */
+export async function setFeaturedMatchesForPlanner(
+  ctx: McpPlannerContext,
+  pollId: string,
+  matchIds: string[],
+  featured: boolean,
+) {
+  const client = db();
+  const poll = await getPollScoped(client, ctx, pollId);
+
+  const uniqueIds = [...new Set(matchIds)];
+
+  // Batched like every other id-list lookup here: match_ids is capped at 200,
+  // which is already too long for one PostgREST query string.
+  const pollMatches = await selectInBatches<{ match_id: string }>(
+    uniqueIds,
+    (batch) =>
+      client
+        .from("poll_matches")
+        .select("match_id")
+        .eq("poll_id", pollId)
+        .in("match_id", batch),
+  );
+
+  const inPoll = new Set(pollMatches.map((r) => r.match_id));
+  const notInPoll = uniqueIds.filter((id) => !inPoll.has(id));
+
+  const matchRows = await selectInBatches<{
+    id: string;
+    start_time: string | null;
+    home_team: string;
+    away_team: string;
+  }>([...inPoll], (batch) =>
+    client
+      .from("matches")
+      .select("id, start_time, home_team, away_team")
+      .in("id", batch)
+      .eq("organization_id", ctx.organizationId),
+  );
+
+  // Featuring keys off the kick-off time via slot mapping, so a match without
+  // one has nowhere to appear and is refused rather than stored as a no-op.
+  const withoutKickoff = matchRows.filter((m) => !m.start_time);
+  const targets = featured ? matchRows.filter((m) => m.start_time) : matchRows;
+
+  if (targets.length > 0) {
+    // Read the rows back: an update that matches nothing still reports
+    // success, and reporting matches as featured when none were written
+    // would be worse than failing.
+    let changed = 0;
+    for (const batch of batches(targets.map((m) => m.id))) {
+      const { data: updated, error: updateError } = await client
+        .from("poll_matches")
+        .update({ featured })
+        .eq("poll_id", pollId)
+        .in("match_id", batch)
+        .select("match_id");
+      throwDb(updateError);
+      changed += (updated ?? []).length;
+    }
+    if (changed !== targets.length) {
+      throw new McpUserError(
+        `Expected to change ${targets.length} match(es) in poll ${pollId} but changed ${changed}. Re-read the poll with get_poll_availability before trusting what it now reveals.`,
+      );
+    }
+  }
+
+  return {
+    poll_id: poll.id,
+    poll_title: poll.title,
+    featured,
+    updated: targets.map((m) => ({
+      match_id: m.id,
+      label: `${m.home_team} – ${m.away_team}`,
+    })),
+    skipped_no_kickoff: featured
+      ? withoutKickoff.map((m) => ({
+          match_id: m.id,
+          label: `${m.home_team} – ${m.away_team}`,
+        }))
+      : [],
+    skipped_not_in_poll: notInPoll,
+  };
+}
+
 function normalizeNoteOrUserError(notes: string): string | null {
   try {
     return normalizeNote(notes);
@@ -1593,10 +1699,11 @@ export async function createPollForPlanner(
   const matchRows = await selectInBatches<{
     id: string;
     start_time: string | null;
+    featured_by_default: boolean;
   }>(uniqueIds, (batch) =>
     client
       .from("matches")
-      .select("id, start_time")
+      .select("id, start_time, featured_by_default")
       .in("id", batch)
       .eq("organization_id", ctx.organizationId),
   );
@@ -1628,9 +1735,17 @@ export async function createPollForPlanner(
     .single();
   throwDb(pollError);
 
-  const { error: pmError } = await client
-    .from("poll_matches")
-    .insert(uniqueIds.map((id) => ({ poll_id: poll.id, match_id: id })));
+  // Each match joins the poll carrying its match-level featured default.
+  const featuredDefaults = new Map(
+    (matchRows ?? []).map((m) => [m.id, m.featured_by_default]),
+  );
+  const { error: pmError } = await client.from("poll_matches").insert(
+    uniqueIds.map((id) => ({
+      poll_id: poll.id,
+      match_id: id,
+      featured: featuredDefaults.get(id) ?? false,
+    })),
+  );
   throwDb(pmError);
 
   if (slots.length > 0) {
@@ -1758,10 +1873,11 @@ export async function addMatchesToPollForPlanner(
   const matchRows = await selectInBatches<{
     id: string;
     start_time: string | null;
+    featured_by_default: boolean;
   }>(uniqueIds, (batch) =>
     client
       .from("matches")
-      .select("id, start_time")
+      .select("id, start_time, featured_by_default")
       .in("id", batch)
       .eq("organization_id", ctx.organizationId),
   );
@@ -1804,9 +1920,18 @@ export async function addMatchesToPollForPlanner(
   // answers nor the match. Same rule as setTentativeAssignments: the
   // destructive step (inside reconcilePollSlots) goes last.
   if (newIds.length > 0) {
-    const { error: insertError } = await client
-      .from("poll_matches")
-      .insert(newIds.map((id) => ({ poll_id: poll.id, match_id: id })));
+    const featuredDefaults = new Map(
+      matchRows.map((m) => [m.id, m.featured_by_default]),
+    );
+    const { error: insertError } = await client.from("poll_matches").insert(
+      // A match joining now inherits its match-level featured default;
+      // matches already in the poll keep whatever the planner set here.
+      newIds.map((id) => ({
+        poll_id: poll.id,
+        match_id: id,
+        featured: featuredDefaults.get(id) ?? false,
+      })),
+    );
     throwDb(insertError);
   }
 

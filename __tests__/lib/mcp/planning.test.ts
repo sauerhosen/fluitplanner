@@ -11,11 +11,11 @@ import {
   type AvailabilityAnswer,
 } from "@/lib/mcp/planning";
 import type { Match, Assignment, RosteredUmpire } from "@/lib/types/domain";
-import { matchSyncDefaults } from "@/__tests__/helpers/fixtures";
+import { matchColumnDefaults } from "@/__tests__/helpers/fixtures";
 
 function makeMatch(overrides: Partial<Match> & { id: string }): Match {
   return {
-    ...matchSyncDefaults,
+    ...matchColumnDefaults,
     date: "2026-03-15",
     start_time: "2026-03-15T11:00:00Z",
     home_team: "Team A",

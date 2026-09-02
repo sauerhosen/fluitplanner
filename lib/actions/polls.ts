@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireTenantId } from "@/lib/tenant";
 import { groupMatchesIntoSlots } from "@/lib/domain/slots";
 import { diffSlots } from "@/lib/domain/diff-slots";
+import { resolveFeaturedOnReplace } from "@/lib/domain/featured-matches";
 import type {
   Match,
   Poll,
@@ -29,6 +30,8 @@ export type PollDetail = Poll & {
   slots: PollSlot[];
   responses: AvailabilityResponse[];
   assignments: Assignment[];
+  /** Matches whose details this poll reveals on the public page. */
+  featuredMatchIds: string[];
 };
 
 /* ------------------------------------------------------------------ */
@@ -173,7 +176,7 @@ export async function getPoll(id: string): Promise<PollDetail> {
   // Fetch poll_matches junction
   const { data: pollMatches, error: pmError } = await supabase
     .from("poll_matches")
-    .select("match_id")
+    .select("match_id, featured")
     .eq("poll_id", id);
 
   if (pmError) throw new Error(pmError.message);
@@ -181,6 +184,9 @@ export async function getPoll(id: string): Promise<PollDetail> {
   const matchIds = (pollMatches ?? []).map(
     (pm: { match_id: string }) => pm.match_id,
   );
+  const featuredMatchIds = (pollMatches ?? [])
+    .filter((pm: { featured: boolean }) => pm.featured)
+    .map((pm: { match_id: string }) => pm.match_id);
 
   // Fetch actual matches
   let matches: Match[] = [];
@@ -228,6 +234,7 @@ export async function getPoll(id: string): Promise<PollDetail> {
     slots: slots ?? [],
     responses: responses ?? [],
     assignments: assignments ?? [],
+    featuredMatchIds,
   };
 }
 
@@ -290,7 +297,7 @@ export async function createPoll(
   // Fetch match start times
   const { data: matches, error: mError } = await supabase
     .from("matches")
-    .select("id, start_time")
+    .select("id, start_time, featured_by_default")
     .in("id", matchIds);
 
   if (mError) throw new Error(mError.message);
@@ -327,10 +334,19 @@ export async function createPoll(
 
   if (pollError) throw new Error(pollError.message);
 
-  // Insert poll_matches
-  const pollMatchRows = matchIds.map((matchId) => ({
+  // Insert poll_matches, seeding each match's featured flag from its
+  // match-level default. Deduplicated because poll_matches is keyed on
+  // (poll_id, match_id).
+  const featuredDefaults = new Map(
+    matches.map((m: { id: string; featured_by_default: boolean }) => [
+      m.id,
+      m.featured_by_default,
+    ]),
+  );
+  const pollMatchRows = uniqueMatchIds.map((matchId) => ({
     poll_id: poll.id,
     match_id: matchId,
+    featured: featuredDefaults.get(matchId) ?? false,
   }));
 
   const { error: pmError } = await supabase
@@ -385,7 +401,7 @@ export async function updatePollMatches(
   const uniqueMatchIds = [...new Set(matchIds)];
   const { data: matches, error: mError } = await supabase
     .from("matches")
-    .select("id, start_time")
+    .select("id, start_time, featured_by_default")
     .in("id", uniqueMatchIds);
 
   if (mError) throw new Error(mError.message);
@@ -434,6 +450,32 @@ export async function updatePollMatches(
     if (error) throw new Error(error.message);
   }
 
+  // Read the current junction rows before replacing them. The replace below
+  // is wholesale, so without this every per-poll featured flag a planner set
+  // by hand would be silently dropped on any edit to the match list.
+  const { data: existingPollMatches, error: existingPmError } = await supabase
+    .from("poll_matches")
+    .select("match_id, featured")
+    .eq("poll_id", pollId);
+
+  if (existingPmError) throw new Error(existingPmError.message);
+
+  const resolvedFeatured = resolveFeaturedOnReplace(
+    uniqueMatchIds,
+    (existingPollMatches ?? []).map(
+      (pm: { match_id: string; featured: boolean }) => ({
+        matchId: pm.match_id,
+        featured: pm.featured,
+      }),
+    ),
+    new Map(
+      (matches ?? []).map((m: { id: string; featured_by_default: boolean }) => [
+        m.id,
+        m.featured_by_default,
+      ]),
+    ),
+  );
+
   // Replace poll_matches: delete old, insert new
   const { error: deleteError } = await supabase
     .from("poll_matches")
@@ -442,9 +484,10 @@ export async function updatePollMatches(
 
   if (deleteError) throw new Error(deleteError.message);
 
-  const pollMatchRows = matchIds.map((matchId) => ({
+  const pollMatchRows = uniqueMatchIds.map((matchId) => ({
     poll_id: pollId,
     match_id: matchId,
+    featured: resolvedFeatured.get(matchId) ?? false,
   }));
 
   const { error: insertError } = await supabase

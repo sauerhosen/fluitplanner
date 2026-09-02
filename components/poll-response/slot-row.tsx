@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Lock, AlertTriangle } from "lucide-react";
+import { Lock, AlertTriangle, Star } from "lucide-react";
 import { useTranslations, useFormatter } from "next-intl";
 
 type ResponseValue = "yes" | "if_need_be" | "no";
@@ -19,6 +19,12 @@ type Props = {
   showWarning?: boolean;
   /** Match descriptions for warning display */
   assignedMatchLabels?: string[];
+  /**
+   * Matches the planner chose to reveal for this slot. The caller is
+   * responsible for withholding these on past slots and on slots this umpire
+   * is already assigned to; a locked row suppresses them here as well.
+   */
+  featuredMatches?: { matchId: string; homeTeam: string; awayTeam: string }[];
 };
 
 type ButtonConfig = {
@@ -55,6 +61,7 @@ export function SlotRow({
   locked,
   showWarning,
   assignedMatchLabels,
+  featuredMatches,
 }: Props) {
   const t = useTranslations("pollResponse");
   const format = useFormatter();
@@ -69,6 +76,9 @@ export function SlotRow({
 
   const isFullyDisabled = disabled || locked;
 
+  // A locked row is dimmed and unanswerable, so an enticement in it is noise.
+  const shownFeatured = locked ? [] : (featuredMatches ?? []);
+
   return (
     <div className="last:border-b-0">
       <div
@@ -82,6 +92,18 @@ export function SlotRow({
           <div className="text-sm">
             {formatTime(startTime)} &ndash; {formatTime(endTime)}
           </div>
+          {shownFeatured.map((match) => (
+            <div
+              key={match.matchId}
+              className="flex items-center gap-1 text-xs font-medium text-sky-600 dark:text-sky-400"
+            >
+              <Star className="h-3 w-3 shrink-0 fill-current" />
+              <span className="sr-only">{t("featuredMatchLabel")}</span>
+              <span>
+                {match.homeTeam} &ndash; {match.awayTeam}
+              </span>
+            </div>
+          ))}
           {locked && (
             <div className="text-muted-foreground flex items-center gap-1 text-xs">
               <Lock className="h-3 w-3" />

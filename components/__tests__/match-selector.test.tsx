@@ -3,11 +3,11 @@ import { render } from "@/__tests__/helpers/render";
 import { describe, it, expect, vi } from "vitest";
 import { MatchSelector } from "@/components/polls/match-selector";
 import type { Match } from "@/lib/types/domain";
-import { matchSyncDefaults } from "@/__tests__/helpers/fixtures";
+import { matchColumnDefaults } from "@/__tests__/helpers/fixtures";
 
 const mockMatches: Match[] = [
   {
-    ...matchSyncDefaults,
+    ...matchColumnDefaults,
     id: "m1",
     date: "2026-02-15",
     start_time: "2026-02-15T11:00:00Z",
@@ -23,7 +23,7 @@ const mockMatches: Match[] = [
     organization_id: "test-org-id",
   },
   {
-    ...matchSyncDefaults,
+    ...matchColumnDefaults,
     id: "m2",
     date: "2026-02-15",
     start_time: "2026-02-15T14:30:00Z",
@@ -39,7 +39,7 @@ const mockMatches: Match[] = [
     organization_id: "test-org-id",
   },
   {
-    ...matchSyncDefaults,
+    ...matchColumnDefaults,
     id: "m3",
     date: "2026-02-22",
     start_time: "2026-02-22T12:00:00Z",

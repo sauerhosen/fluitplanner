@@ -4,7 +4,7 @@ import { render } from "@/__tests__/helpers/render";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { MatchFormDialog } from "../match-form";
 import type { Match } from "@/lib/types/domain";
-import { matchSyncDefaults } from "@/__tests__/helpers/fixtures";
+import { matchColumnDefaults } from "@/__tests__/helpers/fixtures";
 
 vi.mock("@/lib/actions/matches", () => ({
   createMatch: vi.fn(),
@@ -16,7 +16,7 @@ const mockCreateMatch = vi.mocked(createMatch);
 const mockUpdateMatch = vi.mocked(updateMatch);
 
 const match: Match = {
-  ...matchSyncDefaults,
+  ...matchColumnDefaults,
   id: "m1",
   date: "2026-03-15",
   start_time: "2026-03-15T11:00:00Z",
