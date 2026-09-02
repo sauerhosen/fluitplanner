@@ -198,7 +198,15 @@
     "reviewDismiss": "Dismiss review flag",
     "cancelledBadge": "Cancelled",
     "syncPartial": "Sync finished with {problems, plural, one {# problem} other {# problems}}: {inserted} added, {updated} updated, {flagged} flagged. Some teams may not have been fetched — try again later.",
-    "reviewDismissError": "Failed to dismiss the review flag. Please try again."
+    "reviewDismissError": "Failed to dismiss the review flag. Please try again.",
+    "featureDefaultAddLabel": "Show this match to umpires in polls",
+    "featureDefaultRemoveLabel": "Stop showing this match to umpires in polls",
+    "featureUnavailableNoKickoff": "No kick-off time, so this match is not in any slot",
+    "featureNotInPoll": "This match is no longer in this poll",
+    "featureMatchNotFound": "This match no longer exists",
+    "featureToggleError": "Could not change what umpires are shown",
+    "featureShownInOpenPolls": "{count, plural, one {Now shown to umpires in # open poll} other {Now shown to umpires in # open polls}}",
+    "featureHiddenInOpenPolls": "{count, plural, one {Hidden from umpires in # open poll} other {Hidden from umpires in # open polls}}"
   },
   "polls": {
     "pageTitle": "Polls",
@@ -305,7 +313,9 @@
     "featureAddLabel": "Show this match to umpires",
     "featureRemoveLabel": "Hide this match from umpires",
     "featureUnavailableNoKickoff": "No kick-off time, so this match is not in any slot",
-    "featureToggleError": "Could not change what this poll shows"
+    "featureToggleError": "Could not change what this poll shows",
+    "featureNotInPoll": "This match is no longer in this poll",
+    "featureMatchNotFound": "This match no longer exists"
   },
   "pollResponse": {
     "loadingPoll": "Loading poll...",

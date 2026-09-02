@@ -100,11 +100,17 @@ function respondWith(handlers: {
   pollMatches?: unknown[] | null;
   /** Rows the update reports back; [] models a write RLS silently dropped. */
   updatedRows?: unknown[] | null;
+  /** Rows the matches update reports back; [] models a vanished match. */
+  matchUpdated?: unknown[] | null;
 }) {
   state.respond = (op) => {
     if (op.table === "polls") return { data: handlers.poll ?? [POLL] };
     if (op.table === "matches" && op.kind === "select") {
       return { data: handlers.match ?? [WITH_KICKOFF] };
+    }
+    if (op.table === "matches" && op.kind === "update") {
+      // The default write reads the row back to prove it landed.
+      return { data: handlers.matchUpdated ?? [{ id: "m1" }] };
     }
     if (op.table === "poll_matches" && op.kind === "select") {
       return { data: handlers.pollMatches ?? [] };
@@ -143,9 +149,12 @@ describe("setPollMatchFeatured", () => {
   it("refuses a match with no kick-off time, explaining why", async () => {
     respondWith({ match: [NO_KICKOFF] });
 
-    await expect(setPollMatchFeatured("poll-1", "m1", true)).rejects.toThrow(
-      /no kick-off time/,
-    );
+    // Returned, not thrown: Next.js masks a thrown Server Action error, so a
+    // reason has to travel back as a value to reach the planner at all.
+    await expect(setPollMatchFeatured("poll-1", "m1", true)).resolves.toEqual({
+      ok: false,
+      reason: "no_kickoff",
+    });
     expect(state.ops.some((op) => op.kind === "update")).toBe(false);
   });
 
@@ -165,17 +174,19 @@ describe("setPollMatchFeatured", () => {
     // as featured when it was not.
     respondWith({ updatedRows: [] });
 
-    await expect(setPollMatchFeatured("poll-1", "m1", true)).rejects.toThrow(
-      "This match is not in this poll",
-    );
+    await expect(setPollMatchFeatured("poll-1", "m1", true)).resolves.toEqual({
+      ok: false,
+      reason: "not_in_poll",
+    });
   });
 
   it("refuses a poll outside the planner's organization", async () => {
     respondWith({ poll: [] });
 
-    await expect(setPollMatchFeatured("poll-1", "m1", true)).rejects.toThrow(
-      "Poll not found",
-    );
+    await expect(setPollMatchFeatured("poll-1", "m1", true)).resolves.toEqual({
+      ok: false,
+      reason: "not_in_poll",
+    });
     expect(state.ops.some((op) => op.kind === "update")).toBe(false);
   });
 });
@@ -192,7 +203,7 @@ describe("setMatchFeaturedByDefault", () => {
 
     const result = await setMatchFeaturedByDefault("m1", true);
 
-    expect(result).toEqual({ featured: true, openPollsUpdated: 2 });
+    expect(result).toEqual({ ok: true, featured: true, openPollsUpdated: 2 });
 
     const propagation = state.ops.find(
       (op) => op.table === "poll_matches" && op.kind === "update",
@@ -214,7 +225,7 @@ describe("setMatchFeaturedByDefault", () => {
     });
 
     await expect(setMatchFeaturedByDefault("m1", true)).rejects.toThrow(
-      /every open poll/,
+      /1 of 2 open polls/,
     );
   });
 
@@ -228,7 +239,7 @@ describe("setMatchFeaturedByDefault", () => {
 
     const result = await setMatchFeaturedByDefault("m1", true);
 
-    expect(result.openPollsUpdated).toBe(1);
+    expect(result).toMatchObject({ ok: true, openPollsUpdated: 1 });
     const propagation = state.ops.find(
       (op) => op.table === "poll_matches" && op.kind === "update",
     );
@@ -240,7 +251,7 @@ describe("setMatchFeaturedByDefault", () => {
 
     const result = await setMatchFeaturedByDefault("m1", true);
 
-    expect(result).toEqual({ featured: true, openPollsUpdated: 0 });
+    expect(result).toEqual({ ok: true, featured: true, openPollsUpdated: 0 });
     const matchUpdate = state.ops.find(
       (op) => op.table === "matches" && op.kind === "update",
     );
@@ -266,12 +277,32 @@ describe("setMatchFeaturedByDefault", () => {
     });
   });
 
+  it("does not record the default when propagation fails", async () => {
+    // Ordering guarantee: the publish to open polls happens first, so a
+    // failure leaves nothing changed and a retry is clean, rather than
+    // persisting a default that would seed every future poll.
+    respondWith({
+      pollMatches: [
+        { poll_id: "poll-a", featured: false },
+        { poll_id: "poll-b", featured: false },
+      ],
+      updatedRows: [{ poll_id: "poll-a" }],
+    });
+
+    await expect(setMatchFeaturedByDefault("m1", true)).rejects.toThrow();
+
+    expect(
+      state.ops.some((op) => op.table === "matches" && op.kind === "update"),
+    ).toBe(false);
+  });
+
   it("refuses to set the default on a match with no kick-off time", async () => {
     respondWith({ match: [NO_KICKOFF] });
 
-    await expect(setMatchFeaturedByDefault("m1", true)).rejects.toThrow(
-      /no kick-off time/,
-    );
+    await expect(setMatchFeaturedByDefault("m1", true)).resolves.toEqual({
+      ok: false,
+      reason: "no_kickoff",
+    });
     expect(state.ops.some((op) => op.kind === "update")).toBe(false);
   });
 });

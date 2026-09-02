@@ -27,8 +27,24 @@ create index idx_poll_matches_featured
 -- a column on an existing row, so without this the update matches no rows and
 -- PostgREST reports success having changed nothing.
 --
--- Permissive like its sibling policies on this table — tenant scoping is
--- enforced in the query (`organization_id = tenantId`) by every caller.
+-- Scoped to the caller's own clubs, unlike this table's older policies. Those
+-- are permissive (`using (true)`) and rely on the server action filtering by
+-- organization_id, which is fine for writes whose effect stays internal. This
+-- is the first write on the table that PUBLISHES: flipping `featured` reveals
+-- team names on a poll's anonymous link. A permissive policy would let any
+-- signed-in user of any club publish another club's fixtures straight through
+-- PostgREST with the browser key, bypassing the server action entirely.
+--
+-- get_user_org_ids() is the existing SECURITY DEFINER helper from
+-- 20260215000007, used here for the same reason: reading membership directly
+-- inside a policy risks recursion.
 create policy "Authenticated users can update poll_matches"
   on public.poll_matches for update to authenticated
-  using (true);
+  using (
+    exists (
+      select 1
+      from public.polls p
+      where p.id = poll_matches.poll_id
+        and p.organization_id in (select public.get_user_org_ids())
+    )
+  );

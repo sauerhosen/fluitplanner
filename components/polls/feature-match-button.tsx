@@ -5,7 +5,16 @@ import { useTranslations } from "next-intl";
 import { Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { setPollMatchFeatured } from "@/lib/actions/featured-matches";
+import {
+  setPollMatchFeatured,
+  type FeatureRefusal,
+} from "@/lib/actions/featured-matches";
+
+const REFUSAL_KEYS: Record<FeatureRefusal, string> = {
+  no_kickoff: "featureUnavailableNoKickoff",
+  not_in_poll: "featureNotInPoll",
+  match_not_found: "featureMatchNotFound",
+};
 
 type Props = {
   pollId: string;
@@ -49,11 +58,18 @@ export function FeatureMatchButton({
     setError(null);
     startTransition(async () => {
       try {
-        await setPollMatchFeatured(pollId, matchId, next);
+        const result = await setPollMatchFeatured(pollId, matchId, next);
+        if (!result.ok) {
+          setOptimistic(!next);
+          setError(t(REFUSAL_KEYS[result.reason]));
+          return;
+        }
         onToggled?.(matchId, next);
-      } catch (err) {
+      } catch {
+        // A thrown Server Action error reaches the browser as an opaque
+        // Next.js string, so show our own wording rather than surfacing it.
         setOptimistic(!next);
-        setError(err instanceof Error ? err.message : t("featureToggleError"));
+        setError(t("featureToggleError"));
       }
     });
   }

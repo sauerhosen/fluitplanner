@@ -16,41 +16,61 @@ async function requireAuth() {
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
 /**
+ * Why a toggle was refused.
+ *
+ * Returned rather than thrown: Next.js replaces an uncaught Server Action
+ * error with a generic message before it reaches the browser, so a thrown
+ * reason never survives to the planner. A returned code does, and lets the
+ * client render it in the planner's own language.
+ */
+export type FeatureRefusal = "no_kickoff" | "not_in_poll" | "match_not_found";
+
+export type SetFeaturedResult =
+  { ok: true } | { ok: false; reason: FeatureRefusal };
+
+export type SetFeaturedDefaultResult =
+  | {
+      ok: true;
+      featured: boolean;
+      /** Open polls this retroactively changed — the public blast radius. */
+      openPollsUpdated: number;
+    }
+  | { ok: false; reason: FeatureRefusal };
+
+/**
  * Featuring a match with no kick-off time would be a silent no-op: slot
  * mapping keys off the kick-off, so such a match belongs to no slot and has
- * nowhere on the public page to appear. Refuse instead, with the reason.
+ * nowhere on the public page to appear.
  */
-async function requireFeaturableMatch(
+async function checkFeaturable(
   supabase: SupabaseClient,
   tenantId: string,
   matchId: string,
-): Promise<void> {
+): Promise<FeatureRefusal | null> {
   const { data: match, error } = await supabase
     .from("matches")
     .select("start_time")
     .eq("id", matchId)
     .eq("organization_id", tenantId)
-    .single();
+    .maybeSingle();
 
-  if (error || !match) throw new Error("Match not found");
-  if (!match.start_time) {
-    throw new Error(
-      "This match has no kick-off time, so it is not in any slot and cannot be featured",
-    );
-  }
+  if (error) throw new Error(error.message);
+  if (!match) return "match_not_found";
+  if (!match.start_time) return "no_kickoff";
+  return null;
 }
 
 /**
  * Reveal or hide one match's details inside one poll.
  *
- * This publishes to an unauthenticated page: once featured, the home and away
- * team names are visible to anyone holding the poll link.
+ * This publishes: once featured, the home and away team names are visible to
+ * anyone holding the poll link, with no login.
  */
 export async function setPollMatchFeatured(
   pollId: string,
   matchId: string,
   featured: boolean,
-): Promise<void> {
+): Promise<SetFeaturedResult> {
   const { supabase } = await requireAuth();
   const tenantId = await requireTenantId();
 
@@ -59,12 +79,14 @@ export async function setPollMatchFeatured(
     .select("id")
     .eq("id", pollId)
     .eq("organization_id", tenantId)
-    .single();
+    .maybeSingle();
 
-  if (pollError || !poll) throw new Error("Poll not found");
+  if (pollError) throw new Error(pollError.message);
+  if (!poll) return { ok: false, reason: "not_in_poll" };
 
   if (featured) {
-    await requireFeaturableMatch(supabase, tenantId, matchId);
+    const refusal = await checkFeaturable(supabase, tenantId, matchId);
+    if (refusal) return { ok: false, reason: refusal };
   }
 
   // Read the changed rows back rather than trusting a bare ok. An update
@@ -79,18 +101,11 @@ export async function setPollMatchFeatured(
     .select("match_id");
 
   if (error) throw new Error(error.message);
-  if (!data || data.length === 0) {
-    throw new Error("This match is not in this poll");
-  }
+  if (!data || data.length === 0) return { ok: false, reason: "not_in_poll" };
 
   revalidatePath("/protected/polls");
+  return { ok: true };
 }
-
-export type FeaturedDefaultResult = {
-  featured: boolean;
-  /** How many already-open polls this changed — the public blast radius. */
-  openPollsUpdated: number;
-};
 
 /**
  * Set the match-level default, which seeds `poll_matches.featured` whenever
@@ -104,21 +119,14 @@ export type FeaturedDefaultResult = {
 export async function setMatchFeaturedByDefault(
   matchId: string,
   featured: boolean,
-): Promise<FeaturedDefaultResult> {
+): Promise<SetFeaturedDefaultResult> {
   const { supabase } = await requireAuth();
   const tenantId = await requireTenantId();
 
   if (featured) {
-    await requireFeaturableMatch(supabase, tenantId, matchId);
+    const refusal = await checkFeaturable(supabase, tenantId, matchId);
+    if (refusal) return { ok: false, reason: refusal };
   }
-
-  const { error: matchError } = await supabase
-    .from("matches")
-    .update({ featured_by_default: featured })
-    .eq("id", matchId)
-    .eq("organization_id", tenantId);
-
-  if (matchError) throw new Error(matchError.message);
 
   // Closed polls are left alone: they cannot be answered, so changing what
   // they reveal has no purpose and would rewrite history.
@@ -135,6 +143,11 @@ export async function setMatchFeaturedByDefault(
     .filter((pm: { featured: boolean }) => pm.featured !== featured)
     .map((pm: { poll_id: string }) => pm.poll_id);
 
+  // Publish to the polls before recording the default. Neither write can be
+  // rolled back from here, so the order picks which half survives a failure:
+  // this way a failed propagation leaves nothing changed and a retry is
+  // clean, rather than persisting a default that would silently seed every
+  // future poll while the planner was told it had failed.
   if (pollIdsToUpdate.length > 0) {
     const { data: updated, error: updateError } = await supabase
       .from("poll_matches")
@@ -146,13 +159,25 @@ export async function setMatchFeaturedByDefault(
     if (updateError) throw new Error(updateError.message);
     if ((updated ?? []).length !== pollIdsToUpdate.length) {
       throw new Error(
-        "Could not apply the change to every open poll containing this match",
+        `Changed ${(updated ?? []).length} of ${pollIdsToUpdate.length} open polls; the match default was not recorded. Re-open the polls to see their current state.`,
       );
     }
+  }
+
+  const { data: match, error: matchError } = await supabase
+    .from("matches")
+    .update({ featured_by_default: featured })
+    .eq("id", matchId)
+    .eq("organization_id", tenantId)
+    .select("id");
+
+  if (matchError) throw new Error(matchError.message);
+  if (!match || match.length === 0) {
+    return { ok: false, reason: "match_not_found" };
   }
 
   revalidatePath("/protected/matches");
   revalidatePath("/protected/polls");
 
-  return { featured, openPollsUpdated: pollIdsToUpdate.length };
+  return { ok: true, featured, openPollsUpdated: pollIdsToUpdate.length };
 }

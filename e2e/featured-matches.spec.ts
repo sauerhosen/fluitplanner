@@ -13,6 +13,28 @@ import { pollHeading, pollOverflowAction } from "./helpers/poll-detail";
  *
  * The spec creates its own match so it does not depend on seed data.
  */
+/**
+ * Clicks a toggle and waits for its Server Action to answer.
+ *
+ * The star is optimistic, so its label flips before the write lands: asserting
+ * on the label alone passes while the request is still in flight, and the next
+ * navigation then aborts it. Waiting for the POST is the only honest signal
+ * that the database has actually changed.
+ */
+async function clickAndAwaitAction(
+  page: import("@playwright/test").Page,
+  target: import("@playwright/test").Locator,
+  urlPart = "/protected/polls/",
+) {
+  const [response] = await Promise.all([
+    page.waitForResponse(
+      (r) => r.request().method() === "POST" && r.url().includes(urlPart),
+    ),
+    target.click(),
+  ]);
+  expect(response.ok()).toBe(true);
+}
+
 test.describe("Featured matches", () => {
   test.describe.configure({ mode: "serial" });
 
@@ -118,14 +140,12 @@ test.describe("Featured matches", () => {
     await page.getByText(pollTitle).click();
     await page.waitForURL(/\/protected\/polls\//);
 
-    await page
-      .getByRole("button", { name: /show this match to umpires/i })
-      .click();
+    await clickAndAwaitAction(
+      page,
+      page.getByRole("button", { name: /show this match to umpires/i }),
+    );
 
-    // The star is optimistic, so its label flips before the server action
-    // resolves — asserting on it would pass while the write is still in
-    // flight, and ending the test would abort the request. Reload and read
-    // the label back from the database instead.
+    // Read the label back from the database, not from the optimistic star.
     await page.reload();
     await expect(
       page.getByRole("button", { name: /hide this match from umpires/i }),
@@ -165,9 +185,10 @@ test.describe("Featured matches", () => {
     await page.getByText(pollTitle).click();
     await page.waitForURL(/\/protected\/polls\//);
 
-    await page
-      .getByRole("button", { name: /hide this match from umpires/i })
-      .click();
+    await clickAndAwaitAction(
+      page,
+      page.getByRole("button", { name: /hide this match from umpires/i }),
+    );
 
     // Read back from the database, not from the optimistic star.
     await page.reload();
@@ -177,6 +198,55 @@ test.describe("Featured matches", () => {
 
     await umpirePage.reload();
     await expect(umpirePage.getByText(featuredLabel)).toBeHidden({
+      timeout: 10_000,
+    });
+  });
+
+  test("the match-level default is set from the Matches screen", async ({
+    page,
+  }) => {
+    test.skip(!matchCreated, "Match was not created");
+    await page.goto("/protected/matches");
+    await page.getByPlaceholder(/search teams/i).fill(homeTeam);
+    // Scope to this match's row: the Matches screen lists every match, so a
+    // bare name lookup matches one star per row.
+    const row = page.locator("tr", { hasText: homeTeam });
+    await expect(row).toBeVisible({ timeout: 10_000 });
+
+    await clickAndAwaitAction(
+      page,
+      row.getByRole("button", {
+        name: /show this match to umpires in polls/i,
+      }),
+      "/protected/matches",
+    );
+
+    await page.reload();
+    await page.getByPlaceholder(/search teams/i).fill(homeTeam);
+    await expect(
+      page.locator("tr", { hasText: homeTeam }).getByRole("button", {
+        name: /stop showing this match to umpires in polls/i,
+      }),
+    ).toBeVisible({ timeout: 10_000 });
+  });
+
+  test("setting the default reaches the open poll and its umpires", async ({
+    page,
+  }) => {
+    test.skip(!pollCreated, "Poll was not created");
+    // The retroactive half: the poll was left unfeatured above, so anything
+    // visible now arrived via the match-level default, on a link the umpire
+    // already holds.
+    await page.goto("/protected/polls");
+    await page.getByText(pollTitle).click();
+    await page.waitForURL(/\/protected\/polls\//);
+
+    await expect(
+      page.getByRole("button", { name: /hide this match from umpires/i }),
+    ).toBeVisible({ timeout: 10_000 });
+
+    await umpirePage.reload();
+    await expect(umpirePage.getByText(featuredLabel)).toBeVisible({
       timeout: 10_000,
     });
   });

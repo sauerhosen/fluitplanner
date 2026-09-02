@@ -1440,47 +1440,57 @@ export async function setFeaturedMatchesForPlanner(
 
   const uniqueIds = [...new Set(matchIds)];
 
-  const { data: pollMatches, error: pmError } = await client
-    .from("poll_matches")
-    .select("match_id")
-    .eq("poll_id", pollId)
-    .in("match_id", uniqueIds);
-  throwDb(pmError);
+  // Batched like every other id-list lookup here: match_ids is capped at 200,
+  // which is already too long for one PostgREST query string.
+  const pollMatches = await selectInBatches<{ match_id: string }>(
+    uniqueIds,
+    (batch) =>
+      client
+        .from("poll_matches")
+        .select("match_id")
+        .eq("poll_id", pollId)
+        .in("match_id", batch),
+  );
 
-  const inPoll = new Set((pollMatches ?? []).map((r) => r.match_id as string));
+  const inPoll = new Set(pollMatches.map((r) => r.match_id));
   const notInPoll = uniqueIds.filter((id) => !inPoll.has(id));
 
-  const { data: matchRows, error: matchError } = await client
-    .from("matches")
-    .select("id, start_time, home_team, away_team")
-    .in("id", [...inPoll])
-    .eq("organization_id", ctx.organizationId);
-  throwDb(matchError);
+  const matchRows = await selectInBatches<{
+    id: string;
+    start_time: string | null;
+    home_team: string;
+    away_team: string;
+  }>([...inPoll], (batch) =>
+    client
+      .from("matches")
+      .select("id, start_time, home_team, away_team")
+      .in("id", batch)
+      .eq("organization_id", ctx.organizationId),
+  );
 
   // Featuring keys off the kick-off time via slot mapping, so a match without
   // one has nowhere to appear and is refused rather than stored as a no-op.
-  const withoutKickoff = (matchRows ?? []).filter((m) => !m.start_time);
-  const targets = featured
-    ? (matchRows ?? []).filter((m) => m.start_time)
-    : (matchRows ?? []);
+  const withoutKickoff = matchRows.filter((m) => !m.start_time);
+  const targets = featured ? matchRows.filter((m) => m.start_time) : matchRows;
 
   if (targets.length > 0) {
     // Read the rows back: an update that matches nothing still reports
     // success, and reporting matches as featured when none were written
     // would be worse than failing.
-    const { data: updated, error: updateError } = await client
-      .from("poll_matches")
-      .update({ featured })
-      .eq("poll_id", pollId)
-      .in(
-        "match_id",
-        targets.map((m) => m.id as string),
-      )
-      .select("match_id");
-    throwDb(updateError);
-    if ((updated ?? []).length !== targets.length) {
+    let changed = 0;
+    for (const batch of batches(targets.map((m) => m.id))) {
+      const { data: updated, error: updateError } = await client
+        .from("poll_matches")
+        .update({ featured })
+        .eq("poll_id", pollId)
+        .in("match_id", batch)
+        .select("match_id");
+      throwDb(updateError);
+      changed += (updated ?? []).length;
+    }
+    if (changed !== targets.length) {
       throw new McpUserError(
-        `Expected to change ${targets.length} match(es) in poll ${pollId} but changed ${(updated ?? []).length}. Nothing was reported as featured.`,
+        `Expected to change ${targets.length} match(es) in poll ${pollId} but changed ${changed}. Re-read the poll with get_poll_availability before trusting what it now reveals.`,
       );
     }
   }
