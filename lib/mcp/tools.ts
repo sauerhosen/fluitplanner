@@ -17,6 +17,7 @@ import {
   clearTentativeAssignments,
   explainGapForMatch,
   setMatchNotes,
+  setFeaturedMatchesForPlanner,
   setUmpireNotes,
   createMatchForPlanner,
   updateMatchForPlanner,
@@ -196,7 +197,7 @@ export function registerMcpTools(server: McpServer, ctx: McpPlannerContext) {
     {
       title: "Poll availability & silence",
       description:
-        "One poll in full: per slot who said yes / if-need-be / no, which matches sit in each slot, who has not answered at all (the chase list), and per-slot fill risk (supply of yes+if-need-be vs the two-umpires-per-match demand).",
+        "One poll in full: per slot who said yes / if-need-be / no, which matches sit in each slot and whether each is featured (its teams shown to umpires, see set_featured_matches), who has not answered at all (the chase list), and per-slot fill risk (supply of yes+if-need-be vs the two-umpires-per-match demand).",
       inputSchema: z.object({ poll_id: pollId }),
       annotations: { readOnlyHint: true, destructiveHint: false },
     },
@@ -430,6 +431,38 @@ export function registerMcpTools(server: McpServer, ctx: McpPlannerContext) {
       },
     },
     (args) => run(() => setMatchNotes(ctx, args.match_id, args.notes)),
+  );
+
+  server.registerTool(
+    "set_featured_matches",
+    {
+      title: "Show or hide match details in a poll",
+      description:
+        'Reveal specific matches\' teams to umpires inside a poll. Slots are normally anonymous 2-hour windows; a featured match additionally shows "home – away" on the slot it falls in, to advertise a fixture worth umpiring. This PUBLISHES: the poll link needs no login, so anyone holding it sees the teams. Scoped to this poll only — other polls containing the same match are unaffected. Matches without a kick-off time are in no slot and are reported back as skipped.',
+      inputSchema: z.object({
+        poll_id: pollId,
+        match_ids: z.array(matchId).min(1).max(200),
+        featured: z
+          .boolean()
+          .describe("true reveals the matches, false hides them again"),
+      }),
+      // Not destructive — nothing is discarded and it reverses cleanly — but
+      // it changes what is publicly visible, which the description spells out.
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+      },
+    },
+    (args) =>
+      run(() =>
+        setFeaturedMatchesForPlanner(
+          ctx,
+          args.poll_id,
+          args.match_ids,
+          args.featured,
+        ),
+      ),
   );
 
   server.registerTool(

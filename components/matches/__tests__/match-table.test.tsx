@@ -4,7 +4,7 @@ import { render } from "@/__tests__/helpers/render";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { MatchTable } from "../match-table";
 import type { MatchWithPoll } from "@/lib/actions/matches";
-import { matchSyncDefaults } from "@/__tests__/helpers/fixtures";
+import { matchColumnDefaults } from "@/__tests__/helpers/fixtures";
 
 vi.mock("@/lib/actions/matches", () => ({
   deleteMatch: vi.fn(),
@@ -25,7 +25,7 @@ const mockUpdateMatchNotes = vi.mocked(updateMatchNotes);
 
 const matches: MatchWithPoll[] = [
   {
-    ...matchSyncDefaults,
+    ...matchColumnDefaults,
     id: "m1",
     date: "2026-03-15",
     start_time: "2026-03-15T11:00:00Z",
@@ -42,7 +42,7 @@ const matches: MatchWithPoll[] = [
     poll: null,
   },
   {
-    ...matchSyncDefaults,
+    ...matchColumnDefaults,
     id: "m2",
     date: "2026-03-15",
     start_time: "2026-03-15T14:30:00Z",

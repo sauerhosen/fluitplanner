@@ -15,6 +15,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import type {
   AvailabilityResponse,
+  FeaturedMatch,
   Poll,
   PollSlot,
   Umpire,
@@ -51,6 +52,7 @@ function deleteCookie(name: string) {
 type Props = {
   poll: Poll;
   slots: PollSlot[];
+  featuredMatches?: FeaturedMatch[];
   pollToken: string;
   verifyToken?: string;
 };
@@ -58,6 +60,7 @@ type Props = {
 export function PollResponsePage({
   poll,
   slots,
+  featuredMatches,
   pollToken,
   verifyToken,
 }: Props) {
@@ -262,6 +265,7 @@ export function PollResponsePage({
         slots={slots}
         existingResponses={existingResponses}
         assignmentContext={assignmentContext}
+        featuredMatches={featuredMatches}
       />
     </div>
   );

@@ -14,6 +14,8 @@ export type Match = {
   field: string | null;
   notes: string | null;
   required_level: 1 | 2 | 3;
+  /** Seeds poll_matches.featured when this match joins a poll. */
+  featured_by_default: boolean;
   created_by: string;
   created_at: string;
   organization_id: string;
@@ -220,4 +222,15 @@ export type AssignedSlotInfo = {
 export type PollAssignmentContext = {
   lockMode: AvailabilityLockMode;
   assignedSlots: AssignedSlotInfo[];
+};
+
+/**
+ * A match whose details the planner chose to reveal on the public poll page,
+ * already resolved to the slot that covers its kick-off.
+ */
+export type FeaturedMatch = {
+  matchId: string;
+  slotId: string;
+  homeTeam: string;
+  awayTeam: string;
 };

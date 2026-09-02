@@ -301,7 +301,11 @@
     "noDataToExport": "Geen gegevens om te exporteren.",
     "daySheet": "Dagoverzicht",
     "daySheetMatch": "Wedstrijd",
-    "toolsMenu": "Weergaveopties"
+    "toolsMenu": "Weergaveopties",
+    "featureAddLabel": "Deze wedstrijd aan scheidsrechters tonen",
+    "featureRemoveLabel": "Deze wedstrijd voor scheidsrechters verbergen",
+    "featureUnavailableNoKickoff": "Geen aanvangstijd, dus deze wedstrijd zit in geen enkel tijdslot",
+    "featureToggleError": "Kon niet wijzigen wat deze poll toont"
   },
   "pollResponse": {
     "loadingPoll": "Peiling laden...",
@@ -363,7 +367,8 @@
     "warningDialogNotice": "De planner wordt op de hoogte gesteld van deze wijziging.",
     "warningDialogCancel": "Terug",
     "warningDialogProceed": "Toch doorgaan",
-    "partialSaveBlocked": "Sommige wijzigingen zijn geblokkeerd omdat je bent ingedeeld voor: {matches}. De rest van je wijzigingen is opgeslagen."
+    "partialSaveBlocked": "Sommige wijzigingen zijn geblokkeerd omdat je bent ingedeeld voor: {matches}. De rest van je wijzigingen is opgeslagen.",
+    "featuredMatchLabel": "Uitgelichte wedstrijd:"
   },
   "umpires": {
     "pageTitle": "Scheidsrechters",

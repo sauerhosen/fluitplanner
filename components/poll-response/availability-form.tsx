@@ -7,10 +7,12 @@ import { StickyDirtyBar } from "@/components/poll-response/sticky-dirty-bar";
 import { AssignmentWarningDialog } from "@/components/poll-response/assignment-warning-dialog";
 import { submitResponses } from "@/lib/actions/public-polls";
 import { useTranslations, useFormatter } from "next-intl";
+import { groupFeaturedBySlot } from "@/lib/domain/featured-matches";
 import type {
   PollSlot,
   AvailabilityResponse,
   PollAssignmentContext,
+  FeaturedMatch,
 } from "@/lib/types/domain";
 
 type ResponseValue = "yes" | "if_need_be" | "no";
@@ -22,6 +24,7 @@ type Props = {
   slots: PollSlot[];
   existingResponses: AvailabilityResponse[];
   assignmentContext?: PollAssignmentContext | null;
+  featuredMatches?: FeaturedMatch[];
 };
 
 export function AvailabilityForm({
@@ -31,6 +34,7 @@ export function AvailabilityForm({
   slots,
   existingResponses,
   assignmentContext,
+  featuredMatches,
 }: Props) {
   const t = useTranslations("pollResponse");
   const format = useFormatter();
@@ -116,6 +120,11 @@ export function AvailabilityForm({
     }
     return map;
   }, [assignmentContext]);
+
+  const featuredBySlot = useMemo(
+    () => groupFeaturedBySlot(featuredMatches ?? []),
+    [featuredMatches],
+  );
 
   // Track which assigned slots are being downgraded (for warnings)
   const pendingOverrideSlots = useMemo(() => {
@@ -264,6 +273,10 @@ export function AvailabilityForm({
             const matchLabels = slotMatches?.map(
               (m) => `${m.homeTeam} vs ${m.awayTeam}`,
             );
+            // Withheld in the read-only past section, and on slots this umpire
+            // already has — there is nobody left to entice.
+            const featured =
+              disabled || isAssigned ? undefined : featuredBySlot.get(slot.id);
 
             return (
               <SlotRow
@@ -276,6 +289,7 @@ export function AvailabilityForm({
                 locked={isLocked}
                 showWarning={isOverriding}
                 assignedMatchLabels={matchLabels}
+                featuredMatches={featured}
               />
             );
           })}

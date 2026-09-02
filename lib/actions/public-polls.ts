@@ -4,6 +4,11 @@ import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { mapMatchesToSlots } from "@/lib/domain/match-slot-mapping";
+import {
+  FEATURED_MATCH_SELECT,
+  resolveFeaturedMatches,
+  type FeaturedMatchRow,
+} from "@/lib/domain/featured-matches";
 import { getTenantId } from "@/lib/tenant";
 import {
   isAvailabilityLockMode,
@@ -14,6 +19,7 @@ import {
   type AvailabilityResponse,
   type AvailabilityLockMode,
   type SubmitResponsesResult,
+  type FeaturedMatch,
 } from "@/lib/types/domain";
 
 /* ------------------------------------------------------------------ */
@@ -23,6 +29,8 @@ import {
 export type PublicPollData = {
   poll: Poll;
   slots: PollSlot[];
+  /** Matches the planner chose to reveal, resolved to their slots. */
+  featuredMatches: FeaturedMatch[];
 };
 
 export type ResponseInput = {
@@ -58,9 +66,53 @@ export const getPollByToken = cache(
 
     if (slotsError) return null;
 
-    return { poll, slots: slots ?? [] };
+    const featuredMatches = await getFeaturedMatches(poll.id, slots ?? []);
+
+    return { poll, slots: slots ?? [], featuredMatches };
   },
 );
+
+/**
+ * Match details the planner chose to reveal in this poll.
+ *
+ * Featuring is best-effort presentation: any failure here degrades to an
+ * ordinary anonymous poll rather than breaking the page an umpire needs to
+ * answer.
+ */
+async function getFeaturedMatches(
+  pollId: string,
+  slots: PollSlot[],
+): Promise<FeaturedMatch[]> {
+  if (slots.length === 0) return [];
+
+  const supabase = await createClient();
+  const { data: featuredRows, error } = await supabase
+    .from("poll_matches")
+    .select("match_id")
+    .eq("poll_id", pollId)
+    .eq("featured", true);
+
+  if (error || !featuredRows || featuredRows.length === 0) return [];
+
+  // `matches` has no anon select policy, so this read uses the service client
+  // and bypasses RLS. FEATURED_MATCH_SELECT is what keeps planner-internal
+  // columns off this public page — see its doc comment before touching it.
+  const serviceClient = createServiceClient();
+  const { data: matchRows, error: matchError } = await serviceClient
+    .from("matches")
+    .select(FEATURED_MATCH_SELECT)
+    .in(
+      "id",
+      featuredRows.map((r: { match_id: string }) => r.match_id),
+    );
+
+  if (matchError || !matchRows) return [];
+
+  return resolveFeaturedMatches(
+    matchRows as unknown as FeaturedMatchRow[],
+    slots,
+  );
+}
 
 /* ------------------------------------------------------------------ */
 /*  getPollMeta                                                        */
