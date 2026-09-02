@@ -18,6 +18,11 @@ alter table public.matches
 
 -- Featured rows are a small minority of poll_matches, so a partial index keeps
 -- the public poll lookup off a full scan without carrying every row.
+--
+-- Built without CONCURRENTLY on purpose: poll_matches holds one row per match
+-- per poll — hundreds of rows for a club season, not millions — so the build
+-- is effectively instant, and CONCURRENTLY cannot run inside the transaction
+-- that wraps a migration anyway.
 create index idx_poll_matches_featured
   on public.poll_matches (poll_id)
   where featured;

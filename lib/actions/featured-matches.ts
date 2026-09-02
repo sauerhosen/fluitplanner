@@ -123,10 +123,13 @@ export async function setMatchFeaturedByDefault(
   const { supabase } = await requireAuth();
   const tenantId = await requireTenantId();
 
-  if (featured) {
-    const refusal = await checkFeaturable(supabase, tenantId, matchId);
-    if (refusal) return { ok: false, reason: refusal };
-  }
+  // Resolve the match before touching any poll. The propagation below is a
+  // publish, so refusing afterwards would leave polls carrying the new
+  // visibility while the planner is told the match was not found. Missing a
+  // kick-off only blocks revealing, never hiding.
+  const refusal = await checkFeaturable(supabase, tenantId, matchId);
+  if (refusal === "match_not_found") return { ok: false, reason: refusal };
+  if (featured && refusal) return { ok: false, reason: refusal };
 
   // Closed polls are left alone: they cannot be answered, so changing what
   // they reveal has no purpose and would rewrite history.

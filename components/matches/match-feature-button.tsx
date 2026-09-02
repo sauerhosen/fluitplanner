@@ -45,7 +45,11 @@ export function MatchFeatureButton({ match, onToggled }: Props) {
     setOptimistic(match.featured_by_default);
   }
 
+  // Hiding is always permitted, so a match whose kick-off was cleared after
+  // it was featured can still be un-featured. Without this the star stays lit
+  // and unclickable, and silently seeds every future poll once a time returns.
   const hasKickoff = match.start_time !== null;
+  const canToggle = hasKickoff || optimistic;
 
   function handleClick() {
     const next = !optimistic;
@@ -80,7 +84,7 @@ export function MatchFeatureButton({ match, onToggled }: Props) {
     });
   }
 
-  const label = !hasKickoff
+  const label = !canToggle
     ? t("featureUnavailableNoKickoff")
     : optimistic
       ? t("featureDefaultRemoveLabel")
@@ -93,7 +97,7 @@ export function MatchFeatureButton({ match, onToggled }: Props) {
       size="icon"
       className="h-8 w-8"
       onClick={handleClick}
-      disabled={!hasKickoff || pending}
+      disabled={!canToggle || pending}
       title={label}
       aria-label={label}
       aria-pressed={optimistic}

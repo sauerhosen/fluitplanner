@@ -296,6 +296,38 @@ describe("setMatchFeaturedByDefault", () => {
     ).toBe(false);
   });
 
+  it("refuses a vanished match before touching any poll", async () => {
+    respondWith({
+      match: [],
+      pollMatches: [{ poll_id: "poll-a", featured: false }],
+    });
+
+    await expect(setMatchFeaturedByDefault("m1", false)).resolves.toEqual({
+      ok: false,
+      reason: "match_not_found",
+    });
+    // Nothing published: refusing after propagation would leave polls
+    // changed while telling the planner the match was not found.
+    expect(state.ops.some((op) => op.kind === "update")).toBe(false);
+  });
+
+  it("allows hiding a match whose kick-off time was cleared", async () => {
+    // Upstream sync can clear a kick-off after the match was featured; the
+    // planner must still be able to take it back down.
+    respondWith({
+      match: [NO_KICKOFF],
+      pollMatches: [{ poll_id: "poll-a", featured: true }],
+    });
+
+    const result = await setMatchFeaturedByDefault("m1", false);
+
+    expect(result).toEqual({
+      ok: true,
+      featured: false,
+      openPollsUpdated: 1,
+    });
+  });
+
   it("refuses to set the default on a match with no kick-off time", async () => {
     respondWith({ match: [NO_KICKOFF] });
 
