@@ -94,7 +94,11 @@ export function PollDetailClient({
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState("matches");
+  // Once umpires have answered, the assignment grid is what a planner opens the
+  // poll for, so it becomes the landing tab.
+  const [activeTab, setActiveTab] = useState(
+    initialPoll.responses.length > 0 ? "assignments" : "matches",
+  );
   const [transposed, setTransposed] = useState(true);
   const [tentativeMode, setTentativeMode] = useState(false);
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
