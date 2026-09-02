@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.21.1](https://github.com/sauerhosen/fluitplanner/compare/v2.21.0...v2.21.1) (2026-09-02)
+
+
+### Bug Fixes
+
+* block tenant auto-join on the production root domain ([307e3c1](https://github.com/sauerhosen/fluitplanner/commit/307e3c1bbc24776479832d34b3f79f5d7a7448c5))
+* block tenant auto-join on the production root domain ([926de63](https://github.com/sauerhosen/fluitplanner/commit/926de638dc06779529084fa4c0a3d4d16efa2a11)), closes [#151](https://github.com/sauerhosen/fluitplanner/issues/151)
+* strip client-supplied tenant headers and skip inactive orgs ([833d976](https://github.com/sauerhosen/fluitplanner/commit/833d9768da78ef7ada9861fba278f5b5b50b868e))
+
 ## [2.21.0](https://github.com/sauerhosen/fluitplanner/compare/v2.20.0...v2.21.0) (2026-09-01)
 
 
