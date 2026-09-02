@@ -1,9 +1,49 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { hasEnvVars } from "../utils";
+import { createServiceClient } from "@/lib/supabase/service";
 import { resolveTenantFromHost } from "@/lib/tenant-resolver";
 
+const TENANT_COOKIE = "x-tenant";
+
+function tenantCookieOptions() {
+  return {
+    path: "/",
+    httpOnly: true,
+    sameSite: "lax" as const,
+    secure: process.env.NODE_ENV === "production",
+  };
+}
+
+/**
+ * True on localhost and on Vercel preview/development deployments.
+ *
+ * Preview builds run with NODE_ENV=production, so VERCEL_ENV decides whenever
+ * it is set and NODE_ENV only covers local runs.
+ */
+function isNonProductionEnvironment(): boolean {
+  const vercelEnv = process.env.VERCEL_ENV;
+  if (vercelEnv) return vercelEnv !== "production";
+  return process.env.NODE_ENV !== "production";
+}
+
+/**
+ * Tenant/authorization headers the proxy sets on the request for server
+ * components to read via `headers()` (see `lib/tenant.ts`). Nothing downstream
+ * can tell a header this proxy set from one the client sent, so strip any
+ * inbound copy before a single line of code reads them — the same "the client
+ * does not get to pick its tenant" rule as the x-tenant cookie (issue #151).
+ */
+const TRUSTED_REQUEST_HEADERS = [
+  "x-organization-id",
+  "x-organization-slug",
+  "x-is-root-domain",
+  "x-is-fallback-mode",
+];
+
 export async function updateSession(request: NextRequest) {
+  for (const header of TRUSTED_REQUEST_HEADERS) request.headers.delete(header);
+
   // Cron routes authenticate via CRON_SECRET, the MCP server via its own
   // bearer tokens, and the OAuth token/register/discovery endpoints are
   // public by design; all run without a user session or tenant context —
@@ -71,35 +111,33 @@ export async function updateSession(request: NextRequest) {
     // Set on request headers so server components can read via headers()
     request.headers.set("x-is-root-domain", "true");
 
-    // Still resolve tenant for root domain users so dashboard/actions work
-    // Root domain users need a tenant context for data-scoped queries
+    // Root domain users still need a tenant context for data-scoped queries,
+    // and the x-tenant cookie is what selects it. That cookie is
+    // client-controlled, so it only counts when the user really is a member of
+    // the organization it names — otherwise fall back to their own membership
+    // and rewrite the cookie. Trusting it unverified handed any signed-in user
+    // a planner role in any active club (issue #151).
     if (user) {
-      let slug = request.cookies.get("x-tenant")?.value ?? null;
-      if (!slug) {
-        const resolvedSlug = await resolveSlugFromMembership(
-          supabase,
-          user.sub,
-        );
-        if (resolvedSlug) {
-          slug = resolvedSlug;
-          supabaseResponse.cookies.set("x-tenant", resolvedSlug, {
-            path: "/",
-            httpOnly: true,
-            sameSite: "lax",
-            secure: process.env.NODE_ENV === "production",
-          });
+      const cookieSlug = request.cookies.get(TENANT_COOKIE)?.value ?? null;
+      let org = cookieSlug
+        ? await resolveMemberOrgBySlug(supabase, user.sub, cookieSlug)
+        : null;
+
+      if (!org) {
+        org = await resolveFirstMemberOrg(supabase, user.sub);
+        if (org) {
+          supabaseResponse.cookies.set(
+            TENANT_COOKIE,
+            org.slug,
+            tenantCookieOptions(),
+          );
         }
       }
-      if (slug) {
-        const { data: org } = await supabase
-          .from("organizations")
-          .select("id, is_active")
-          .eq("slug", slug)
-          .single();
-        if (org?.is_active) {
-          request.headers.set("x-organization-id", org.id);
-          request.headers.set("x-organization-slug", slug);
-        }
+
+      // Both resolvers only return active organizations the user belongs to.
+      if (org) {
+        request.headers.set("x-organization-id", org.id);
+        request.headers.set("x-organization-slug", org.slug);
       }
     }
   } else {
@@ -109,32 +147,27 @@ export async function updateSession(request: NextRequest) {
       slug = resolution.slug;
     } else {
       // Fallback: cookie → query param
-      slug = request.cookies.get("x-tenant")?.value ?? null;
+      slug = request.cookies.get(TENANT_COOKIE)?.value ?? null;
       const paramSlug = request.nextUrl.searchParams.get("tenant");
       if (paramSlug) {
         slug = paramSlug;
         // Persist tenant cookie so subsequent requests don't need the query param
-        supabaseResponse.cookies.set("x-tenant", paramSlug, {
-          path: "/",
-          httpOnly: true,
-          sameSite: "lax",
-          secure: process.env.NODE_ENV === "production",
-        });
+        supabaseResponse.cookies.set(
+          TENANT_COOKIE,
+          paramSlug,
+          tenantCookieOptions(),
+        );
       }
       // Auto-resolve tenant from user's membership when no cookie/param is set
       if (!slug && user) {
-        const resolvedSlug = await resolveSlugFromMembership(
-          supabase,
-          user.sub,
-        );
-        if (resolvedSlug) {
-          slug = resolvedSlug;
-          supabaseResponse.cookies.set("x-tenant", resolvedSlug, {
-            path: "/",
-            httpOnly: true,
-            sameSite: "lax",
-            secure: process.env.NODE_ENV === "production",
-          });
+        const org = await resolveFirstMemberOrg(supabase, user.sub);
+        if (org) {
+          slug = org.slug;
+          supabaseResponse.cookies.set(
+            TENANT_COOKIE,
+            org.slug,
+            tenantCookieOptions(),
+          );
         }
       }
 
@@ -185,23 +218,25 @@ export async function updateSession(request: NextRequest) {
       .single();
 
     if (!membership) {
-      if (resolution.type !== "tenant") {
-        // Cookie/query param fallback (dev/preview): auto-join the user as planner
-        // so RLS policies work correctly. Safe because this path is only used
-        // in dev/preview environments (not production subdomain routing).
-        await supabase
-          .from("organization_members")
-          .upsert(
-            { organization_id: orgId, user_id: user.sub, role: "planner" },
-            { onConflict: "organization_id,user_id" },
-          );
+      if (resolution.type === "fallback" && isNonProductionEnvironment()) {
+        // Dev/preview only: the tenant came from a cookie or ?tenant= param on
+        // a host that carries no tenant of its own (localhost, *.vercel.app),
+        // so join the signed-in user as a planner rather than making every
+        // developer hand-seed a membership row.
+        //
+        // Deliberately the service role: no RLS policy lets a user insert their
+        // own membership, because that policy *was* the privilege escalation in
+        // issue #151. The env check is what keeps this off production — the
+        // root domain resolves to `root`, never `fallback`.
+        await autoJoinAsPlanner(orgId, user.sub);
       } else if (
         !request.nextUrl.pathname.startsWith("/auth") &&
         !request.nextUrl.pathname.startsWith("/poll") &&
         !request.nextUrl.pathname.startsWith("/no-access") &&
         request.nextUrl.pathname !== "/"
       ) {
-        // Subdomain-based resolution: redirect non-members to /no-access
+        // Non-member on a tenant URL (or on a fallback host in production):
+        // no data for them here.
         const url = request.nextUrl.clone();
         url.pathname = "/no-access";
         return NextResponse.redirect(url);
@@ -245,23 +280,80 @@ export async function updateSession(request: NextRequest) {
   return updatedResponse;
 }
 
+type MemberOrg = { id: string; slug: string };
+
 /**
- * Look up the user's first organization membership and return its slug.
- * Used in fallback mode to auto-resolve tenant when no cookie/param is set.
+ * The organization with this slug, but only if the user is a member of it and
+ * it is still active. Used to validate the client-controlled x-tenant cookie
+ * on the root domain.
+ *
+ * An inactive club has to read as "no match" rather than as a hit, or a stale
+ * cookie naming a club that has since been deactivated would keep the caller
+ * out of the fallback below and leave them with no tenant context at all.
  */
-async function resolveSlugFromMembership(
+async function resolveMemberOrgBySlug(
   supabase: Awaited<ReturnType<typeof createServerClient>>,
   userId: string,
-): Promise<string | null> {
+  slug: string,
+): Promise<MemberOrg | null> {
   const { data } = await supabase
     .from("organization_members")
-    .select("organizations(slug)")
+    .select("organizations!inner(id, slug)")
     .eq("user_id", userId)
+    .eq("organizations.slug", slug)
+    .eq("organizations.is_active", true)
+    .maybeSingle();
+
+  return (data?.organizations as unknown as MemberOrg | null) ?? null;
+}
+
+/**
+ * The user's first membership in an *active* organization. Used to pick a
+ * tenant when there is no usable x-tenant cookie.
+ *
+ * The rows come back unordered, so without the is_active filter a user who
+ * belongs to both an active and a deactivated club could be handed the
+ * deactivated one — a hard 403 in the fallback branch, and no tenant context
+ * on the root domain.
+ */
+async function resolveFirstMemberOrg(
+  supabase: Awaited<ReturnType<typeof createServerClient>>,
+  userId: string,
+): Promise<MemberOrg | null> {
+  const { data } = await supabase
+    .from("organization_members")
+    .select("organizations!inner(id, slug)")
+    .eq("user_id", userId)
+    .eq("organizations.is_active", true)
     .limit(1)
     .maybeSingle();
 
-  if (!data) return null;
+  return (data?.organizations as unknown as MemberOrg | null) ?? null;
+}
 
-  const org = data.organizations as unknown as { slug: string } | null;
-  return org?.slug ?? null;
+/**
+ * Dev/preview convenience: make the signed-in user a planner of the resolved
+ * organization. Callers must have established that this is not production.
+ */
+async function autoJoinAsPlanner(
+  organizationId: string,
+  userId: string,
+): Promise<void> {
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    console.warn(
+      "[proxy] Skipping dev tenant auto-join: SUPABASE_SERVICE_ROLE_KEY is not set.",
+    );
+    return;
+  }
+
+  const { error } = await createServiceClient()
+    .from("organization_members")
+    .upsert(
+      { organization_id: organizationId, user_id: userId, role: "planner" },
+      { onConflict: "organization_id,user_id" },
+    );
+
+  if (error) {
+    console.warn(`[proxy] Dev tenant auto-join failed: ${error.message}`);
+  }
 }

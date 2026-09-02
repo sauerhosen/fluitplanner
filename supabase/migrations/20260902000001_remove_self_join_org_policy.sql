@@ -1,0 +1,38 @@
+-- Remove the self-join policy on organization_members (issue #151).
+--
+-- "Users can join organizations" (20260215000009) let any authenticated user
+-- insert a membership row for their own user_id, in any organization, with the
+-- default role 'planner'. It was added so the proxy's dev/preview tenant
+-- fallback could auto-join a signed-in user, but a policy lives in the
+-- database, not in the code path that motivated it: any authenticated caller
+-- could POST straight to /rest/v1/organization_members and gain read/write
+-- access to another club's matches, umpires, polls, assignments and settings.
+--
+-- Every legitimate membership insert already runs with the service role, which
+-- bypasses RLS and is unaffected by this drop:
+--   - lib/actions/admin.ts        invitePlanner / member management
+--   - app/auth/confirm/route.ts   redeeming an invite (app_metadata.invited_to_org)
+--   - e2e/global-setup.ts         seeding the test account
+-- The proxy's dev/preview auto-join now uses the service role as well, and is
+-- gated on a non-production environment.
+--
+-- The broad "Authenticated users can view active organizations" select policy
+-- (20260215000007) is deliberately left in place: the proxy has to resolve an
+-- organization by slug before it knows whether the user is a member, and that
+-- policy exposes nothing beyond an active club's name and slug.
+drop policy if exists "Users can join organizations" on public.organization_members;
+
+-- Audit hint for a database that ran with the old policy. Memberships created
+-- through it are indistinguishable from real ones by column, so review the
+-- accounts that belong to more than one club — legitimate planners almost
+-- always have exactly one:
+--
+--   select u.email, o.slug, m.role, m.created_at
+--   from public.organization_members m
+--   join public.organizations o on o.id = m.organization_id
+--   join auth.users u on u.id = m.user_id
+--   where m.user_id in (
+--     select user_id from public.organization_members
+--     group by user_id having count(*) > 1
+--   )
+--   order by u.email, m.created_at;
