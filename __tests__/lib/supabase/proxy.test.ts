@@ -110,11 +110,17 @@ vi.mock("@/lib/utils", async (importOriginal) => ({
 
 const ORIGINAL_ENV = { ...process.env };
 
-function makeRequest(url: string, host: string, cookie?: string) {
+function makeRequest(
+  url: string,
+  host: string,
+  cookie?: string,
+  extraHeaders?: Record<string, string>,
+) {
   return new NextRequest(url, {
     headers: {
       host,
       ...(cookie ? { cookie } : {}),
+      ...extraHeaders,
     },
   });
 }
@@ -208,6 +214,53 @@ describe("root domain tenant resolution", () => {
     );
 
     expect(request.headers.get("x-organization-id")).toBe(ORG_B.id);
+  });
+
+  it("falls back past a cookie naming a deactivated club the user belongs to", async () => {
+    organizations = [ORG_A, { ...ORG_B, is_active: false }];
+    memberships.push({
+      id: "m-2",
+      organization_id: ORG_B.id,
+      user_id: "user-1",
+    });
+
+    const { request, response } = await runProxy(
+      makeRequest(
+        "https://fluiten.org/protected",
+        "fluiten.org",
+        `x-tenant=${ORG_B.slug}`,
+      ),
+    );
+
+    expect(request.headers.get("x-organization-id")).toBe(ORG_A.id);
+    expect(response.cookies.get("x-tenant")?.value).toBe(ORG_A.slug);
+  });
+
+  it("never picks a deactivated club as the fallback organization", async () => {
+    organizations = [{ ...ORG_A, is_active: false }];
+    memberships = [{ id: "m-1", organization_id: ORG_A.id, user_id: "user-1" }];
+
+    const { request } = await runProxy(
+      makeRequest("https://fluiten.org/protected", "fluiten.org"),
+    );
+
+    expect(request.headers.get("x-organization-id")).toBeNull();
+  });
+
+  it("strips tenant headers supplied by the client", async () => {
+    memberships = [];
+
+    const { request } = await runProxy(
+      makeRequest("https://fluiten.org/protected", "fluiten.org", undefined, {
+        "x-organization-id": ORG_B.id,
+        "x-organization-slug": ORG_B.slug,
+        "x-is-fallback-mode": "true",
+      }),
+    );
+
+    expect(request.headers.get("x-organization-id")).toBeNull();
+    expect(request.headers.get("x-organization-slug")).toBeNull();
+    expect(request.headers.get("x-is-fallback-mode")).toBeNull();
   });
 
   it("marks the request as the root domain", async () => {

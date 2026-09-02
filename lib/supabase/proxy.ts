@@ -27,7 +27,23 @@ function isNonProductionEnvironment(): boolean {
   return process.env.NODE_ENV !== "production";
 }
 
+/**
+ * Tenant/authorization headers the proxy sets on the request for server
+ * components to read via `headers()` (see `lib/tenant.ts`). Nothing downstream
+ * can tell a header this proxy set from one the client sent, so strip any
+ * inbound copy before a single line of code reads them — the same "the client
+ * does not get to pick its tenant" rule as the x-tenant cookie (issue #151).
+ */
+const TRUSTED_REQUEST_HEADERS = [
+  "x-organization-id",
+  "x-organization-slug",
+  "x-is-root-domain",
+  "x-is-fallback-mode",
+];
+
 export async function updateSession(request: NextRequest) {
+  for (const header of TRUSTED_REQUEST_HEADERS) request.headers.delete(header);
+
   // Cron routes authenticate via CRON_SECRET, the MCP server via its own
   // bearer tokens, and the OAuth token/register/discovery endpoints are
   // public by design; all run without a user session or tenant context —
@@ -118,7 +134,8 @@ export async function updateSession(request: NextRequest) {
         }
       }
 
-      if (org?.is_active) {
+      // Both resolvers only return active organizations the user belongs to.
+      if (org) {
         request.headers.set("x-organization-id", org.id);
         request.headers.set("x-organization-slug", org.slug);
       }
@@ -263,11 +280,16 @@ export async function updateSession(request: NextRequest) {
   return updatedResponse;
 }
 
-type MemberOrg = { id: string; slug: string; is_active: boolean };
+type MemberOrg = { id: string; slug: string };
 
 /**
- * The organization with this slug, but only if the user is a member of it.
- * Used to validate the client-controlled x-tenant cookie on the root domain.
+ * The organization with this slug, but only if the user is a member of it and
+ * it is still active. Used to validate the client-controlled x-tenant cookie
+ * on the root domain.
+ *
+ * An inactive club has to read as "no match" rather than as a hit, or a stale
+ * cookie naming a club that has since been deactivated would keep the caller
+ * out of the fallback below and leave them with no tenant context at all.
  */
 async function resolveMemberOrgBySlug(
   supabase: Awaited<ReturnType<typeof createServerClient>>,
@@ -276,17 +298,23 @@ async function resolveMemberOrgBySlug(
 ): Promise<MemberOrg | null> {
   const { data } = await supabase
     .from("organization_members")
-    .select("organizations!inner(id, slug, is_active)")
+    .select("organizations!inner(id, slug)")
     .eq("user_id", userId)
     .eq("organizations.slug", slug)
+    .eq("organizations.is_active", true)
     .maybeSingle();
 
   return (data?.organizations as unknown as MemberOrg | null) ?? null;
 }
 
 /**
- * The user's first organization membership. Used to pick a tenant when there
- * is no usable x-tenant cookie.
+ * The user's first membership in an *active* organization. Used to pick a
+ * tenant when there is no usable x-tenant cookie.
+ *
+ * The rows come back unordered, so without the is_active filter a user who
+ * belongs to both an active and a deactivated club could be handed the
+ * deactivated one — a hard 403 in the fallback branch, and no tenant context
+ * on the root domain.
  */
 async function resolveFirstMemberOrg(
   supabase: Awaited<ReturnType<typeof createServerClient>>,
@@ -294,8 +322,9 @@ async function resolveFirstMemberOrg(
 ): Promise<MemberOrg | null> {
   const { data } = await supabase
     .from("organization_members")
-    .select("organizations(id, slug, is_active)")
+    .select("organizations!inner(id, slug)")
     .eq("user_id", userId)
+    .eq("organizations.is_active", true)
     .limit(1)
     .maybeSingle();
 
