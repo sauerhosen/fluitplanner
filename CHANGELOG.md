@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.25.0](https://github.com/sauerhosen/fluitplanner/compare/v2.24.1...v2.25.0) (2026-09-04)
+
+
+### Features
+
+* **auth:** scope the session cookie to the base domain ([0edb061](https://github.com/sauerhosen/fluitplanner/commit/0edb06172791beb0ceb10c547f129be6689ee318))
+* **auth:** scope the session cookie to the base domain ([3811017](https://github.com/sauerhosen/fluitplanner/commit/38110170a749b77902f6fc5e2a1a37c75c655a92))
+
 ## [2.24.1](https://github.com/sauerhosen/fluitplanner/compare/v2.24.0...v2.24.1) (2026-09-04)
 
 
