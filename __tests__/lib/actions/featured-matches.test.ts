@@ -1,4 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { gate } from "@/__tests__/helpers/auth-gate";
 
 /* ------------------------------------------------------------------ */
 /*  A recording PostgREST fake                                         */
@@ -70,6 +71,12 @@ function from(table: string) {
   };
   return builder;
 }
+
+// The write actions gate through requirePlanner(); flip `gate.role` to
+// "viewer" to make the caller read-only for one test.
+vi.mock("@/lib/auth", async () =>
+  (await import("@/__tests__/helpers/auth-gate")).authGateMock(),
+);
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
@@ -336,5 +343,23 @@ describe("setMatchFeaturedByDefault", () => {
       reason: "no_kickoff",
     });
     expect(state.ops.some((op) => op.kind === "update")).toBe(false);
+  });
+});
+
+describe("viewer role", () => {
+  afterEach(() => {
+    gate.role = "planner";
+  });
+
+  it("refuses to feature a match with NOT_PLANNER", async () => {
+    gate.role = "viewer";
+    const { setPollMatchFeatured, setMatchFeaturedByDefault } =
+      await import("@/lib/actions/featured-matches");
+    await expect(setPollMatchFeatured("p1", "m1", true)).rejects.toThrow(
+      "NOT_PLANNER",
+    );
+    await expect(setMatchFeaturedByDefault("m1", true)).rejects.toThrow(
+      "NOT_PLANNER",
+    );
   });
 });

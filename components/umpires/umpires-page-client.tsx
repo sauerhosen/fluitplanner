@@ -19,6 +19,7 @@ import {
 import { Plus } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { StickyToolbar } from "@/components/shared/sticky-toolbar";
+import { useIsPlanner } from "@/components/shared/role-provider";
 import { useTranslations } from "next-intl";
 
 export function UmpiresPageClient({
@@ -27,6 +28,8 @@ export function UmpiresPageClient({
   initialUmpires: RosteredUmpire[];
 }) {
   const t = useTranslations("umpires");
+  // Viewers keep the filters and the table; everything that writes is gone.
+  const canEdit = useIsPlanner();
   const [umpires, setUmpires] = useState(initialUmpires);
   const [search, setSearch] = useState("");
   const [levelFilter, setLevelFilter] = useState<string>("all");
@@ -71,10 +74,12 @@ export function UmpiresPageClient({
           <h1 className="truncate text-xl font-semibold">{t("pageTitle")}</h1>
         }
         actions={
-          <Button size="sm" onClick={() => setShowAddDialog(true)}>
-            <Plus className="mr-2 h-4 w-4" />
-            {t("addUmpire")}
-          </Button>
+          canEdit ? (
+            <Button size="sm" onClick={() => setShowAddDialog(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              {t("addUmpire")}
+            </Button>
+          ) : undefined
         }
       />
 
@@ -112,7 +117,7 @@ export function UmpiresPageClient({
 
       {/* Add dialog — mounted only while open, so each opening starts blank
           rather than holding on to the last umpire's details and note. */}
-      {showAddDialog && (
+      {canEdit && showAddDialog && (
         <UmpireFormDialog
           umpire={null}
           open={true}
@@ -123,7 +128,7 @@ export function UmpiresPageClient({
 
       {/* Merge dialog — mounted per opening for the same reason as the add
           dialog: it holds the chosen counterpart and merge direction. */}
-      {mergingUmpire && (
+      {canEdit && mergingUmpire && (
         <UmpireMergeDialog
           umpire={mergingUmpire}
           open={true}
@@ -135,7 +140,7 @@ export function UmpiresPageClient({
       )}
 
       {/* Edit dialog */}
-      {editingUmpire && (
+      {canEdit && editingUmpire && (
         <UmpireFormDialog
           umpire={editingUmpire}
           open={true}

@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useTranslations } from "next-intl";
 import { Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useIsPlanner } from "@/components/shared/role-provider";
 import { cn } from "@/lib/utils";
 import {
   setPollMatchFeatured,
@@ -38,6 +39,8 @@ export function FeatureMatchButton({
   onToggled,
 }: Props) {
   const t = useTranslations("polls");
+  // Viewers see the featured state without being offered to change it.
+  const readOnly = !useIsPlanner();
   const [pending, startTransition] = useTransition();
   const [optimistic, setOptimistic] = useState(featured);
   const [error, setError] = useState<string | null>(null);
@@ -79,6 +82,22 @@ export function FeatureMatchButton({
     : isFeatured
       ? t("featureRemoveLabel")
       : t("featureAddLabel");
+
+  // Read-only: the lit star still says which matches umpires get to see, an
+  // unlit one has nothing to say.
+  if (readOnly) {
+    if (!isFeatured) return null;
+    return (
+      <span
+        className="inline-flex h-7 w-7 items-center justify-center"
+        data-testid="poll-match-featured-indicator"
+        role="img"
+        aria-label={t("featuredIndicatorLabel")}
+      >
+        <Star className="h-3.5 w-3.5 fill-current text-sky-600 dark:text-sky-400" />
+      </span>
+    );
+  }
 
   return (
     <Button

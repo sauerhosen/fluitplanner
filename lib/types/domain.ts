@@ -1,3 +1,6 @@
+/** A club member's role. `planner` writes; `viewer` only reads. */
+export type MemberRole = "planner" | "viewer";
+
 export type MatchSource = "manual" | "file_import" | "hockey_sync";
 
 export type MatchReviewReason =
@@ -100,7 +103,7 @@ export type OrganizationMember = {
   id: string;
   organization_id: string;
   user_id: string;
-  role: "planner" | "viewer";
+  role: MemberRole;
   created_at: string;
 };
 
@@ -108,7 +111,7 @@ export type UserMembership = {
   organization_id: string;
   organization_name: string;
   organization_slug: string;
-  role: "planner" | "viewer";
+  role: MemberRole;
 };
 
 export type UserWithMemberships = {

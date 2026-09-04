@@ -1,7 +1,7 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
 import { requireTenantId } from "@/lib/tenant";
+import { requireAuthContext, requirePlanner } from "@/lib/auth";
 import type {
   Assignment,
   AssignmentStatus,
@@ -10,19 +10,10 @@ import type {
 } from "@/lib/types/domain";
 import { revalidatePath } from "next/cache";
 
-async function requireAuth() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
-  return { supabase, user };
-}
-
 export async function getAssignmentsForPoll(
   pollId: string,
 ): Promise<Assignment[]> {
-  const { supabase } = await requireAuth();
+  const { supabase } = await requireAuthContext();
   const tenantId = await requireTenantId();
 
   const { data, error } = await supabase
@@ -41,9 +32,7 @@ export async function createAssignment(
   umpireId: string,
   status: AssignmentStatus = "confirmed",
 ): Promise<Assignment> {
-  const { supabase } = await requireAuth();
-
-  const tenantId = await requireTenantId();
+  const { supabase, tenantId } = await requirePlanner();
 
   const { data, error } = await supabase
     .from("assignments")
@@ -69,8 +58,7 @@ export async function setAssignmentStatus(
   umpireId: string,
   status: AssignmentStatus,
 ): Promise<Assignment> {
-  const { supabase } = await requireAuth();
-  const tenantId = await requireTenantId();
+  const { supabase, tenantId } = await requirePlanner();
 
   const { data, error } = await supabase
     .from("assignments")
@@ -91,8 +79,7 @@ export async function setAssignmentStatus(
 export async function confirmTentativeAssignments(
   pollId: string,
 ): Promise<number> {
-  const { supabase } = await requireAuth();
-  const tenantId = await requireTenantId();
+  const { supabase, tenantId } = await requirePlanner();
 
   const { data, error } = await supabase
     .from("assignments")
@@ -111,8 +98,7 @@ export async function confirmTentativeAssignments(
 export async function clearTentativeAssignments(
   pollId: string,
 ): Promise<number> {
-  const { supabase } = await requireAuth();
-  const tenantId = await requireTenantId();
+  const { supabase, tenantId } = await requirePlanner();
 
   const { data, error } = await supabase
     .from("assignments")
@@ -132,8 +118,7 @@ export async function deleteAssignment(
   matchId: string,
   umpireId: string,
 ): Promise<void> {
-  const { supabase } = await requireAuth();
-  const tenantId = await requireTenantId();
+  const { supabase, tenantId } = await requirePlanner();
 
   const { error } = await supabase
     .from("assignments")
@@ -150,7 +135,7 @@ export async function deleteAssignment(
 export async function getUmpiresForPoll(
   pollId: string,
 ): Promise<RosteredUmpire[]> {
-  const { supabase } = await requireAuth();
+  const { supabase } = await requireAuthContext();
   const tenantId = await requireTenantId();
 
   const { data: responses, error: respError } = await supabase

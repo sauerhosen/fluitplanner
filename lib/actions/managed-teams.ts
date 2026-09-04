@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { requireTenantId } from "@/lib/tenant";
+import { requirePlanner } from "@/lib/auth";
 import type { ManagedTeam } from "@/lib/types/domain";
 
 export async function getManagedTeams(): Promise<ManagedTeam[]> {
@@ -21,12 +22,7 @@ export async function createManagedTeam(
   name: string,
   requiredLevel: 1 | 2 | 3,
 ): Promise<ManagedTeam> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
-  const tenantId = await requireTenantId();
+  const { supabase, user, tenantId } = await requirePlanner();
 
   const { data, error } = await supabase
     .from("managed_teams")
@@ -51,8 +47,7 @@ export async function updateManagedTeam(
   name: string,
   requiredLevel: 1 | 2 | 3,
 ): Promise<ManagedTeam> {
-  const supabase = await createClient();
-  const tenantId = await requireTenantId();
+  const { supabase, tenantId } = await requirePlanner();
   const { data, error } = await supabase
     .from("managed_teams")
     .update({ name: name.trim(), required_level: requiredLevel })
@@ -69,8 +64,7 @@ export async function updateManagedTeam(
 }
 
 export async function deleteManagedTeam(id: string): Promise<void> {
-  const supabase = await createClient();
-  const tenantId = await requireTenantId();
+  const { supabase, tenantId } = await requirePlanner();
   const { error } = await supabase
     .from("managed_teams")
     .delete()
@@ -85,12 +79,7 @@ export async function batchCreateManagedTeams(
 ): Promise<ManagedTeam[]> {
   if (teams.length === 0) return [];
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
-  const tenantId = await requireTenantId();
+  const { supabase, user, tenantId } = await requirePlanner();
 
   const rows = teams.map((t) => ({
     name: t.name.trim(),

@@ -86,9 +86,15 @@ creates it if missing.
 Server actions gate through `lib/auth.ts` — never re-implement the checks inline:
 
 - `requireAuthContext()` — returns `{ supabase, user }`, throws `"Not authenticated"`
-- `requirePlanner()` — returns `{ supabase, user, tenantId }`, throws the `NOT_PLANNER` sentinel for non-planners (one auth round trip + one membership query)
+- `requireMember()` — returns `{ supabase, user, tenantId, role }`, throws `NOT_MEMBER`; for reads any club member may perform
+- `requirePlanner()` — returns `{ supabase, user, tenantId }`, throws the `NOT_PLANNER` sentinel for non-planners (one auth round trip + one membership query). **Every mutating server action must use it.**
+- `getMembershipRole()` — `"planner" | "viewer" | null`, never throws; for role-aware rendering
 
-Roles live in `organization_members.role`: `planner` | `viewer` (see `docs/plans/2026-08-30-club-admin-role-design.md` for a not-yet-started `admin` role).
+Roles live in `organization_members.role`: `planner` (writes) | `viewer` (strictly read-only; see
+the roles section of `docs/multi-tenancy.md` for the three enforcement layers). The protected
+layout provides the role via `components/shared/role-provider.tsx`; client components call
+`useIsPlanner()` and skip mutation controls for viewers. A not-yet-started `admin` role is
+designed in `docs/plans/2026-08-30-club-admin-role-design.md`.
 
 **Master admin is not a DB role.** It is `user.app_metadata.is_master_admin` — service-role-writable only — read in RLS via the `public.is_master_admin()` function (migration `20260830000001_master_admin_app_metadata.sql`). Master admin pages additionally require the root domain.
 

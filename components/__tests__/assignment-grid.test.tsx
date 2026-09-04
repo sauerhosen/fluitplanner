@@ -1,8 +1,13 @@
 import { screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { render } from "@/__tests__/helpers/render";
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { AssignmentGrid } from "@/components/polls/assignment-grid";
+import {
+  createAssignment,
+  deleteAssignment,
+  setAssignmentStatus,
+} from "@/lib/actions/assignments";
 import type {
   Match,
   PollSlot,
@@ -629,5 +634,60 @@ describe("AssignmentGrid", () => {
       "data-status",
       "none",
     );
+  });
+});
+
+describe("AssignmentGrid as a viewer", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  const tentative: Assignment = {
+    id: "a-m1-u1",
+    poll_id: "poll-1",
+    match_id: "m1",
+    umpire_id: "u1",
+    created_at: "2026-01-01T00:00:00Z",
+    organization_id: "test-org-id",
+    status: "tentative",
+  };
+  const viewerProps = {
+    pollId: "poll-1",
+    matches: mockMatches,
+    slots: mockSlots,
+    responses: mockResponses,
+    assignments: [tentative],
+    umpires: mockUmpires,
+  };
+
+  it("shows the assignments but offers no bulk tentative actions", () => {
+    render(<AssignmentGrid {...viewerProps} />, { role: "viewer" });
+
+    expect(screen.getByTestId("tentative-summary")).toHaveTextContent("1");
+    expect(screen.queryByTestId("confirm-tentative")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("clear-tentative")).not.toBeInTheDocument();
+  });
+
+  it("renders cells with their state, but not as buttons", () => {
+    render(<AssignmentGrid {...viewerProps} />, { role: "viewer" });
+
+    const assigned = screen.getByTestId("cell-m1-u1");
+    expect(assigned).toHaveAttribute("data-status", "tentative");
+    expect(assigned.tagName).not.toBe("BUTTON");
+
+    fireEvent.click(assigned);
+    fireEvent.click(screen.getByTestId("cell-m2-u2"));
+    expect(createAssignment).not.toHaveBeenCalled();
+    expect(deleteAssignment).not.toHaveBeenCalled();
+    expect(setAssignmentStatus).not.toHaveBeenCalled();
+  });
+
+  it("does the same in the transposed view", () => {
+    render(<AssignmentGrid {...viewerProps} transposed />, { role: "viewer" });
+
+    const cell = screen.getByTestId("cell-m1-u1");
+    expect(cell.tagName).not.toBe("BUTTON");
+    fireEvent.click(cell);
+    expect(deleteAssignment).not.toHaveBeenCalled();
   });
 });

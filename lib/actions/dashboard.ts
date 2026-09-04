@@ -1,7 +1,7 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
 import { requireTenantId } from "@/lib/tenant";
+import { getMembershipRole, requireAuthContext } from "@/lib/auth";
 import { format, addDays, subDays } from "date-fns";
 
 /* ------------------------------------------------------------------ */
@@ -68,21 +68,12 @@ export type ActivityEvent =
 /*  Helpers                                                            */
 /* ------------------------------------------------------------------ */
 
-async function requireAuth() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
-  return { supabase, user };
-}
-
 /* ------------------------------------------------------------------ */
 /*  getDashboardStats                                                  */
 /* ------------------------------------------------------------------ */
 
 export async function getDashboardStats(): Promise<DashboardStats> {
-  const { supabase } = await requireAuth();
+  const { supabase } = await requireAuthContext();
   const tenantId = await requireTenantId();
 
   const today = format(new Date(), "yyyy-MM-dd");
@@ -181,7 +172,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
 /* ------------------------------------------------------------------ */
 
 export async function getActionItems(): Promise<ActionItem[]> {
-  const { supabase } = await requireAuth();
+  const { supabase } = await requireAuthContext();
   const tenantId = await requireTenantId();
   const items: ActionItem[] = [];
 
@@ -294,34 +285,39 @@ export async function getActionItems(): Promise<ActionItem[]> {
     // (no low response items to generate)
   }
 
-  // 5. Unpolled matches in next 7 days
-  const { data: upcomingMatches, error: mError } = await supabase
-    .from("matches")
-    .select("id, home_team, away_team, date")
-    .eq("organization_id", tenantId)
-    .gte("date", today)
-    .lte("date", oneWeekLater);
+  // 5. Unpolled matches in next 7 days. The item is a call to create a poll,
+  //    which only a planner can do, so viewers are spared it (and its queries).
+  const isPlanner = (await getMembershipRole()) === "planner";
+  if (isPlanner) {
+    const { data: upcomingMatches, error: mError } = await supabase
+      .from("matches")
+      .select("id, home_team, away_team, date")
+      .eq("organization_id", tenantId)
+      .gte("date", today)
+      .lte("date", oneWeekLater);
 
-  if (mError) throw new Error(mError.message);
+    if (mError) throw new Error(mError.message);
 
-  if ((upcomingMatches ?? []).length > 0) {
-    const { data: allPollMatches, error: apmError } = await supabase
-      .from("poll_matches")
-      .select("match_id");
+    if ((upcomingMatches ?? []).length > 0) {
+      const { data: allPollMatches, error: apmError } = await supabase
+        .from("poll_matches")
+        .select("match_id, polls!inner(organization_id)")
+        .eq("polls.organization_id", tenantId);
 
-    if (apmError) throw new Error(apmError.message);
+      if (apmError) throw new Error(apmError.message);
 
-    const polledMatchIds = new Set(
-      (allPollMatches ?? []).map((pm: { match_id: string }) => pm.match_id),
-    );
+      const polledMatchIds = new Set(
+        (allPollMatches ?? []).map((pm: { match_id: string }) => pm.match_id),
+      );
 
-    for (const match of upcomingMatches ?? []) {
-      if (!polledMatchIds.has(match.id)) {
-        items.push({
-          type: "unpolled_match",
-          label: `${match.home_team} vs ${match.away_team} (${match.date}) not in any poll`,
-          href: "/protected/polls/new",
-        });
+      for (const match of upcomingMatches ?? []) {
+        if (!polledMatchIds.has(match.id)) {
+          items.push({
+            type: "unpolled_match",
+            label: `${match.home_team} vs ${match.away_team} (${match.date}) not in any poll`,
+            href: "/protected/polls/new",
+          });
+        }
       }
     }
   }
@@ -402,7 +398,7 @@ function groupByTimeWindow<T>(
 }
 
 export async function getRecentActivity(): Promise<ActivityEvent[]> {
-  const { supabase } = await requireAuth();
+  const { supabase } = await requireAuthContext();
   const tenantId = await requireTenantId();
 
   // 1. Recent responses — fetch more rows, then deduplicate by participant + poll

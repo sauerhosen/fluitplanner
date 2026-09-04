@@ -255,3 +255,31 @@ describe("UmpireTable", () => {
     );
   });
 });
+
+describe("UmpireTable as a viewer", () => {
+  it("shows the roster without selection, row menus or note editing", () => {
+    render(
+      <UmpireTable
+        umpires={mockUmpires}
+        onEdit={vi.fn()}
+        onMerge={vi.fn()}
+        onDeleted={vi.fn()}
+      />,
+      { role: "viewer" },
+    );
+
+    expect(screen.getByText("Jan de Vries")).toBeInTheDocument();
+    expect(screen.queryAllByRole("checkbox")).toHaveLength(0);
+    expect(
+      screen.queryByRole("button", { name: /more actions/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /add a note/i }),
+    ).not.toBeInTheDocument();
+
+    // The one note on the roster is still there to read.
+    const buttons = screen.getAllByRole("button");
+    expect(buttons).toHaveLength(1);
+    expect(buttons[0]).toHaveAccessibleName("Father of a player in D1");
+  });
+});

@@ -2,16 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { requireTenantId } from "@/lib/tenant";
-
-async function requireAuth() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
-  return { supabase, user };
-}
+import { requirePlanner } from "@/lib/auth";
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
@@ -71,8 +62,7 @@ export async function setPollMatchFeatured(
   matchId: string,
   featured: boolean,
 ): Promise<SetFeaturedResult> {
-  const { supabase } = await requireAuth();
-  const tenantId = await requireTenantId();
+  const { supabase, tenantId } = await requirePlanner();
 
   const { data: poll, error: pollError } = await supabase
     .from("polls")
@@ -120,8 +110,7 @@ export async function setMatchFeaturedByDefault(
   matchId: string,
   featured: boolean,
 ): Promise<SetFeaturedDefaultResult> {
-  const { supabase } = await requireAuth();
-  const tenantId = await requireTenantId();
+  const { supabase, tenantId } = await requirePlanner();
 
   // Resolve the match before touching any poll. The propagation below is a
   // publish, so refusing afterwards would leave polls carrying the new

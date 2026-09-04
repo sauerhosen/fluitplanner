@@ -1,7 +1,7 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
 import { requireTenantId } from "@/lib/tenant";
+import { requireAuthContext, requirePlanner } from "@/lib/auth";
 import { groupMatchesIntoSlots } from "@/lib/domain/slots";
 import { diffSlots } from "@/lib/domain/diff-slots";
 import { resolveFeaturedOnReplace } from "@/lib/domain/featured-matches";
@@ -38,15 +38,6 @@ export type PollDetail = Poll & {
 /*  Helpers                                                            */
 /* ------------------------------------------------------------------ */
 
-async function requireAuth() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
-  return { supabase, user };
-}
-
 /* ------------------------------------------------------------------ */
 /*  getPollOptions (lightweight, for filter dropdowns)                  */
 /* ------------------------------------------------------------------ */
@@ -54,7 +45,7 @@ async function requireAuth() {
 export async function getPollOptions(): Promise<
   { id: string; title: string | null; status: string }[]
 > {
-  const { supabase } = await requireAuth();
+  const { supabase } = await requireAuthContext();
   const tenantId = await requireTenantId();
 
   const { data, error } = await supabase
@@ -72,7 +63,7 @@ export async function getPollOptions(): Promise<
 /* ------------------------------------------------------------------ */
 
 export async function getPolls(): Promise<PollWithMeta[]> {
-  const { supabase } = await requireAuth();
+  const { supabase } = await requireAuthContext();
   const tenantId = await requireTenantId();
 
   // Fetch polls belonging to organization
@@ -160,7 +151,7 @@ export async function getPolls(): Promise<PollWithMeta[]> {
 /* ------------------------------------------------------------------ */
 
 export async function getPoll(id: string): Promise<PollDetail> {
-  const { supabase } = await requireAuth();
+  const { supabase } = await requireAuthContext();
   const tenantId = await requireTenantId();
 
   // Fetch poll (scoped to organization)
@@ -245,7 +236,7 @@ export async function getPoll(id: string): Promise<PollDetail> {
 export async function getAvailableMatches(
   excludePollId?: string,
 ): Promise<Match[]> {
-  const { supabase } = await requireAuth();
+  const { supabase } = await requireAuthContext();
   const tenantId = await requireTenantId();
 
   // Get all matches for this organization
@@ -292,7 +283,7 @@ export async function createPoll(
   if (!title.trim()) throw new Error("Title is required");
   if (matchIds.length === 0) throw new Error("At least one match is required");
 
-  const { supabase, user } = await requireAuth();
+  const { supabase, user } = await requirePlanner();
 
   // Fetch match start times
   const { data: matches, error: mError } = await supabase
@@ -384,8 +375,7 @@ export async function updatePollMatches(
 ): Promise<void> {
   if (matchIds.length === 0) throw new Error("At least one match is required");
 
-  const { supabase } = await requireAuth();
-  const tenantId = await requireTenantId();
+  const { supabase, tenantId } = await requirePlanner();
 
   // Verify poll belongs to this tenant
   const { data: poll, error: pollCheckError } = await supabase
@@ -508,8 +498,7 @@ export async function updatePollTitle(
 ): Promise<Poll> {
   if (!title.trim()) throw new Error("Title is required");
 
-  const { supabase } = await requireAuth();
-  const tenantId = await requireTenantId();
+  const { supabase, tenantId } = await requirePlanner();
 
   const { data, error } = await supabase
     .from("polls")
@@ -529,8 +518,7 @@ export async function updatePollTitle(
 /* ------------------------------------------------------------------ */
 
 export async function togglePollStatus(pollId: string): Promise<Poll> {
-  const { supabase } = await requireAuth();
-  const tenantId = await requireTenantId();
+  const { supabase, tenantId } = await requirePlanner();
 
   // Fetch current status
   const { data: current, error: fetchError } = await supabase
@@ -562,8 +550,7 @@ export async function togglePollStatus(pollId: string): Promise<Poll> {
 /* ------------------------------------------------------------------ */
 
 export async function deletePoll(pollId: string): Promise<void> {
-  const { supabase } = await requireAuth();
-  const tenantId = await requireTenantId();
+  const { supabase, tenantId } = await requirePlanner();
 
   // Delete availability responses (FK doesn't cascade)
   const { error: respDeleteError } = await supabase
@@ -585,8 +572,7 @@ export async function deletePolls(pollIds: string[]): Promise<void> {
   if (pollIds.length === 0) return;
   if (pollIds.length > 500)
     throw new Error("Cannot delete more than 500 items at once");
-  const { supabase } = await requireAuth();
-  const tenantId = await requireTenantId();
+  const { supabase, tenantId } = await requirePlanner();
 
   // Delete availability responses (FK doesn't cascade)
   const { error: respDeleteError } = await supabase
@@ -616,8 +602,7 @@ export async function addMatchesToPoll(
   if (matchIds.length > 500)
     throw new Error("Cannot add more than 500 matches at once");
 
-  const { supabase } = await requireAuth();
-  const tenantId = await requireTenantId();
+  const { supabase, tenantId } = await requirePlanner();
 
   // Verify poll belongs to tenant and is open
   const { data: poll, error: pollErr } = await supabase
@@ -661,8 +646,7 @@ export async function removeMatchesFromPolls(
   if (matchIds.length > 500)
     throw new Error("Cannot remove more than 500 items at once");
 
-  const { supabase } = await requireAuth();
-  const tenantId = await requireTenantId();
+  const { supabase, tenantId } = await requirePlanner();
 
   // Find which polls are affected (scoped to tenant)
   const { data: affectedPm, error: pmErr } = await supabase

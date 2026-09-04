@@ -112,3 +112,19 @@ describe("ResponseSummary", () => {
     expect(screen.getByText(/no responses yet/i)).toBeInTheDocument();
   });
 });
+
+describe("ResponseSummary as a viewer", () => {
+  it("shows every response as a reading rather than a button", () => {
+    render(
+      <ResponseSummary slots={SLOTS} responses={RESPONSES} pollId="poll-1" />,
+      { role: "viewer" },
+    );
+
+    expect(screen.queryAllByRole("button")).toHaveLength(0);
+    const cell = screen.getByRole("img", { name: /alice/i });
+    expect(cell).toHaveAccessibleName(/available/i);
+
+    fireEvent.click(cell);
+    expect(updatePollResponse).not.toHaveBeenCalled();
+  });
+});

@@ -3,32 +3,18 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireTenantId } from "@/lib/tenant";
+import { requirePlanner } from "@/lib/auth";
 import type { Match } from "@/lib/types/domain";
 import type { ParsedMatch } from "@/lib/parsers/types";
 import { normalizeNote } from "@/lib/domain/notes";
 
-async function requireAuth() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
-  return { supabase, user };
-}
-
 export async function upsertMatches(
   matches: ParsedMatch[],
 ): Promise<{ inserted: number; updated: number }> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
+  const { supabase, user, tenantId } = await requirePlanner();
 
   let inserted = 0;
   let updated = 0;
-
-  const tenantId = await requireTenantId();
 
   for (const match of matches) {
     const row = {
@@ -230,12 +216,7 @@ function pickMatchFormFields(
 }
 
 export async function createMatch(match: MatchFormInput): Promise<Match> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
-  const tenantId = await requireTenantId();
+  const { supabase, user, tenantId } = await requirePlanner();
 
   const { data, error } = await supabase
     .from("matches")
@@ -255,12 +236,7 @@ export async function updateMatch(
   id: string,
   updates: Partial<MatchFormInput>,
 ): Promise<Match> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
-  const tenantId = await requireTenantId();
+  const { supabase, tenantId } = await requirePlanner();
 
   const { data, error } = await supabase
     .from("matches")
@@ -289,12 +265,7 @@ export async function updateMatchNotes(
 }
 
 export async function deleteMatch(id: string): Promise<void> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
-  const tenantId = await requireTenantId();
+  const { supabase, tenantId } = await requirePlanner();
 
   const { error } = await supabase
     .from("matches")
@@ -308,8 +279,7 @@ export async function deleteMatches(ids: string[]): Promise<void> {
   if (ids.length === 0) return;
   if (ids.length > 500)
     throw new Error("Cannot delete more than 500 items at once");
-  const { supabase } = await requireAuth();
-  const tenantId = await requireTenantId();
+  const { supabase, tenantId } = await requirePlanner();
 
   const { error } = await supabase
     .from("matches")

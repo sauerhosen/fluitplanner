@@ -93,7 +93,7 @@ describe("UserList", () => {
     renderList([user({})]);
 
     await userEvent.click(
-      screen.getByRole("button", { name: /Invite Planner/i }),
+      screen.getByRole("button", { name: /Invite member/i }),
     );
 
     // Opens with an empty address, rather than prefilled from a row
@@ -106,7 +106,7 @@ describe("UserList", () => {
 
     expect(screen.getByText("No users found.")).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /Invite Planner/i }),
+      screen.getByRole("button", { name: /Invite member/i }),
     ).toBeInTheDocument();
   });
 

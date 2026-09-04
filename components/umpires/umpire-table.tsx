@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useSelection } from "@/hooks/use-selection";
+import { useIsPlanner } from "@/components/shared/role-provider";
 import { SelectionToolbar } from "@/components/shared/selection-toolbar";
 
 const LEVEL_LABEL_KEYS: Record<
@@ -67,6 +68,10 @@ export function UmpireTable({
 }) {
   const t = useTranslations("umpires");
   const tCommon = useTranslations("common");
+  // Viewers get the table as data: no selection column, no row menu, notes
+  // shown but not editable. Server actions enforce the role; this only keeps
+  // dead controls off the page.
+  const canEdit = useIsPlanner();
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const {
     selectedIds,
@@ -104,30 +109,34 @@ export function UmpireTable({
 
   return (
     <div className="flex flex-col gap-3">
-      <SelectionToolbar
-        selectedCount={selectedIds.size}
-        onDelete={handleBulkDelete}
-        onClearSelection={clearSelection}
-      />
+      {canEdit && (
+        <SelectionToolbar
+          selectedCount={selectedIds.size}
+          onDelete={handleBulkDelete}
+          onClearSelection={clearSelection}
+        />
+      )}
       <div className="overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-10">
-                <Checkbox
-                  checked={
-                    allChecked ? true : someChecked ? "indeterminate" : false
-                  }
-                  onCheckedChange={toggleAll}
-                  aria-label={tCommon("selectAll")}
-                />
-              </TableHead>
+              {canEdit && (
+                <TableHead className="w-10">
+                  <Checkbox
+                    checked={
+                      allChecked ? true : someChecked ? "indeterminate" : false
+                    }
+                    onCheckedChange={toggleAll}
+                    aria-label={tCommon("selectAll")}
+                  />
+                </TableHead>
+              )}
               <TableHead>{t("nameHeader")}</TableHead>
               <TableHead>{t("emailHeader")}</TableHead>
               <TableHead className="w-32">{t("levelHeader")}</TableHead>
               <TableHead className="w-20">{t("verifiedHeader")}</TableHead>
               <TableHead className="w-16">{t("notesHeader")}</TableHead>
-              <TableHead className="w-12"></TableHead>
+              {canEdit && <TableHead className="w-12"></TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -137,13 +146,15 @@ export function UmpireTable({
                 data-selected={selectedIds.has(umpire.id) || undefined}
                 className="data-[selected]:bg-primary/5"
               >
-                <TableCell>
-                  <Checkbox
-                    checked={selectedIds.has(umpire.id)}
-                    onCheckedChange={() => toggleSelection(umpire.id)}
-                    aria-label={umpire.name}
-                  />
-                </TableCell>
+                {canEdit && (
+                  <TableCell>
+                    <Checkbox
+                      checked={selectedIds.has(umpire.id)}
+                      onCheckedChange={() => toggleSelection(umpire.id)}
+                      aria-label={umpire.name}
+                    />
+                  </TableCell>
+                )}
                 <TableCell className="font-medium">{umpire.name}</TableCell>
                 <TableCell>{umpire.email}</TableCell>
                 <TableCell>
@@ -161,38 +172,41 @@ export function UmpireTable({
                 <TableCell>
                   <UmpireNoteButton
                     umpire={umpire}
-                    variant="editor"
+                    variant={canEdit ? "editor" : "indicator"}
+                    readOnly={!canEdit}
                     onSaved={onNoteSaved}
                   />
                 </TableCell>
-                <TableCell>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <MoreHorizontal className="h-4 w-4" />
-                        <span className="sr-only">{t("moreActions")}</span>
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => onEdit(umpire)}>
-                        <Pencil className="mr-2 h-4 w-4" />
-                        {t("edit")}
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => onMerge(umpire)}>
-                        <Merge className="mr-2 h-4 w-4" />
-                        {t("mergeMenuItem")}
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => handleDelete(umpire.id)}
-                        disabled={deletingId === umpire.id}
-                        className="text-destructive"
-                      >
-                        <Trash2 className="mr-2 h-4 w-4" />
-                        {tCommon("delete")}
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </TableCell>
+                {canEdit && (
+                  <TableCell>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <MoreHorizontal className="h-4 w-4" />
+                          <span className="sr-only">{t("moreActions")}</span>
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => onEdit(umpire)}>
+                          <Pencil className="mr-2 h-4 w-4" />
+                          {t("edit")}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => onMerge(umpire)}>
+                          <Merge className="mr-2 h-4 w-4" />
+                          {t("mergeMenuItem")}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => handleDelete(umpire.id)}
+                          disabled={deletingId === umpire.id}
+                          className="text-destructive"
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          {tCommon("delete")}
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                )}
               </TableRow>
             ))}
           </TableBody>

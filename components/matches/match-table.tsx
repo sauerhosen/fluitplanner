@@ -35,6 +35,7 @@ import {
 import { useTranslations, useFormatter } from "next-intl";
 import { toast } from "sonner";
 import { useSelection } from "@/hooks/use-selection";
+import { useIsPlanner } from "@/components/shared/role-provider";
 import { MatchNoteButton } from "./match-note-button";
 import { MatchFeatureButton } from "./match-feature-button";
 import { SelectionToolbar } from "@/components/shared/selection-toolbar";
@@ -78,6 +79,10 @@ export function MatchTable({
   const t = useTranslations("matches");
   const tCommon = useTranslations("common");
   const format = useFormatter();
+  // Viewers get the table as data: no selection column, no row menu, and the
+  // per-row affordances shown as indicators. Server actions enforce the role;
+  // this only keeps dead controls off the page.
+  const canEdit = useIsPlanner();
   const {
     selectedIds,
     toggleSelection,
@@ -172,26 +177,30 @@ export function MatchTable({
 
   return (
     <div className="flex flex-col gap-3">
-      <SelectionToolbar
-        selectedCount={selectedIds.size}
-        onDelete={handleBulkDelete}
-        onClearSelection={clearSelection}
-      >
-        {toolbarActions?.(selectedIds, clearSelection)}
-      </SelectionToolbar>
+      {canEdit && (
+        <SelectionToolbar
+          selectedCount={selectedIds.size}
+          onDelete={handleBulkDelete}
+          onClearSelection={clearSelection}
+        >
+          {toolbarActions?.(selectedIds, clearSelection)}
+        </SelectionToolbar>
+      )}
       <div className="overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-10">
-                <Checkbox
-                  checked={
-                    allChecked ? true : someChecked ? "indeterminate" : false
-                  }
-                  onCheckedChange={toggleAll}
-                  aria-label={tCommon("selectAll")}
-                />
-              </TableHead>
+              {canEdit && (
+                <TableHead className="w-10">
+                  <Checkbox
+                    checked={
+                      allChecked ? true : someChecked ? "indeterminate" : false
+                    }
+                    onCheckedChange={toggleAll}
+                    aria-label={tCommon("selectAll")}
+                  />
+                </TableHead>
+              )}
               <TableHead className="w-20">{t("timeHeader")}</TableHead>
               <TableHead>{t("homeHeader")}</TableHead>
               <TableHead>{t("awayHeader")}</TableHead>
@@ -200,7 +209,7 @@ export function MatchTable({
               <TableHead className="w-16">{t("notesHeader")}</TableHead>
               <TableHead className="w-32">{t("levelHeader")}</TableHead>
               <TableHead>{t("pollHeader")}</TableHead>
-              <TableHead className="w-12"></TableHead>
+              {canEdit && <TableHead className="w-12"></TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -215,25 +224,30 @@ export function MatchTable({
                     className="bg-muted/50 cursor-pointer hover:bg-muted"
                     onClick={() => toggleDate(date)}
                   >
+                    {canEdit && (
+                      <TableCell
+                        onClick={(e) => e.stopPropagation()}
+                        className="cursor-default"
+                      >
+                        <Checkbox
+                          checked={
+                            isGroupAllSelected(dateMatchIds)
+                              ? true
+                              : isGroupSomeSelected(dateMatchIds)
+                                ? "indeterminate"
+                                : false
+                          }
+                          onCheckedChange={() => toggleGroup(dateMatchIds)}
+                          aria-label={tCommon("selectDateGroup", {
+                            date: formatDate(date),
+                          })}
+                        />
+                      </TableCell>
+                    )}
                     <TableCell
-                      onClick={(e) => e.stopPropagation()}
-                      className="cursor-default"
+                      colSpan={canEdit ? 9 : 8}
+                      className="font-semibold"
                     >
-                      <Checkbox
-                        checked={
-                          isGroupAllSelected(dateMatchIds)
-                            ? true
-                            : isGroupSomeSelected(dateMatchIds)
-                              ? "indeterminate"
-                              : false
-                        }
-                        onCheckedChange={() => toggleGroup(dateMatchIds)}
-                        aria-label={tCommon("selectDateGroup", {
-                          date: formatDate(date),
-                        })}
-                      />
-                    </TableCell>
-                    <TableCell colSpan={9} className="font-semibold">
                       <div className="flex items-center gap-2">
                         {collapsed ? (
                           <ChevronRight className="h-4 w-4" />
@@ -256,13 +270,15 @@ export function MatchTable({
                         data-selected={selectedIds.has(match.id) || undefined}
                         className="data-[selected]:bg-primary/5"
                       >
-                        <TableCell>
-                          <Checkbox
-                            checked={selectedIds.has(match.id)}
-                            onCheckedChange={() => toggleSelection(match.id)}
-                            aria-label={`${match.home_team} - ${match.away_team}`}
-                          />
-                        </TableCell>
+                        {canEdit && (
+                          <TableCell>
+                            <Checkbox
+                              checked={selectedIds.has(match.id)}
+                              onCheckedChange={() => toggleSelection(match.id)}
+                              aria-label={`${match.home_team} - ${match.away_team}`}
+                            />
+                          </TableCell>
+                        )}
                         <TableCell className="font-mono">
                           <span
                             className={
@@ -320,7 +336,8 @@ export function MatchTable({
                             />
                             <MatchNoteButton
                               match={match}
-                              variant="editor"
+                              variant={canEdit ? "editor" : "indicator"}
+                              readOnly={!canEdit}
                               onSaved={onDeleted}
                             />
                           </div>
@@ -343,41 +360,45 @@ export function MatchTable({
                             "—"
                           )}
                         </TableCell>
-                        <TableCell>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8"
-                              >
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => onEdit(match)}>
-                                <Pencil className="mr-2 h-4 w-4" />
-                                {t("edit")}
-                              </DropdownMenuItem>
-                              {match.needs_review && canDismissReview && (
-                                <DropdownMenuItem
-                                  onClick={() => handleDismissReview(match.id)}
+                        {canEdit && (
+                          <TableCell>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8"
                                 >
-                                  <BadgeCheck className="mr-2 h-4 w-4" />
-                                  {t("reviewDismiss")}
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => onEdit(match)}>
+                                  <Pencil className="mr-2 h-4 w-4" />
+                                  {t("edit")}
                                 </DropdownMenuItem>
-                              )}
-                              <DropdownMenuItem
-                                onClick={() => handleDelete(match.id)}
-                                disabled={deletingId === match.id}
-                                className="text-destructive"
-                              >
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                {tCommon("delete")}
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
+                                {match.needs_review && canDismissReview && (
+                                  <DropdownMenuItem
+                                    onClick={() =>
+                                      handleDismissReview(match.id)
+                                    }
+                                  >
+                                    <BadgeCheck className="mr-2 h-4 w-4" />
+                                    {t("reviewDismiss")}
+                                  </DropdownMenuItem>
+                                )}
+                                <DropdownMenuItem
+                                  onClick={() => handleDelete(match.id)}
+                                  disabled={deletingId === match.id}
+                                  className="text-destructive"
+                                >
+                                  <Trash2 className="mr-2 h-4 w-4" />
+                                  {tCommon("delete")}
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        )}
                       </TableRow>
                     ))}
                 </Fragment>

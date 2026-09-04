@@ -1,4 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { gate } from "@/__tests__/helpers/auth-gate";
 
 const mockDelete = vi.fn();
 const mockIn = vi.fn();
@@ -14,6 +15,12 @@ function chainable() {
 }
 
 const mockFrom = vi.fn(() => chainable());
+
+// The write actions gate through requirePlanner(); flip `gate.role` to
+// "viewer" to make the caller read-only for one test.
+vi.mock("@/lib/auth", async () =>
+  (await import("@/__tests__/helpers/auth-gate")).authGateMock(),
+);
 
 vi.mock("@/lib/supabase/server", () => ({
   createClient: vi.fn(async () => ({
@@ -136,5 +143,21 @@ describe("deleteUmpires", () => {
       "Cannot delete more than 500 items at once",
     );
     expect(mockFrom).not.toHaveBeenCalled();
+  });
+});
+
+describe("viewer role", () => {
+  afterEach(() => {
+    gate.role = "planner";
+  });
+
+  it("refuses bulk deletes with NOT_PLANNER", async () => {
+    gate.role = "viewer";
+    const { deleteMatches } = await import("@/lib/actions/matches");
+    const { deletePolls } = await import("@/lib/actions/polls");
+    const { deleteUmpires } = await import("@/lib/actions/umpires");
+    await expect(deleteMatches(["m1"])).rejects.toThrow("NOT_PLANNER");
+    await expect(deletePolls(["p1"])).rejects.toThrow("NOT_PLANNER");
+    await expect(deleteUmpires(["u1"])).rejects.toThrow("NOT_PLANNER");
   });
 });

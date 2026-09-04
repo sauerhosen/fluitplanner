@@ -38,6 +38,7 @@ import { MatchNoteButton } from "@/components/matches/match-note-button";
 import { UmpireNoteButton } from "@/components/umpires/umpire-note-button";
 import { useTranslations, useFormatter } from "next-intl";
 import { usePinnedTableHeader } from "@/hooks/use-pinned-table-header";
+import { useIsPlanner } from "@/components/shared/role-provider";
 
 type Props = {
   pollId: string;
@@ -95,6 +96,9 @@ export function AssignmentGrid({
   const [bulkPending, setBulkPending] = useState(false);
   const t = useTranslations("polls");
   const format = useFormatter();
+  // A viewer reads the grid: cells keep their state and styling but are not
+  // buttons, the bulk tentative actions are gone, and notes only show.
+  const canEdit = useIsPlanner();
 
   useEffect(() => {
     onAssignmentsChange?.(assignments);
@@ -384,18 +388,8 @@ export function AssignmentGrid({
           ? t("tentativeCellTitle")
           : undefined;
 
-    return (
-      <button
-        key={key}
-        data-testid={`cell-${key}`}
-        data-status={status ?? "none"}
-        title={title}
-        className={`relative flex h-10 w-full min-w-10 items-center justify-center rounded transition-all ${bgColor} ${conflictBorder || assignedStyle} ${tentativeStyle} ${isSaving ? "opacity-50" : "cursor-pointer hover:opacity-80"}`}
-        onClick={(e) =>
-          handleCellClick(matchId, umpireId, e.altKey || e.shiftKey)
-        }
-        disabled={isSaving}
-      >
+    const icons = (
+      <>
         {status === "confirmed" && !conflict && (
           <Check className="h-4 w-4 text-primary" />
         )}
@@ -410,6 +404,38 @@ export function AssignmentGrid({
         {status && conflict?.severity === "soft" && (
           <AlertTriangle className={`h-4 w-4 text-orange-500 ${dashedIcon}`} />
         )}
+      </>
+    );
+
+    const baseClass = `relative flex h-10 w-full min-w-10 items-center justify-center rounded transition-all ${bgColor} ${conflictBorder || assignedStyle} ${tentativeStyle}`;
+
+    if (!canEdit) {
+      return (
+        <div
+          key={key}
+          data-testid={`cell-${key}`}
+          data-status={status ?? "none"}
+          title={title}
+          className={baseClass}
+        >
+          {icons}
+        </div>
+      );
+    }
+
+    return (
+      <button
+        key={key}
+        data-testid={`cell-${key}`}
+        data-status={status ?? "none"}
+        title={title}
+        className={`${baseClass} ${isSaving ? "opacity-50" : "cursor-pointer hover:opacity-80"}`}
+        onClick={(e) =>
+          handleCellClick(matchId, umpireId, e.altKey || e.shiftKey)
+        }
+        disabled={isSaving}
+      >
+        {icons}
       </button>
     );
   }
@@ -504,30 +530,32 @@ export function AssignmentGrid({
           </span>
           {t("tentativeSummary", { count: tentativeCount })}
         </span>
-        <span className="ml-auto flex items-center gap-1">
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            className="h-7 px-2"
-            data-testid="confirm-tentative"
-            disabled={bulkPending}
-            onClick={handleConfirmAllTentative}
-          >
-            {t("confirmAllTentative")}
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            className="h-7 px-2"
-            data-testid="clear-tentative"
-            disabled={bulkPending}
-            onClick={handleClearTentative}
-          >
-            {t("clearTentative")}
-          </Button>
-        </span>
+        {canEdit && (
+          <span className="ml-auto flex items-center gap-1">
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="h-7 px-2"
+              data-testid="confirm-tentative"
+              disabled={bulkPending}
+              onClick={handleConfirmAllTentative}
+            >
+              {t("confirmAllTentative")}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="h-7 px-2"
+              data-testid="clear-tentative"
+              disabled={bulkPending}
+              onClick={handleClearTentative}
+            >
+              {t("clearTentative")}
+            </Button>
+          </span>
+        )}
       </div>
     );
   }
@@ -555,6 +583,7 @@ export function AssignmentGrid({
                         <UmpireNoteButton
                           umpire={u}
                           variant="indicator"
+                          readOnly={!canEdit}
                           onSaved={onUmpireNoteSaved}
                         />
                       </div>
@@ -605,6 +634,7 @@ export function AssignmentGrid({
                           <MatchNoteButton
                             match={match}
                             variant="indicator"
+                            readOnly={!canEdit}
                             onSaved={onNoteSaved}
                           />
                         </div>
@@ -692,6 +722,7 @@ export function AssignmentGrid({
                       <MatchNoteButton
                         match={match}
                         variant="indicator"
+                        readOnly={!canEdit}
                         onSaved={onNoteSaved}
                         className="absolute right-0 top-0"
                       />
@@ -727,6 +758,7 @@ export function AssignmentGrid({
                     <UmpireNoteButton
                       umpire={u}
                       variant="indicator"
+                      readOnly={!canEdit}
                       onSaved={onUmpireNoteSaved}
                     />
                   </div>

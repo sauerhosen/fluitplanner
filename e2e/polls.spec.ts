@@ -69,6 +69,8 @@ test.describe("Polls page", () => {
     test.skip(!pollCreated, "Poll was not created — no matches available");
     await page.goto("/protected/polls");
     await page.getByText(pollTitle).click();
+    // Wait for the detail page: the list rows carry their own overflow menus.
+    await expect(pollHeading(page, pollTitle)).toBeVisible();
 
     // Accept the confirmation dialog
     page.on("dialog", (dialog) => dialog.accept());

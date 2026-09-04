@@ -358,8 +358,51 @@ describe("invitePlanner", () => {
 
     expect(mockInviteUserByEmail).toHaveBeenCalledWith("new@example.com");
     expect(mockUpdateUserById).toHaveBeenCalledWith("new-user-id", {
-      app_metadata: { invited_to_org: "org-1" },
+      app_metadata: { invited_to_org: "org-1", invited_role: "planner" },
     });
+  });
+
+  it("adds an existing user with the requested viewer role", async () => {
+    mockListUsers.mockResolvedValue({
+      data: {
+        users: [{ id: "existing-user", email: "viewer@example.com" }],
+      },
+      error: null,
+    });
+    mockServiceInsert.mockResolvedValue({ data: null, error: null });
+
+    const { invitePlanner } = await import("@/lib/actions/admin");
+    await invitePlanner("org-1", "viewer@example.com", "viewer");
+
+    expect(mockServiceInsert).toHaveBeenCalledWith({
+      organization_id: "org-1",
+      user_id: "existing-user",
+      role: "viewer",
+    });
+  });
+
+  it("stamps the invited role on a new user's invite", async () => {
+    mockListUsers.mockResolvedValue({ data: { users: [] }, error: null });
+    mockInviteUserByEmail.mockResolvedValue({
+      data: { user: { id: "new-user-id" } },
+      error: null,
+    });
+    mockUpdateUserById.mockResolvedValue({ data: {}, error: null });
+
+    const { invitePlanner } = await import("@/lib/actions/admin");
+    await invitePlanner("org-1", "new@example.com", "viewer");
+
+    expect(mockUpdateUserById).toHaveBeenCalledWith("new-user-id", {
+      app_metadata: { invited_to_org: "org-1", invited_role: "viewer" },
+    });
+  });
+
+  it("rejects a role outside the schema's allowed values", async () => {
+    const { invitePlanner } = await import("@/lib/actions/admin");
+    await expect(
+      // @ts-expect-error deliberately passing an invalid role
+      invitePlanner("org-1", "x@example.com", "owner"),
+    ).rejects.toThrow("Invalid role");
   });
 });
 
@@ -617,7 +660,7 @@ describe("resendInvite", () => {
 
     expect(mockInviteUserByEmail).toHaveBeenCalledWith("pending@example.com");
     expect(mockUpdateUserById).toHaveBeenCalledWith("user-2", {
-      app_metadata: { invited_to_org: "org-9" },
+      app_metadata: { invited_to_org: "org-9", invited_role: "planner" },
     });
   });
 

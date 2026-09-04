@@ -102,3 +102,34 @@ describe("PollTable", () => {
     expect(screen.getByText("Clear selection")).toBeInTheDocument();
   });
 });
+
+describe("PollTable as a viewer", () => {
+  it("lists the polls without selection or share links", () => {
+    render(<PollTable polls={mockPolls} onDeleted={vi.fn()} />, {
+      role: "viewer",
+    });
+
+    expect(screen.getByText("Weekend Feb 15")).toBeInTheDocument();
+    expect(screen.queryAllByRole("checkbox")).toHaveLength(0);
+    expect(
+      screen.queryByRole("columnheader", { name: /share/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps the row menu to viewing the poll", async () => {
+    const user = userEvent.setup();
+    render(<PollTable polls={mockPolls} onDeleted={vi.fn()} />, {
+      role: "viewer",
+    });
+
+    const [menu] = screen.getAllByRole("button", { name: /more actions/i });
+    await user.click(menu);
+
+    expect(
+      await screen.findByRole("menuitem", { name: /view details/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitem", { name: /delete/i }),
+    ).not.toBeInTheDocument();
+  });
+});
