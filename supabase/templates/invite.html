@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="nl">
+  <body
+    style="
+      margin: 0;
+      padding: 24px;
+      background: #f6f7f9;
+      font-family:
+        -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, Roboto,
+        Helvetica, Arial, sans-serif;
+      color: #18181b;
+    "
+  >
+    <table
+      role="presentation"
+      cellpadding="0"
+      cellspacing="0"
+      style="
+        max-width: 520px;
+        margin: 0 auto;
+        background: #ffffff;
+        border: 1px solid #e4e4e7;
+        border-radius: 12px;
+      "
+    >
+      <tr>
+        <td style="padding: 32px">
+          <p
+            style="
+              margin: 0 0 4px;
+              font-size: 13px;
+              font-weight: 600;
+              letter-spacing: 0.06em;
+              text-transform: uppercase;
+              color: #71717a;
+            "
+          >
+            Fluitplanner
+          </p>
+          <h1 style="margin: 0 0 16px; font-size: 20px; line-height: 1.3">
+            Je bent uitgenodigd voor Fluitplanner
+          </h1>
+          <p style="margin: 0 0 24px; font-size: 15px; line-height: 1.6">
+            Er is een account voor je aangemaakt. Klik hieronder om je
+            uitnodiging te accepteren en een wachtwoord te kiezen.
+          </p>
+          <p style="margin: 0 0 28px">
+            <a
+              href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=invite&next=%2Fauth%2Fupdate-password%3Ftype%3Dinvite"
+              style="
+                display: inline-block;
+                padding: 11px 22px;
+                background: #18181b;
+                color: #ffffff;
+                text-decoration: none;
+                border-radius: 8px;
+                font-size: 15px;
+                font-weight: 500;
+              "
+              >Uitnodiging accepteren</a
+            >
+          </p>
+          <hr
+            style="
+              border: none;
+              border-top: 1px solid #e4e4e7;
+              margin: 0 0 20px;
+            "
+          />
+          <h2 style="margin: 0 0 8px; font-size: 15px; line-height: 1.3">
+            You have been invited to Fluitplanner
+          </h2>
+          <p
+            style="
+              margin: 0 0 16px;
+              font-size: 14px;
+              line-height: 1.6;
+              color: #52525b;
+            "
+          >
+            An account has been created for you. Use the button above to accept
+            the invitation and choose a password.
+          </p>
+          <p
+            style="margin: 0; font-size: 12px; line-height: 1.6; color: #a1a1aa"
+          >
+            Deze link verloopt en kan &eacute;&eacute;n keer gebruikt worden. /
+            This link expires and can be used once.<br />
+            Werkt de knop niet? Kopieer deze link / Button not working? Copy
+            this link:<br />
+            <span style="word-break: break-all"
+              >{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash
+              }}&amp;type=invite&amp;next=%2Fauth%2Fupdate-password%3Ftype%3Dinvite</span
+            >
+          </p>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

@@ -33,10 +33,12 @@ export function ForgotPasswordForm({
     setError(null);
 
     try {
-      // The url which will be included in the email. This URL needs to be configured in your redirect URLs in the Supabase dashboard at https://supabase.com/dashboard/project/_/auth/url-configuration
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth/update-password`,
-      });
+      // No redirectTo: the recovery email template builds the link itself, as
+      // {{ .SiteURL }}/auth/confirm?token_hash=...&type=recovery. Verification
+      // happens server-side from the token hash rather than through PKCE, so
+      // the link also works when opened on another device.
+      // See docs/auth-email-flows.md.
+      const { error } = await supabase.auth.resetPasswordForEmail(email);
       if (error) throw error;
       setSuccess(true);
     } catch (error: unknown) {

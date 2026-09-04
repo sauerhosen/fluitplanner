@@ -18,15 +18,21 @@ import { useTranslations } from "next-intl";
 
 export function UpdatePasswordForm({
   className,
+  title,
+  description,
   ...props
-}: React.ComponentPropsWithoutRef<"div">) {
+}: React.ComponentPropsWithoutRef<"div"> & {
+  /** Overrides for the invite flow, where this is a first password rather than a reset. */
+  title?: string;
+  description?: string;
+}) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
   const t = useTranslations("auth");
 
-  const handleForgotPassword = async (e: React.FormEvent) => {
+  const handleUpdatePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     const supabase = createClient();
     setIsLoading(true);
@@ -48,11 +54,15 @@ export function UpdatePasswordForm({
     <div className={cn("flex flex-col gap-6", className)} {...props}>
       <Card>
         <CardHeader>
-          <CardTitle className="text-2xl">{t("updatePasswordTitle")}</CardTitle>
-          <CardDescription>{t("updatePasswordDescription")}</CardDescription>
+          <CardTitle className="text-2xl">
+            {title ?? t("updatePasswordTitle")}
+          </CardTitle>
+          <CardDescription>
+            {description ?? t("updatePasswordDescription")}
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleForgotPassword}>
+          <form onSubmit={handleUpdatePassword}>
             <div className="flex flex-col gap-6">
               <div className="grid gap-2">
                 <Label htmlFor="password">{t("newPasswordLabel")}</Label>
