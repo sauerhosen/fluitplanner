@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
 import {
+  configuredCeremonyOrigin,
   passkeyCeremonyOrigin,
   passkeysAvailable,
   safePasskeyReturnUrl,
@@ -21,13 +22,54 @@ describe("passkeyCeremonyOrigin", () => {
     expect(passkeyCeremonyOrigin("fluiten.org", BASE)).toBeNull();
   });
 
-  // www resolves as "root" for tenancy, but https://www.fluiten.org is a
-  // different WebAuthn origin than https://fluiten.org and is not in rp_origins.
-  // Treating it as "already home" would fail the ceremony server-side.
-  it("sends www to the apex rather than treating it as home", () => {
+  // www resolves as "root" for tenancy, but it is a different WebAuthn origin
+  // than the apex and only one of them is in rp_origins.
+  it("sends www to the configured origin when the apex is canonical", () => {
     expect(passkeyCeremonyOrigin("www.fluiten.org", BASE)).toBe(
       "https://fluiten.org",
     );
+  });
+
+  /**
+   * Regression: fluiten.org 307s to www.fluiten.org in production. Deriving the
+   * ceremony origin as the apex sent the browser to a host that redirected
+   * straight back, so the ceremony page reloaded itself forever and enrolment
+   * was impossible. The origin is configuration, not something to derive.
+   */
+  describe("when the deployment canonicalises to www", () => {
+    const WWW = "https://www.fluiten.org";
+
+    it("treats www as home rather than bouncing it to the apex", () => {
+      expect(passkeyCeremonyOrigin("www.fluiten.org", BASE, WWW)).toBeNull();
+    });
+
+    it("sends the apex to www, not the other way around", () => {
+      expect(passkeyCeremonyOrigin("fluiten.org", BASE, WWW)).toBe(WWW);
+    });
+
+    it("sends a club subdomain to www", () => {
+      expect(passkeyCeremonyOrigin("hic.fluiten.org", BASE, WWW)).toBe(WWW);
+    });
+
+    it("still runs inline on localhost", () => {
+      expect(passkeyCeremonyOrigin("localhost:3000", BASE, WWW)).toBeNull();
+    });
+  });
+
+  it("never returns the host it was asked about, so it cannot loop", () => {
+    for (const [host, origin] of [
+      ["www.fluiten.org", "https://www.fluiten.org"],
+      ["fluiten.org", "https://fluiten.org"],
+      ["hic.fluiten.org", "https://hic.fluiten.org"],
+    ] as const) {
+      expect(passkeyCeremonyOrigin(host, BASE, origin)).toBeNull();
+    }
+  });
+
+  it("gives up rather than redirecting somewhere useless on a malformed origin", () => {
+    expect(
+      passkeyCeremonyOrigin("hic.fluiten.org", BASE, "not a url"),
+    ).toBeNull();
   });
 
   // Local dev has no subdomain and rp_id is "localhost", so the ceremony is
@@ -39,6 +81,30 @@ describe("passkeyCeremonyOrigin", () => {
 
   it("ignores the port on the apex", () => {
     expect(passkeyCeremonyOrigin("fluiten.org:443", BASE)).toBeNull();
+  });
+});
+
+describe("configuredCeremonyOrigin", () => {
+  const ORIGINAL = process.env.NEXT_PUBLIC_PASSKEY_ORIGIN;
+  afterEach(() => {
+    if (ORIGINAL === undefined) delete process.env.NEXT_PUBLIC_PASSKEY_ORIGIN;
+    else process.env.NEXT_PUBLIC_PASSKEY_ORIGIN = ORIGINAL;
+  });
+
+  it("defaults to the apex", () => {
+    delete process.env.NEXT_PUBLIC_PASSKEY_ORIGIN;
+    expect(configuredCeremonyOrigin(BASE)).toBe("https://fluiten.org");
+  });
+
+  it("uses the configured origin when the deployment canonicalises elsewhere", () => {
+    process.env.NEXT_PUBLIC_PASSKEY_ORIGIN = "https://www.fluiten.org";
+    expect(configuredCeremonyOrigin(BASE)).toBe("https://www.fluiten.org");
+  });
+
+  // rp_origins entries carry no trailing slash, and the two must match exactly.
+  it("trims a trailing slash so it can match rp_origins exactly", () => {
+    process.env.NEXT_PUBLIC_PASSKEY_ORIGIN = "https://www.fluiten.org/";
+    expect(configuredCeremonyOrigin(BASE)).toBe("https://www.fluiten.org");
   });
 });
 
