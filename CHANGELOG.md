@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.24.0](https://github.com/sauerhosen/fluitplanner/compare/v2.23.0...v2.24.0) (2026-09-04)
+
+
+### Features
+
+* **auth:** make the viewer role strictly read-only ([b1f5470](https://github.com/sauerhosen/fluitplanner/commit/b1f54707661fd0ec409a6ea2e61c82463b14b24e))
+* **auth:** make the viewer role strictly read-only ([bfeff70](https://github.com/sauerhosen/fluitplanner/commit/bfeff7017735afd142fe10ccacbae9ca44df5939))
+
 ## [2.23.0](https://github.com/sauerhosen/fluitplanner/compare/v2.22.0...v2.23.0) (2026-09-02)
 
 
