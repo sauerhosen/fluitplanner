@@ -1,6 +1,6 @@
 {
   "name": "fluitplanner",
-  "version": "2.24.0",
+  "version": "2.24.1",
   "license": "AGPL-3.0-or-later",
   "private": true,
   "scripts": {

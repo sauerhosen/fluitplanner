@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.24.1](https://github.com/sauerhosen/fluitplanner/compare/v2.24.0...v2.24.1) (2026-09-04)
+
+
+### Bug Fixes
+
+* **auth:** make invite, password reset and magic link emails work ([dc16de5](https://github.com/sauerhosen/fluitplanner/commit/dc16de53d36a1143a7cbc704a0916fbf5a347343))
+* **auth:** make invite, password reset and magic link emails work ([7d2f89d](https://github.com/sauerhosen/fluitplanner/commit/7d2f89d2f35ed12e66810ef3ea5abd702664ad8a))
+
 ## [2.24.0](https://github.com/sauerhosen/fluitplanner/compare/v2.23.0...v2.24.0) (2026-09-04)
 
 
