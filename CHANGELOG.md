@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.26.2](https://github.com/sauerhosen/fluitplanner/compare/v2.26.1...v2.26.2) (2026-09-04)
+
+
+### Bug Fixes
+
+* **auth:** never bounce from the ceremony page, and log every failure ([ffb3e30](https://github.com/sauerhosen/fluitplanner/commit/ffb3e30689ea20962f18cb407b18192fc9d53c00))
+* **auth:** never bounce from the ceremony page, and log every failure ([86927e4](https://github.com/sauerhosen/fluitplanner/commit/86927e4bd0fc838c95eac9c89f979bc41270809e))
+
 ## [2.26.1](https://github.com/sauerhosen/fluitplanner/compare/v2.26.0...v2.26.1) (2026-09-04)
 
 
