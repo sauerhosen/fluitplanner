@@ -90,6 +90,10 @@ Server actions gate through `lib/auth.ts` — never re-implement the checks inli
 - `requirePlanner()` — returns `{ supabase, user, tenantId }`, throws the `NOT_PLANNER` sentinel for non-planners (one auth round trip + one membership query). **Every mutating server action must use it.**
 - `getMembershipRole()` — `"planner" | "viewer" | null`, never throws; for role-aware rendering
 
+Per-user features that are not club-scoped (passkeys) gate on `requireAuthContext()`
+alone — the other gates resolve a tenant and would throw for a master admin with no
+club membership.
+
 Roles live in `organization_members.role`: `planner` (writes) | `viewer` (strictly read-only; see
 the roles section of `docs/multi-tenancy.md` for the three enforcement layers). The protected
 layout provides the role via `components/shared/role-provider.tsx`; client components call
@@ -141,6 +145,7 @@ Public:
 
 - `/` — landing page
 - `/auth/*` — login, sign-up, forgot-password, update-password, confirm, error, sign-up-success
+- `/auth/passkey` — WebAuthn ceremony; root domain only (see [`docs/passkeys.md`](docs/passkeys.md))
 - `/poll/[token]` — umpire availability poll (no account)
 - `/privacy`, `/no-access`
 
@@ -148,6 +153,7 @@ Authenticated (`app/protected/layout.tsx` adds nav, org switcher, auth button):
 
 - `/protected` — dashboard
 - `/protected/matches`, `/protected/umpires`
+- `/protected/account` — per-user account settings (passkeys); every role, no planner gate
 - `/protected/polls`, `/protected/polls/new`, `/protected/polls/[id]`
 - `/protected/settings` — managed teams, tracked teams (Hockey.nl sync), availability lock, MCP tokens
 - `/protected/organizations`, `/protected/users` — master admin, root domain only
@@ -169,6 +175,7 @@ Machine / integration:
 | `lib/export/`    | Export/day-sheet preparation plus XLSX / HTML / Markdown generators                                       |
 | `lib/hockey/`    | Hockey.nl Match Center sync — see [`docs/hockey-sync.md`](docs/hockey-sync.md)                            |
 | `lib/mcp/`       | MCP auth, tools, org-scoped data, planning helpers                                                        |
+| `lib/passkey/`   | Passkey ceremony origin rules and the cross-subdomain `next` validator                                    |
 | `lib/oauth/`     | OAuth authorization server: `clients.ts` (DCR/CIMD), `grants.ts` (auth codes), `tokens.ts`, `metadata.ts` |
 | `lib/supabase/`  | `server` / `client` / `service` clients and the proxy session logic                                       |
 | `lib/types/`     | Shared domain types (`domain.ts`)                                                                         |
@@ -215,6 +222,7 @@ Set automatically by Vercel, not in `.env.local`: `VERCEL_URL` (`app/layout.tsx`
 | [`docs/multi-tenancy.md`](docs/multi-tenancy.md)                     | Subdomains, tenant resolution, roles, data scoping                                                                                                                                                                               |
 | [`docs/auth-email-flows.md`](docs/auth-email-flows.md)               | Invite / reset / magic-link emails, the token-hash flow through `/auth/confirm`, and the dashboard templates that must stay in sync                                                                                              |
 | [`docs/page-chrome.md`](docs/page-chrome.md)                         | Page header + sticky toolbar pattern — read before touching a page top                                                                                                                                                           |
+| [`docs/passkeys.md`](docs/passkeys.md)                               | Passkeys: why ceremonies run on the root domain, the base-domain session cookie, dashboard config that must be mirrored by hand                                                                                                  |
 | [`docs/mcp-server.md`](docs/mcp-server.md)                           | MCP server, OAuth, tool inventory                                                                                                                                                                                                |
 | [`docs/hockey-sync.md`](docs/hockey-sync.md)                         | Hockey.nl Match Center sync: tracked teams, cron, review flags                                                                                                                                                                   |
 | [`docs/hockey-match-center-api.md`](docs/hockey-match-center-api.md) | Reverse-engineered upstream API reference                                                                                                                                                                                        |

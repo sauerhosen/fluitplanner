@@ -16,6 +16,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
+import { PasskeyButton } from "@/components/passkey/passkey-button";
 
 export function LoginForm({
   className,
@@ -105,6 +106,12 @@ export function LoginForm({
               <Button type="submit" className="w-full" disabled={isLoading}>
                 {isLoading ? t("loggingIn") : t("loginButton")}
               </Button>
+              {/* Passkeys use discoverable credentials, so this needs no email.
+                  The button hides itself where passkeys cannot work. */}
+              <PasskeyButton
+                mode="signin"
+                returnPath={redirectTo ?? "/protected"}
+              />
             </div>
             <div className="mt-4 text-center text-sm">
               {t("noAccount")}{" "}

@@ -31,7 +31,8 @@
     "users": "Users",
     "privacy": "Privacy",
     "readOnly": "Read-only",
-    "readOnlyHint": "You are a viewer of this club: you can see everything but cannot change anything."
+    "readOnlyHint": "You are a viewer of this club: you can see everything but cannot change anything.",
+    "account": "Account"
   },
   "auth": {
     "loginTitle": "Login",
@@ -79,7 +80,14 @@
     "unspecifiedError": "An unspecified error occurred.",
     "greeting": "Hey, {email}!",
     "signIn": "Sign in",
-    "logout": "Logout"
+    "logout": "Logout",
+    "passkeySignIn": "Sign in with a passkey",
+    "passkeyEnroll": "Add a passkey",
+    "passkeyWorking": "Waiting for your passkey…",
+    "passkeyTitle": "Sign in with a passkey",
+    "passkeyDescription": "Confirm with your device to finish signing in.",
+    "passkeyEnrollTitle": "Add a passkey",
+    "passkeyEnrollDescription": "Confirm with your device to add a passkey to your account."
   },
   "dashboard": {
     "pageTitle": "Dashboard",
@@ -628,5 +636,20 @@
     "invalidClient": "The requesting application could not be verified.",
     "noPlannerRoleTitle": "No planner role",
     "noPlannerRole": "Your account is not a planner in any club, so there is nothing this connection could access."
+  },
+  "account": {
+    "pageTitle": "Account",
+    "signedInAs": "Signed in as",
+    "passkeysTitle": "Passkeys",
+    "passkeyDescription": "Sign in with your fingerprint, face or screen lock instead of your password. Your password keeps working.",
+    "passkeyNone": "You have no passkeys yet.",
+    "passkeyUnnamed": "Passkey",
+    "passkeyAdded": "Added {date}",
+    "passkeyLastUsed": "last used {date}",
+    "passkeyListError": "Your passkeys could not be loaded.",
+    "passkeyDeleteLabel": "Remove {name}",
+    "passkeyDeleteTitle": "Remove this passkey?",
+    "passkeyDeleteConfirm": "{name} will no longer be able to sign you in. You can still sign in with your password, and add a new passkey at any time.",
+    "passkeyDeleteError": "That passkey could not be removed. Please try again."
   }
 }

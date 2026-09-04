@@ -16,6 +16,9 @@ export async function createClient() {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
     {
+      // Ceremonies only run in the browser, but the account page reads
+      // `auth.passkey.list()` server-side, which is behind the same opt-in.
+      auth: { experimental: { passkey: true } },
       // Must match the browser and proxy clients exactly — see authCookieOptions.
       cookieOptions: authCookieOptions(host, getBaseDomain()),
       cookies: {
