@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.26.1](https://github.com/sauerhosen/fluitplanner/compare/v2.26.0...v2.26.1) (2026-09-04)
+
+
+### Bug Fixes
+
+* **auth:** make the passkey ceremony origin configurable ([10d7309](https://github.com/sauerhosen/fluitplanner/commit/10d73095a36eb65a0c7d22c5253833f4f0997a7a))
+* **auth:** make the passkey ceremony origin configurable ([62915f7](https://github.com/sauerhosen/fluitplanner/commit/62915f7e49b545275e5ccd0a11786653ca691db6))
+
 ## [2.26.0](https://github.com/sauerhosen/fluitplanner/compare/v2.25.0...v2.26.0) (2026-09-04)
 
 
