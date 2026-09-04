@@ -80,9 +80,13 @@ export default async function Page({
             </CardDescription>
           </CardHeader>
           <CardContent>
+            {/* forceInline: this *is* the ceremony page, so bouncing again
+                would loop if the configured origin disagrees with the host's
+                canonical one. Running here surfaces a real error instead. */}
             <PasskeyButton
               mode={mode}
               returnUrl={returnUrl}
+              forceInline
               variant="default"
             />
           </CardContent>

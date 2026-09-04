@@ -32,6 +32,12 @@ type Props = {
    * Defaults to `/protected` for sign-in and to the current page for enrolment.
    */
   returnPath?: string;
+  /**
+   * Run the ceremony here regardless of host. Set by `/auth/passkey`, which is
+   * by definition already the ceremony page: redirecting away from it is what
+   * turns a misconfigured origin into an endless bounce instead of an error.
+   */
+  forceInline?: boolean;
   variant?: React.ComponentProps<typeof Button>["variant"];
   className?: string;
   onEnrolled?: () => void;
@@ -43,13 +49,20 @@ type Props = {
  * The same component is both the entry point (login form, account page) and the
  * button on `/auth/passkey`: on the ceremony origin it runs inline, anywhere
  * else it redirects there and comes back. That one rule covers master admins on
- * the apex and local development — both already on the ceremony origin — without
- * a special case. See `lib/passkey/ceremony-url.ts`.
+ * the canonical host and local development — both already on the ceremony
+ * origin — without a special case. See `lib/passkey/ceremony-url.ts`.
+ *
+ * `/auth/passkey` passes `forceInline`, so the ceremony page never redirects.
+ * If `NEXT_PUBLIC_PASSKEY_ORIGIN` disagrees with the host's canonical origin,
+ * that turns an invisible redirect loop into a plain error message from GoTrue
+ * saying the origin is not allowed — a wrong answer you can read beats a page
+ * that silently reloads itself.
  */
 export function PasskeyButton({
   mode,
   returnUrl,
   returnPath,
+  forceInline = false,
   variant = "outline",
   className,
   onEnrolled,
@@ -77,10 +90,9 @@ export function PasskeyButton({
       returnPath ??
       (mode === "enroll" ? window.location.pathname : "/protected");
     const destination = returnUrl ?? `${window.location.origin}${fallbackPath}`;
-    const ceremonyOrigin = passkeyCeremonyOrigin(
-      window.location.host,
-      getBaseDomain(),
-    );
+    const ceremonyOrigin = forceInline
+      ? null
+      : passkeyCeremonyOrigin(window.location.host, getBaseDomain());
 
     if (ceremonyOrigin) {
       const url = new URL("/auth/passkey", ceremonyOrigin);
@@ -100,6 +112,11 @@ export function PasskeyButton({
       // replace, not assign: Back should not return to the ceremony and re-run it.
       window.location.replace(destination);
     } catch (err) {
+      // Always leave a trace. A cancelled ceremony shows no message on purpose,
+      // but NotAllowedError is also what the browser throws when it *refuses*
+      // one — so without this, a genuine misconfiguration looks identical to a
+      // user changing their mind, and neither leaves anything to debug.
+      console.error("[passkey] ceremony failed", err);
       if (!isPasskeyCancellation(err)) {
         setError(
           err instanceof Error && err.message ? err.message : t("genericError"),

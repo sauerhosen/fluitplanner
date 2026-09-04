@@ -66,6 +66,19 @@ Deriving it cannot work: whether the apex or `www` is canonical is a hosting
 decision this code has no way to see. So it is named explicitly, defaulting to
 the apex only for the case where nothing redirects.
 
+Two things make a wrong value visible rather than silent:
+
+- **`/auth/passkey` never redirects.** It passes `forceInline`, because it _is_
+  the ceremony page — bouncing from there is what produced the loop. If the
+  configured origin disagrees with the canonical host, GoTrue rejects the origin
+  and you get a readable error instead of a page that reloads itself.
+- **Every failed ceremony is logged**, cancellations included. `NotAllowedError`
+  is what the browser throws both when a user dismisses the prompt and when it
+  _refuses_ the ceremony, so without a log the two are indistinguishable.
+
+`NEXT_PUBLIC_*` values are baked in at build time, so **setting the variable
+requires a redeploy** before it takes effect.
+
 ## The session cookie spans the base domain
 
 A sign-in on the apex is worthless if the session it creates does not work on
