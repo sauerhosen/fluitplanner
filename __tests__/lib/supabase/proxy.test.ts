@@ -95,8 +95,54 @@ function makeClient(client: "user" | "service") {
   };
 }
 
+/** Cookie options the proxy handed to `createServerClient` on the last run. */
+let capturedCookieOptions: Record<string, unknown> | undefined;
+
+/**
+ * Auth cookies a simulated token refresh writes during `getClaims()`. Empty by
+ * default: most requests arrive with a valid access token and write nothing.
+ */
+let refreshWrites: { name: string; value: string }[] = [];
+
 vi.mock("@supabase/ssr", () => ({
-  createServerClient: () => makeClient("user"),
+  createServerClient: (
+    _url: string,
+    _key: string,
+    options: {
+      cookieOptions?: Record<string, unknown>;
+      cookies: {
+        setAll: (
+          c: {
+            name: string;
+            value: string;
+            options: Record<string, unknown>;
+          }[],
+        ) => void;
+      };
+    },
+  ) => {
+    capturedCookieOptions = options.cookieOptions;
+    const client = makeClient("user");
+    return {
+      ...client,
+      auth: {
+        getClaims: async () => {
+          // @supabase/ssr writes refreshed auth cookies through setAll during
+          // the session refresh that getClaims triggers.
+          if (refreshWrites.length > 0) {
+            options.cookies.setAll(
+              refreshWrites.map(({ name, value }) => ({
+                name,
+                value,
+                options: { path: "/", ...(options.cookieOptions ?? {}) },
+              })),
+            );
+          }
+          return client.auth.getClaims();
+        },
+      },
+    };
+  },
 }));
 
 vi.mock("@/lib/supabase/service", () => ({
@@ -133,6 +179,8 @@ async function runProxy(request: NextRequest) {
 
 beforeEach(() => {
   upserts.length = 0;
+  capturedCookieOptions = undefined;
+  refreshWrites = [];
   claims = { sub: "user-1" };
   organizations = [ORG_A, ORG_B];
   memberships = [];
@@ -368,5 +416,175 @@ describe("fallback (cookie/query param) tenant resolution", () => {
     );
 
     expect(upserts).toEqual([]);
+  });
+});
+
+/**
+ * A session created on the root domain has to be valid on every club subdomain,
+ * so the auth cookie is scoped to the base domain rather than the host. See
+ * `lib/supabase/cookie-domain.ts`.
+ */
+describe("auth cookie scope", () => {
+  beforeEach(() => {
+    vi.stubEnv("NODE_ENV", "production");
+    process.env.VERCEL_ENV = "production";
+    memberships = [{ id: "m-1", organization_id: ORG_A.id, user_id: "user-1" }];
+  });
+
+  it("widens the auth cookie to the base domain on a club subdomain", async () => {
+    await runProxy(
+      makeRequest("https://aaa.fluiten.org/protected", "aaa.fluiten.org"),
+    );
+
+    expect(capturedCookieOptions).toMatchObject({
+      domain: ".fluiten.org",
+      secure: true,
+    });
+  });
+
+  it("widens it on the root domain too", async () => {
+    await runProxy(makeRequest("https://fluiten.org/protected", "fluiten.org"));
+
+    expect(capturedCookieOptions).toMatchObject({ domain: ".fluiten.org" });
+  });
+
+  // e2e/global-setup.ts seeds a host-only cookie and the whole suite depends on
+  // that scope, so localhost must stay host-only.
+  it("leaves the auth cookie host-only on localhost", async () => {
+    await runProxy(
+      makeRequest("http://localhost:3000/protected", "localhost:3000"),
+    );
+
+    expect(capturedCookieOptions?.domain).toBeUndefined();
+    expect(capturedCookieOptions?.secure).toBeUndefined();
+  });
+
+  it("leaves it host-only on a Vercel preview host", async () => {
+    await runProxy(
+      makeRequest(
+        "https://fp-abc123.vercel.app/protected",
+        "fp-abc123.vercel.app",
+      ),
+    );
+
+    expect(capturedCookieOptions?.domain).toBeUndefined();
+  });
+
+  // The x-tenant cookie selects a club. Sharing it across the base domain would
+  // let one subdomain rewrite another's tenant, so it stays host-only.
+  it("never puts a Domain on the x-tenant cookie", async () => {
+    const { response } = await runProxy(
+      makeRequest(
+        "https://fluiten.org/protected",
+        "fluiten.org",
+        "x-tenant=bbb",
+      ),
+    );
+
+    expect(response.cookies.get("x-tenant")?.value).toBe(ORG_A.slug);
+    expect(response.cookies.get("x-tenant")?.domain).toBeUndefined();
+  });
+});
+
+/**
+ * Migration: @supabase/ssr clears the host-only counterpart only when it removes
+ * cookies (signOut), not when a refresh writes one. Without the proxy stepping
+ * in, a browser that signed in before the domain change keeps a stale host-only
+ * cookie alongside the new one, and which of the two is read is undefined.
+ */
+describe("stale host-only auth cookie clearing", () => {
+  beforeEach(() => {
+    vi.stubEnv("NODE_ENV", "production");
+    process.env.VERCEL_ENV = "production";
+    memberships = [{ id: "m-1", organization_id: ORG_A.id, user_id: "user-1" }];
+  });
+
+  function hostOnlyDeletions(
+    response: Awaited<ReturnType<typeof runProxy>>["response"],
+  ) {
+    return response.headers
+      .getSetCookie()
+      .filter((c) => c.includes("Max-Age=0") && !/Domain=/i.test(c));
+  }
+
+  it("deletes the host-only twin when a refresh writes a domain-scoped cookie", async () => {
+    refreshWrites = [{ name: "sb-test-auth-token", value: "fresh" }];
+
+    const { response } = await runProxy(
+      makeRequest("https://aaa.fluiten.org/protected", "aaa.fluiten.org"),
+    );
+
+    const deletions = hostOnlyDeletions(response);
+    expect(deletions).toHaveLength(1);
+    expect(deletions[0]).toContain("sb-test-auth-token=;");
+    // The replacement must still be there — deleting without replacing would
+    // sign the user out.
+    expect(response.cookies.get("sb-test-auth-token")?.value).toBe("fresh");
+  });
+
+  it("clears every chunk of a chunked cookie", async () => {
+    refreshWrites = [
+      { name: "sb-test-auth-token.0", value: "a" },
+      { name: "sb-test-auth-token.1", value: "b" },
+    ];
+
+    const { response } = await runProxy(
+      makeRequest("https://aaa.fluiten.org/protected", "aaa.fluiten.org"),
+    );
+
+    expect(hostOnlyDeletions(response)).toHaveLength(2);
+  });
+
+  // A session that shrinks from two chunks to one: @supabase/ssr emits a
+  // host-only removal for the dropped chunk *and* a domain-scoped one for the
+  // same name, and Next's name-keyed ResponseCookies keeps only the second — so
+  // the host-only `.1` would survive and corrupt the next read.
+  it("clears the host-only twin of a chunk the refresh dropped", async () => {
+    refreshWrites = [
+      { name: "sb-test-auth-token.0", value: "fresh" },
+      { name: "sb-test-auth-token.1", value: "" },
+    ];
+
+    const { response } = await runProxy(
+      makeRequest("https://aaa.fluiten.org/protected", "aaa.fluiten.org"),
+    );
+
+    const deletions = hostOnlyDeletions(response);
+    expect(deletions).toHaveLength(2);
+    expect(deletions.some((c) => c.includes("sb-test-auth-token.1=;"))).toBe(
+      true,
+    );
+  });
+
+  // The guard that makes this safe: with nothing written, a deletion would sign
+  // the user out with no replacement.
+  it("deletes nothing when no auth cookie was written", async () => {
+    refreshWrites = [];
+
+    const { response } = await runProxy(
+      makeRequest("https://aaa.fluiten.org/protected", "aaa.fluiten.org"),
+    );
+
+    expect(hostOnlyDeletions(response)).toEqual([]);
+  });
+
+  it("deletes nothing when the response only removes auth cookies", async () => {
+    refreshWrites = [{ name: "sb-test-auth-token", value: "" }];
+
+    const { response } = await runProxy(
+      makeRequest("https://aaa.fluiten.org/protected", "aaa.fluiten.org"),
+    );
+
+    expect(hostOnlyDeletions(response)).toEqual([]);
+  });
+
+  it("deletes nothing on a host that keeps cookies host-only anyway", async () => {
+    refreshWrites = [{ name: "sb-test-auth-token", value: "fresh" }];
+
+    const { response } = await runProxy(
+      makeRequest("http://localhost:3000/protected", "localhost:3000"),
+    );
+
+    expect(hostOnlyDeletions(response)).toEqual([]);
   });
 });
