@@ -22,9 +22,12 @@ export async function AuthButton({
 
   return user ? (
     <div className="flex items-center gap-2 sm:gap-4">
-      <span className="hidden sm:inline text-sm">
+      <Link
+        href="/protected/account"
+        className="hidden sm:inline text-sm hover:underline"
+      >
         {t("greeting", { email: user.email as string })}
-      </span>
+      </Link>
       {showDashboardLink && (
         <Button asChild size="sm" variant={"default"}>
           <Link href="/protected">{tNav("dashboard")}</Link>

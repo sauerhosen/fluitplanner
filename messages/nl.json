@@ -31,7 +31,8 @@
     "users": "Gebruikers",
     "privacy": "Privacy",
     "readOnly": "Alleen-lezen",
-    "readOnlyHint": "Je bent kijker van deze club: je ziet alles, maar kunt niets wijzigen."
+    "readOnlyHint": "Je bent kijker van deze club: je ziet alles, maar kunt niets wijzigen.",
+    "account": "Account"
   },
   "auth": {
     "loginTitle": "Inloggen",
@@ -79,7 +80,14 @@
     "unspecifiedError": "Er is een onbekende fout opgetreden.",
     "greeting": "Hoi, {email}!",
     "signIn": "Inloggen",
-    "logout": "Uitloggen"
+    "logout": "Uitloggen",
+    "passkeySignIn": "Inloggen met een passkey",
+    "passkeyEnroll": "Passkey toevoegen",
+    "passkeyWorking": "Wachten op je passkey…",
+    "passkeyTitle": "Inloggen met een passkey",
+    "passkeyDescription": "Bevestig op je apparaat om het inloggen af te ronden.",
+    "passkeyEnrollTitle": "Passkey toevoegen",
+    "passkeyEnrollDescription": "Bevestig op je apparaat om een passkey aan je account toe te voegen."
   },
   "dashboard": {
     "pageTitle": "Dashboard",
@@ -628,5 +636,20 @@
     "invalidClient": "De aanvragende applicatie kon niet worden geverifieerd.",
     "noPlannerRoleTitle": "Geen plannerrol",
     "noPlannerRole": "Je account is in geen enkele club planner, dus deze koppeling zou nergens toegang toe hebben."
+  },
+  "account": {
+    "pageTitle": "Account",
+    "signedInAs": "Ingelogd als",
+    "passkeysTitle": "Passkeys",
+    "passkeyDescription": "Log in met je vingerafdruk, gezicht of schermvergrendeling in plaats van je wachtwoord. Je wachtwoord blijft gewoon werken.",
+    "passkeyNone": "Je hebt nog geen passkeys.",
+    "passkeyUnnamed": "Passkey",
+    "passkeyAdded": "Toegevoegd op {date}",
+    "passkeyLastUsed": "laatst gebruikt {date}",
+    "passkeyListError": "Je passkeys konden niet worden geladen.",
+    "passkeyDeleteLabel": "{name} verwijderen",
+    "passkeyDeleteTitle": "Deze passkey verwijderen?",
+    "passkeyDeleteConfirm": "Met {name} kun je daarna niet meer inloggen. Je kunt nog steeds inloggen met je wachtwoord en altijd een nieuwe passkey toevoegen.",
+    "passkeyDeleteError": "Deze passkey kon niet worden verwijderd. Probeer het opnieuw."
   }
 }

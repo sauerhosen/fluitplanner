@@ -11,6 +11,7 @@ import { isRootDomain, getTenantSlug } from "@/lib/tenant";
 import { createClient } from "@/lib/supabase/server";
 import { getMembershipRole } from "@/lib/auth";
 import { RoleProvider } from "@/components/shared/role-provider";
+import { UserRound } from "lucide-react";
 
 export default async function ProtectedLayout({
   children,
@@ -82,6 +83,16 @@ export default async function ProtectedLayout({
                   className="hover:underline hidden sm:inline"
                 >
                   {t("settings")}
+                </Link>
+                {/* Account is per-user, so unlike the club pages it stays
+                    reachable on mobile — as an icon, to keep the row short. */}
+                <Link
+                  href="/protected/account"
+                  className="hover:underline"
+                  aria-label={t("account")}
+                >
+                  <UserRound className="size-4 sm:hidden" aria-hidden="true" />
+                  <span className="hidden sm:inline">{t("account")}</span>
                 </Link>
               </div>
             </div>
