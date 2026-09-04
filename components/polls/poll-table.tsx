@@ -25,6 +25,7 @@ import { MoreHorizontal, Eye, Trash2, Inbox } from "lucide-react";
 import { SharePollButton } from "./share-poll-button";
 import { useTranslations, useFormatter } from "next-intl";
 import { useSelection } from "@/hooks/use-selection";
+import { useIsPlanner } from "@/components/shared/role-provider";
 import { SelectionToolbar } from "@/components/shared/selection-toolbar";
 
 export function PollTable({
@@ -39,6 +40,11 @@ export function PollTable({
   const t = useTranslations("polls");
   const tCommon = useTranslations("common");
   const format = useFormatter();
+  // Viewers get the list as data: no selection column, no share link (handing
+  // the response link to umpires is a planner's move), and a menu that only
+  // opens the poll. Server actions enforce the role; this only keeps dead
+  // controls off the page.
+  const canEdit = useIsPlanner();
   const {
     selectedIds,
     toggleSelection,
@@ -87,29 +93,35 @@ export function PollTable({
 
   return (
     <div className="flex flex-col gap-3">
-      <SelectionToolbar
-        selectedCount={selectedIds.size}
-        onDelete={handleBulkDelete}
-        onClearSelection={clearSelection}
-      />
+      {canEdit && (
+        <SelectionToolbar
+          selectedCount={selectedIds.size}
+          onDelete={handleBulkDelete}
+          onClearSelection={clearSelection}
+        />
+      )}
       <div className="overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-10">
-                <Checkbox
-                  checked={
-                    allChecked ? true : someChecked ? "indeterminate" : false
-                  }
-                  onCheckedChange={toggleAll}
-                  aria-label={tCommon("selectAll")}
-                />
-              </TableHead>
+              {canEdit && (
+                <TableHead className="w-10">
+                  <Checkbox
+                    checked={
+                      allChecked ? true : someChecked ? "indeterminate" : false
+                    }
+                    onCheckedChange={toggleAll}
+                    aria-label={tCommon("selectAll")}
+                  />
+                </TableHead>
+              )}
               <TableHead>{t("titleHeader")}</TableHead>
               <TableHead>{t("datesHeader")}</TableHead>
               <TableHead className="w-24">{t("statusHeader")}</TableHead>
               <TableHead className="w-24">{t("responsesHeader")}</TableHead>
-              <TableHead className="w-40">{t("shareHeader")}</TableHead>
+              {canEdit && (
+                <TableHead className="w-40">{t("shareHeader")}</TableHead>
+              )}
               <TableHead className="w-12"></TableHead>
             </TableRow>
           </TableHeader>
@@ -120,13 +132,15 @@ export function PollTable({
                 data-selected={selectedIds.has(poll.id) || undefined}
                 className="data-[selected]:bg-primary/5"
               >
-                <TableCell>
-                  <Checkbox
-                    checked={selectedIds.has(poll.id)}
-                    onCheckedChange={() => toggleSelection(poll.id)}
-                    aria-label={poll.title ?? undefined}
-                  />
-                </TableCell>
+                {canEdit && (
+                  <TableCell>
+                    <Checkbox
+                      checked={selectedIds.has(poll.id)}
+                      onCheckedChange={() => toggleSelection(poll.id)}
+                      aria-label={poll.title ?? undefined}
+                    />
+                  </TableCell>
+                )}
                 <TableCell
                   className="font-medium cursor-pointer hover:underline"
                   onClick={() => router.push(`/protected/polls/${poll.id}`)}
@@ -146,9 +160,11 @@ export function PollTable({
                   </Badge>
                 </TableCell>
                 <TableCell>{poll.response_count}</TableCell>
-                <TableCell>
-                  <SharePollButton token={poll.token} />
-                </TableCell>
+                {canEdit && (
+                  <TableCell>
+                    <SharePollButton token={poll.token} />
+                  </TableCell>
+                )}
                 <TableCell>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -166,14 +182,16 @@ export function PollTable({
                         <Eye className="mr-2 h-4 w-4" />
                         {t("viewDetails")}
                       </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => handleDelete(poll.id)}
-                        disabled={deletingId === poll.id}
-                        className="text-destructive"
-                      >
-                        <Trash2 className="mr-2 h-4 w-4" />
-                        {tCommon("delete")}
-                      </DropdownMenuItem>
+                      {canEdit && (
+                        <DropdownMenuItem
+                          onClick={() => handleDelete(poll.id)}
+                          disabled={deletingId === poll.id}
+                          className="text-destructive"
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          {tCommon("delete")}
+                        </DropdownMenuItem>
+                      )}
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </TableCell>

@@ -1,9 +1,16 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { gate } from "@/__tests__/helpers/auth-gate";
 
 const mockInsert = vi.fn();
 const mockUpdate = vi.fn();
 const mockSelect = vi.fn();
 const mockGetUser = vi.fn();
+
+// The write actions gate through requirePlanner(); flip `gate.role` to
+// "viewer" to make the caller read-only for one test.
+vi.mock("@/lib/auth", async () =>
+  (await import("@/__tests__/helpers/auth-gate")).authGateMock(),
+);
 
 vi.mock("@/lib/tenant", () => ({
   requireTenantId: vi.fn(async () => "test-org-id"),
@@ -158,5 +165,22 @@ describe("updateManagedTeam", () => {
     await expect(
       updateManagedTeam("some-id", "DuplicateTeam", 1),
     ).rejects.toThrow("DUPLICATE_TEAM_NAME");
+  });
+});
+
+describe("viewer role", () => {
+  afterEach(() => {
+    gate.role = "planner";
+  });
+
+  it("refuses managed team writes with NOT_PLANNER", async () => {
+    gate.role = "viewer";
+    const { createManagedTeam, updateManagedTeam, deleteManagedTeam } =
+      await import("@/lib/actions/managed-teams");
+    await expect(createManagedTeam("H1", 1)).rejects.toThrow("NOT_PLANNER");
+    await expect(updateManagedTeam("t1", "H1", 1)).rejects.toThrow(
+      "NOT_PLANNER",
+    );
+    await expect(deleteManagedTeam("t1")).rejects.toThrow("NOT_PLANNER");
   });
 });

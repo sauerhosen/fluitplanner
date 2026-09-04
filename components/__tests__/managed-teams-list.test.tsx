@@ -109,3 +109,18 @@ describe("ManagedTeamsList", () => {
     });
   });
 });
+
+describe("ManagedTeamsList for a viewer", () => {
+  it("lists the teams without add, edit or delete", () => {
+    render(<ManagedTeamsList initialTeams={mockTeams} />, { role: "viewer" });
+
+    expect(screen.getByText("Heren 01")).toBeInTheDocument();
+    expect(screen.queryAllByRole("button")).toHaveLength(0);
+    expect(
+      screen.queryByPlaceholderText("Team name (e.g. Heren 01)"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("columnheader", { name: /actions/i }),
+    ).not.toBeInTheDocument();
+  });
+});

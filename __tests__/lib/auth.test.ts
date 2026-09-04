@@ -3,8 +3,13 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const mockGetUser = vi.fn();
 const mockMembershipMaybeSingle = vi.fn();
 
+const mockGetTenantId = vi.fn(
+  async (): Promise<string | null> => "test-org-id",
+);
+
 vi.mock("@/lib/tenant", () => ({
   requireTenantId: vi.fn(async () => "test-org-id"),
+  getTenantId: mockGetTenantId,
 }));
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -28,6 +33,7 @@ beforeEach(() => {
     data: { user: { id: "user-1" } },
     error: null,
   });
+  mockGetTenantId.mockResolvedValue("test-org-id");
 });
 
 describe("requireAuthContext", () => {
@@ -77,5 +83,71 @@ describe("requirePlanner", () => {
     });
     const { requirePlanner } = await import("@/lib/auth");
     await expect(requirePlanner()).rejects.toThrow("db down");
+  });
+});
+
+describe("requireMember", () => {
+  it("returns the role for planners", async () => {
+    mockMembershipMaybeSingle.mockResolvedValue({
+      data: { role: "planner" },
+      error: null,
+    });
+    const { requireMember } = await import("@/lib/auth");
+    const context = await requireMember();
+    expect(context.role).toBe("planner");
+    expect(context.tenantId).toBe("test-org-id");
+  });
+
+  it("lets viewers through with their role", async () => {
+    mockMembershipMaybeSingle.mockResolvedValue({
+      data: { role: "viewer" },
+      error: null,
+    });
+    const { requireMember } = await import("@/lib/auth");
+    const context = await requireMember();
+    expect(context.role).toBe("viewer");
+  });
+
+  it("throws NOT_MEMBER when no membership exists", async () => {
+    mockMembershipMaybeSingle.mockResolvedValue({ data: null, error: null });
+    const { requireMember } = await import("@/lib/auth");
+    await expect(requireMember()).rejects.toThrow("NOT_MEMBER");
+  });
+
+  it("throws when not authenticated", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: null }, error: null });
+    const { requireMember } = await import("@/lib/auth");
+    await expect(requireMember()).rejects.toThrow("Not authenticated");
+  });
+});
+
+describe("getMembershipRole", () => {
+  it("returns the membership role", async () => {
+    mockMembershipMaybeSingle.mockResolvedValue({
+      data: { role: "viewer" },
+      error: null,
+    });
+    const { getMembershipRole } = await import("@/lib/auth");
+    expect(await getMembershipRole()).toBe("viewer");
+  });
+
+  it("returns null when signed out", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: null }, error: null });
+    const { getMembershipRole } = await import("@/lib/auth");
+    expect(await getMembershipRole()).toBeNull();
+    expect(mockMembershipMaybeSingle).not.toHaveBeenCalled();
+  });
+
+  it("returns null outside a tenant context", async () => {
+    mockGetTenantId.mockResolvedValue(null);
+    const { getMembershipRole } = await import("@/lib/auth");
+    expect(await getMembershipRole()).toBeNull();
+    expect(mockMembershipMaybeSingle).not.toHaveBeenCalled();
+  });
+
+  it("returns null for non-members", async () => {
+    mockMembershipMaybeSingle.mockResolvedValue({ data: null, error: null });
+    const { getMembershipRole } = await import("@/lib/auth");
+    expect(await getMembershipRole()).toBeNull();
   });
 });

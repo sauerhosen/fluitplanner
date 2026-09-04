@@ -48,6 +48,17 @@ vi.mock("@/lib/supabase/server", () => ({
   })),
 }));
 
+// The create-poll action item is planner-only; default to a planner so the
+// existing expectations hold, and flip to viewer where a test needs it.
+const mockGetMembershipRole = vi.fn<() => Promise<"planner" | "viewer" | null>>(
+  async () => "planner",
+);
+
+vi.mock("@/lib/auth", async () => ({
+  ...(await (await import("@/__tests__/helpers/auth-gate")).authGateMock()),
+  getMembershipRole: () => mockGetMembershipRole(),
+}));
+
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
 /* ------------------------------------------------------------------ */
@@ -88,6 +99,8 @@ function resetChain() {
 
 beforeEach(() => {
   resetChain();
+  mockGetMembershipRole.mockReset();
+  mockGetMembershipRole.mockResolvedValue("planner");
 });
 
 const inThreeDays = format(addDays(new Date(), 3), "yyyy-MM-dd");
@@ -186,18 +199,14 @@ describe("getActionItems", () => {
     // Q4: select("poll_id, umpire_id") → chainable (default)
     // Q5: select("id", {count}) → TERMINAL (resolves)
     // Q6: select("id, home_team, ...") → chainable (default)
-    // Q7: select("match_id") → TERMINAL (resolves)
-    // Queue 4 chainable returns, then resolved, then 1 chainable, then resolved
+    // Q7: select("match_id, polls!inner(...)") → chainable, .eq resolves
     mockSelect.mockReturnValueOnce(chainable()); // Q1
     mockSelect.mockReturnValueOnce(chainable()); // Q2
     mockSelect.mockReturnValueOnce(chainable()); // Q3
     mockSelect.mockReturnValueOnce(chainable()); // Q4
     mockSelect.mockReturnValueOnce(chainable()); // Q5 organization_umpires (now chainable for .eq)
     mockSelect.mockReturnValueOnce(chainable()); // Q6
-    mockSelect.mockResolvedValueOnce({
-      data: [{ match_id: "m1" }, { match_id: "m2" }],
-      error: null,
-    }); // Q7
+    mockSelect.mockReturnValueOnce(chainable()); // Q7
 
     // Q1: .from("polls").select("id, title").eq("status","open").eq("organization_id",...)
     mockEq.mockReturnValueOnce(chainable()); // eq("status")
@@ -246,7 +255,12 @@ describe("getActionItems", () => {
       error: null,
     });
 
-    // Q7: poll_matches handled via mockSelect above
+    // Q7: .from("poll_matches").select("match_id, polls!inner(organization_id)")
+    //     .eq("polls.organization_id", tenantId)
+    mockEq.mockResolvedValueOnce({
+      data: [{ match_id: "m1" }, { match_id: "m2" }],
+      error: null,
+    });
 
     const { getActionItems } = await import("@/lib/actions/dashboard");
     const items = await getActionItems();
@@ -285,6 +299,26 @@ describe("getActionItems", () => {
     const { getActionItems } = await import("@/lib/actions/dashboard");
     const items = await getActionItems();
     expect(items).toEqual([]);
+  });
+
+  it("skips the create-poll item (and its queries) for a viewer", async () => {
+    mockGetMembershipRole.mockResolvedValue("viewer");
+
+    // Q1: .from("polls").select("id, title").eq("status","open").eq("organization_id",...)
+    mockEq.mockReturnValueOnce(chainable()); // eq("status")
+    mockEq.mockResolvedValueOnce({ data: [], error: null }); // eq("organization_id")
+
+    // No pollIds, so straight to the unpolled-matches section, which a viewer
+    // never reaches: no matches query, so nothing queued for .lte().
+    // Q2 (overrides): .not(...).gte(...).order(...).limit(...)
+    mockLimit.mockResolvedValueOnce({ data: [], error: null });
+
+    const { getActionItems } = await import("@/lib/actions/dashboard");
+    const items = await getActionItems();
+
+    expect(items).toEqual([]);
+    expect(mockFrom).not.toHaveBeenCalledWith("matches");
+    expect(mockLte).not.toHaveBeenCalled();
   });
 });
 

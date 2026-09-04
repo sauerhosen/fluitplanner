@@ -1,10 +1,17 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { gate } from "@/__tests__/helpers/auth-gate";
 import { MAX_NOTE_LENGTH } from "@/lib/domain/notes";
 
 const mockGetUser = vi.fn();
 const mockInsert = vi.fn();
 const mockUpdate = vi.fn();
 const mockUpsertLookup = vi.fn();
+
+// The write actions gate through requirePlanner(); flip `gate.role` to
+// "viewer" to make the caller read-only for one test.
+vi.mock("@/lib/auth", async () =>
+  (await import("@/__tests__/helpers/auth-gate")).authGateMock(),
+);
 
 vi.mock("@/lib/tenant", () => ({
   requireTenantId: vi.fn(async () => "test-org-id"),
@@ -214,5 +221,29 @@ describe("upsertMatches", () => {
     await upsertMatches([parsed]);
 
     expect(mockUpdate).toHaveBeenCalledWith({ required_level: 2 });
+  });
+});
+
+describe("viewer role", () => {
+  afterEach(() => {
+    gate.role = "planner";
+  });
+
+  it("refuses every match write with NOT_PLANNER", async () => {
+    gate.role = "viewer";
+    const { createMatch, updateMatch, deleteMatch, upsertMatches } =
+      await import("@/lib/actions/matches");
+    await expect(
+      createMatch({
+        date: "2026-03-01",
+        home_team: "A",
+        away_team: "B",
+      } as never),
+    ).rejects.toThrow("NOT_PLANNER");
+    await expect(updateMatch("m1", { notes: "x" })).rejects.toThrow(
+      "NOT_PLANNER",
+    );
+    await expect(deleteMatch("m1")).rejects.toThrow("NOT_PLANNER");
+    await expect(upsertMatches([{} as never])).rejects.toThrow("NOT_PLANNER");
   });
 });

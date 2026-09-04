@@ -27,6 +27,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Trash2, Pencil, Plus, Check, X } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { useIsPlanner } from "@/components/shared/role-provider";
 
 const LEVEL_LABEL_KEYS: Record<
   number,
@@ -50,6 +51,8 @@ export function ManagedTeamsList({
   initialTeams: ManagedTeam[];
 }) {
   const t = useTranslations("settings");
+  // Viewers get the list as data: no add row, no edit or delete.
+  const canEdit = useIsPlanner();
   const [teams, setTeams] = useState<ManagedTeam[]>(initialTeams);
   const [newName, setNewName] = useState("");
   const [newLevel, setNewLevel] = useState<"1" | "2" | "3">("1");
@@ -137,13 +140,15 @@ export function ManagedTeamsList({
           <TableRow>
             <TableHead>{t("teamNameHeader")}</TableHead>
             <TableHead className="w-40">{t("requiredLevelHeader")}</TableHead>
-            <TableHead className="w-24">{t("actionsHeader")}</TableHead>
+            {canEdit && (
+              <TableHead className="w-24">{t("actionsHeader")}</TableHead>
+            )}
           </TableRow>
         </TableHeader>
         <TableBody>
           {teams.map((team) => (
             <TableRow key={team.id}>
-              {editingId === team.id ? (
+              {canEdit && editingId === team.id ? (
                 <>
                   <TableCell>
                     <Input
@@ -200,67 +205,71 @@ export function ManagedTeamsList({
                       {t(LEVEL_LABEL_KEYS[team.required_level])}
                     </Badge>
                   </TableCell>
-                  <TableCell>
-                    <div className="flex gap-1">
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => startEdit(team)}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => handleDelete(team.id)}
-                        disabled={loading}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
+                  {canEdit && (
+                    <TableCell>
+                      <div className="flex gap-1">
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => startEdit(team)}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => handleDelete(team.id)}
+                          disabled={loading}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  )}
                 </>
               )}
             </TableRow>
           ))}
 
           {/* Add new row */}
-          <TableRow>
-            <TableCell>
-              <Input
-                placeholder={t("teamNamePlaceholder")}
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleAdd()}
-              />
-            </TableCell>
-            <TableCell>
-              <Select
-                value={newLevel}
-                onValueChange={(v) => setNewLevel(v as "1" | "2" | "3")}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="1">{t("levelAny")}</SelectItem>
-                  <SelectItem value="2">{t("levelExperienced")}</SelectItem>
-                  <SelectItem value="3">{t("levelTop")}</SelectItem>
-                </SelectContent>
-              </Select>
-            </TableCell>
-            <TableCell>
-              <Button
-                size="icon"
-                variant="ghost"
-                onClick={handleAdd}
-                disabled={loading || !newName.trim()}
-                aria-label={t("addTeam")}
-              >
-                <Plus className="h-4 w-4" />
-              </Button>
-            </TableCell>
-          </TableRow>
+          {canEdit && (
+            <TableRow>
+              <TableCell>
+                <Input
+                  placeholder={t("teamNamePlaceholder")}
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleAdd()}
+                />
+              </TableCell>
+              <TableCell>
+                <Select
+                  value={newLevel}
+                  onValueChange={(v) => setNewLevel(v as "1" | "2" | "3")}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">{t("levelAny")}</SelectItem>
+                    <SelectItem value="2">{t("levelExperienced")}</SelectItem>
+                    <SelectItem value="3">{t("levelTop")}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </TableCell>
+              <TableCell>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={handleAdd}
+                  disabled={loading || !newName.trim()}
+                  aria-label={t("addTeam")}
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </TableCell>
+            </TableRow>
+          )}
         </TableBody>
       </Table>
       {error && <p className="text-sm text-destructive">{error}</p>}

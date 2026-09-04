@@ -1,4 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { gate } from "@/__tests__/helpers/auth-gate";
 
 const mockSelect = vi.fn();
 const mockEq = vi.fn();
@@ -18,6 +19,12 @@ function chainable() {
 
 const mockFrom = vi.fn(() => chainable());
 const mockGetUser = vi.fn();
+
+// The write actions gate through requirePlanner(); flip `gate.role` to
+// "viewer" to make the caller read-only for one test.
+vi.mock("@/lib/auth", async () =>
+  (await import("@/__tests__/helpers/auth-gate")).authGateMock(),
+);
 
 vi.mock("@/lib/tenant", () => ({
   requireTenantId: vi.fn(async () => "test-org-id"),
@@ -150,5 +157,20 @@ describe("updatePollResponse", () => {
     );
     expect(result).toEqual({});
     expect(mockDelete).toHaveBeenCalled();
+  });
+});
+
+describe("viewer role", () => {
+  afterEach(() => {
+    gate.role = "planner";
+  });
+
+  it("refuses to edit an umpire's response with NOT_PLANNER", async () => {
+    gate.role = "viewer";
+    mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } });
+    const { updatePollResponse } = await import("@/lib/actions/poll-responses");
+    await expect(
+      updatePollResponse("poll-1", "slot-1", "umpire-1", "yes"),
+    ).rejects.toThrow("NOT_PLANNER");
   });
 });

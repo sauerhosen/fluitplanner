@@ -20,6 +20,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useDateRangePresets } from "@/hooks/use-date-range-presets";
+import { useIsPlanner } from "@/components/shared/role-provider";
 import { ExportDropdown } from "./export-dropdown";
 import { useTranslations } from "next-intl";
 import type {
@@ -72,6 +73,8 @@ export function PollToolbarMenu({
   const t = useTranslations("polls");
   const tCommon = useTranslations("common");
   const presets = useDateRangePresets();
+  // Tentative mode only means something to someone who can place appointments.
+  const canEdit = useIsPlanner();
 
   const activePresetLabel = presets.find((preset) =>
     preset.range?.from
@@ -126,14 +129,16 @@ export function PollToolbarMenu({
         {activeTab === "assignments" && (
           <>
             <DropdownMenuSeparator />
-            <DropdownMenuCheckboxItem
-              checked={tentativeMode}
-              onCheckedChange={onTentativeModeChange}
-              data-testid="tentative-mode-menu-item"
-            >
-              <PencilLine className="mr-2 h-4 w-4" />
-              {t("tentativeMode")}
-            </DropdownMenuCheckboxItem>
+            {canEdit && (
+              <DropdownMenuCheckboxItem
+                checked={tentativeMode}
+                onCheckedChange={onTentativeModeChange}
+                data-testid="tentative-mode-menu-item"
+              >
+                <PencilLine className="mr-2 h-4 w-4" />
+                {t("tentativeMode")}
+              </DropdownMenuCheckboxItem>
+            )}
             <DropdownMenuItem inset onClick={onSwapAxes}>
               <ArrowRightLeft className="mr-2 h-4 w-4" />
               {t("swapAxes")}

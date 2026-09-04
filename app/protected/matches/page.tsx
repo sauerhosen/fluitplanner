@@ -35,7 +35,6 @@ async function MatchesLoader() {
       polls={polls}
       syncState={syncState}
       showSync={isPlanner && trackedTeams.length > 0}
-      isPlanner={isPlanner}
     />
   );
 }

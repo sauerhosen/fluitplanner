@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { Organization } from "@/lib/types/domain";
+import type { MemberRole, Organization } from "@/lib/types/domain";
 import { invitePlanner } from "@/lib/actions/admin";
 import {
   Dialog,
@@ -38,6 +38,7 @@ export function InvitePlannerDialog({
 
   const [email, setEmail] = useState(initialEmail ?? "");
   const [organizationId, setOrganizationId] = useState("");
+  const [role, setRole] = useState<MemberRole>("planner");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [prevOpen, setPrevOpen] = useState(open);
@@ -47,6 +48,7 @@ export function InvitePlannerDialog({
     if (open) {
       setEmail(initialEmail ?? "");
       setOrganizationId("");
+      setRole("planner");
       setSaving(false);
       setError(null);
     }
@@ -60,7 +62,7 @@ export function InvitePlannerDialog({
 
     setSaving(true);
     try {
-      await invitePlanner(organizationId, email.trim());
+      await invitePlanner(organizationId, email.trim(), role);
       onOpenChange(false);
       onSaved();
     } catch (err) {
@@ -104,6 +106,25 @@ export function InvitePlannerDialog({
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="invite-role">{t("role")}</Label>
+            <Select
+              value={role}
+              onValueChange={(value) => setRole(value as MemberRole)}
+            >
+              <SelectTrigger id="invite-role">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="planner">{t("planner")}</SelectItem>
+                <SelectItem value="viewer">{t("viewer")}</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              {role === "viewer" ? t("roleViewerHelp") : t("rolePlannerHelp")}
+            </p>
           </div>
 
           {error && <p className="text-sm text-destructive">{error}</p>}

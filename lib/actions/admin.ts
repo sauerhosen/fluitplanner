@@ -121,8 +121,12 @@ export async function updateOrganization(
 export async function invitePlanner(
   organizationId: string,
   email: string,
+  role: UserMembership["role"] = "planner",
 ): Promise<void> {
   await requireMasterAdmin();
+  if (!MEMBER_ROLES.includes(role)) {
+    throw new Error(`Invalid role: must be one of ${MEMBER_ROLES.join(", ")}`);
+  }
   const serviceClient = createServiceClient();
 
   // Check if user already exists (paginate to handle >1000 users)
@@ -134,7 +138,7 @@ export async function invitePlanner(
     const { error } = await serviceClient.from("organization_members").insert({
       organization_id: organizationId,
       user_id: existingUser.id,
-      role: "planner",
+      role,
     });
     if (error) throw new Error(error.message);
   } else {
@@ -143,13 +147,14 @@ export async function invitePlanner(
       await serviceClient.auth.admin.inviteUserByEmail(email);
     if (error) throw new Error(error.message);
 
-    // Store invited_to_org in app_metadata (admin-only writable, not spoofable)
-    // This is what /auth/confirm redeems, so a failure here has to be reported:
-    // the invite mail is already out, but accepting it would join nothing.
+    // Store invited_to_org + invited_role in app_metadata (admin-only
+    // writable, not spoofable). This is what /auth/confirm redeems, so a
+    // failure here has to be reported: the invite mail is already out, but
+    // accepting it would join nothing.
     if (inviteData?.user) {
       const { error: stampError } =
         await serviceClient.auth.admin.updateUserById(inviteData.user.id, {
-          app_metadata: { invited_to_org: organizationId },
+          app_metadata: { invited_to_org: organizationId, invited_role: role },
         });
       if (stampError) throw new Error(stampError.message);
     }
@@ -252,6 +257,7 @@ export async function resendInvite(userId: string): Promise<void> {
   if (!user.email) throw new Error("User has no email address");
 
   const invitedToOrg = user.app_metadata?.invited_to_org ?? null;
+  const invitedRole = user.app_metadata?.invited_role ?? "planner";
 
   const { error } = await serviceClient.auth.admin.inviteUserByEmail(
     user.email,
@@ -264,7 +270,12 @@ export async function resendInvite(userId: string): Promise<void> {
   if (invitedToOrg) {
     const { error: stampError } = await serviceClient.auth.admin.updateUserById(
       userId,
-      { app_metadata: { invited_to_org: invitedToOrg } },
+      {
+        app_metadata: {
+          invited_to_org: invitedToOrg,
+          invited_role: invitedRole,
+        },
+      },
     );
     if (stampError) throw new Error(stampError.message);
   }

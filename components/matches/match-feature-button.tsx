@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useIsPlanner } from "@/components/shared/role-provider";
 import { cn } from "@/lib/utils";
 import {
   setMatchFeaturedByDefault,
@@ -35,6 +36,8 @@ type Props = {
  */
 export function MatchFeatureButton({ match, onToggled }: Props) {
   const t = useTranslations("matches");
+  // Viewers see the featured state without being offered to change it.
+  const readOnly = !useIsPlanner();
   const [pending, startTransition] = useTransition();
   const [optimistic, setOptimistic] = useState(match.featured_by_default);
 
@@ -89,6 +92,22 @@ export function MatchFeatureButton({ match, onToggled }: Props) {
     : optimistic
       ? t("featureDefaultRemoveLabel")
       : t("featureDefaultAddLabel");
+
+  // Read-only: the lit star still says which matches umpires get to see, an
+  // unlit one has nothing to say.
+  if (readOnly) {
+    if (!optimistic) return null;
+    return (
+      <span
+        className="inline-flex h-8 w-8 items-center justify-center"
+        data-testid="match-featured-indicator"
+        role="img"
+        aria-label={t("featuredIndicatorLabel")}
+      >
+        <Star className="h-3.5 w-3.5 fill-current text-sky-600 dark:text-sky-400" />
+      </span>
+    );
+  }
 
   return (
     <Button

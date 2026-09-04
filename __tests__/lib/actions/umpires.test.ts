@@ -1,4 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { gate } from "@/__tests__/helpers/auth-gate";
 import { MAX_NOTE_LENGTH } from "@/lib/domain/notes";
 
 const mockGetUser = vi.fn();
@@ -11,6 +12,12 @@ let umpireRows: Record<string, unknown>[] = [];
 let rosterUpdateMatches: { umpire_id: string }[] = [];
 /** Errors to inject, keyed `table.kind` (e.g. "umpires.update"). */
 let injectedErrors = new Map<string, { message: string }>();
+
+// The write actions gate through requirePlanner(); flip `gate.role` to
+// "viewer" to make the caller read-only for one test.
+vi.mock("@/lib/auth", async () =>
+  (await import("@/__tests__/helpers/auth-gate")).authGateMock(),
+);
 
 vi.mock("@/lib/tenant", () => ({
   requireTenantId: vi.fn(async () => "test-org-id"),
@@ -313,5 +320,27 @@ describe("createUmpire", () => {
       { notes: "Father of a player" },
     ]);
     expect(tableUpdates.has("umpires.insert")).toBe(false);
+  });
+});
+
+describe("viewer role", () => {
+  afterEach(() => {
+    gate.role = "planner";
+  });
+
+  it("refuses every umpire write with NOT_PLANNER", async () => {
+    gate.role = "viewer";
+    const { createUmpire, updateUmpire, updateUmpireNotes, deleteUmpire } =
+      await import("@/lib/actions/umpires");
+    await expect(
+      createUmpire({ name: "X", email: "x@example.com" }),
+    ).rejects.toThrow("NOT_PLANNER");
+    await expect(updateUmpire("u1", { name: "Y" })).rejects.toThrow(
+      "NOT_PLANNER",
+    );
+    await expect(updateUmpireNotes("u1", "note")).rejects.toThrow(
+      "NOT_PLANNER",
+    );
+    await expect(deleteUmpire("u1")).rejects.toThrow("NOT_PLANNER");
   });
 });

@@ -25,6 +25,7 @@ import { AssignmentGrid } from "./assignment-grid";
 import { SharePollButton } from "./share-poll-button";
 import { PageHeader } from "@/components/shared/page-header";
 import { StickyToolbar } from "@/components/shared/sticky-toolbar";
+import { useIsPlanner } from "@/components/shared/role-provider";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -111,6 +112,11 @@ export function PollDetailClient({
   const t = useTranslations("polls");
   const tCommon = useTranslations("common");
   const format = useFormatter();
+  // Viewers get the poll to read: date range, exports, tabs and the grids in
+  // read mode. Everything that changes the poll — its title, status, matches,
+  // featured matches, notes, share link — stays off the page. Server actions
+  // enforce the role; this only keeps dead controls out of the way.
+  const canEdit = useIsPlanner();
 
   const allSelectableMatches = useMemo(() => {
     const pollMatchIds = new Set(poll.matches.map((m) => m.id));
@@ -293,7 +299,11 @@ export function PollDetailClient({
           </Badge>
         }
         title={
-          editingTitle ? (
+          !canEdit ? (
+            <h1 className="min-w-0 text-lg font-semibold sm:text-xl">
+              <span className="block truncate">{poll.title}</span>
+            </h1>
+          ) : editingTitle ? (
             <div className="flex min-w-0 flex-1 items-center gap-2">
               <Input
                 value={titleDraft}
@@ -336,52 +346,54 @@ export function PollDetailClient({
           )
         }
         actions={
-          <>
-            <SharePollButton token={poll.token} variant="menu" />
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="size-8"
-                  aria-label={t("moreActions")}
-                >
-                  <MoreHorizontal className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem
-                  onSelect={() => {
-                    setTitleDraft(poll.title ?? "");
-                    setEditingTitle(true);
-                  }}
-                >
-                  <Pencil className="mr-2 h-4 w-4" />
-                  {t("editTitle")}
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onSelect={handleToggleStatus}
-                  disabled={saving}
-                >
-                  {poll.status === "open" ? (
-                    <Lock className="mr-2 h-4 w-4" />
-                  ) : (
-                    <LockOpen className="mr-2 h-4 w-4" />
-                  )}
-                  {poll.status === "open" ? t("closePoll") : t("reopenPoll")}
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onSelect={handleDelete}
-                  disabled={saving}
-                  variant="destructive"
-                >
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  {tCommon("delete")}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </>
+          canEdit ? (
+            <>
+              <SharePollButton token={poll.token} variant="menu" />
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="size-8"
+                    aria-label={t("moreActions")}
+                  >
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem
+                    onSelect={() => {
+                      setTitleDraft(poll.title ?? "");
+                      setEditingTitle(true);
+                    }}
+                  >
+                    <Pencil className="mr-2 h-4 w-4" />
+                    {t("editTitle")}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onSelect={handleToggleStatus}
+                    disabled={saving}
+                  >
+                    {poll.status === "open" ? (
+                      <Lock className="mr-2 h-4 w-4" />
+                    ) : (
+                      <LockOpen className="mr-2 h-4 w-4" />
+                    )}
+                    {poll.status === "open" ? t("closePoll") : t("reopenPoll")}
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onSelect={handleDelete}
+                    disabled={saving}
+                    variant="destructive"
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    {tCommon("delete")}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </>
+          ) : undefined
         }
       />
 
@@ -447,17 +459,19 @@ export function PollDetailClient({
             />
             {activeTab === "assignments" && (
               <>
-                <Button
-                  variant={tentativeMode ? "default" : "outline"}
-                  size="sm"
-                  aria-pressed={tentativeMode}
-                  data-testid="tentative-mode-toggle"
-                  title={t("tentativeModeHint")}
-                  onClick={() => setTentativeMode((prev) => !prev)}
-                >
-                  <PencilLine className="mr-2 h-4 w-4" />
-                  {t("tentativeMode")}
-                </Button>
+                {canEdit && (
+                  <Button
+                    variant={tentativeMode ? "default" : "outline"}
+                    size="sm"
+                    aria-pressed={tentativeMode}
+                    data-testid="tentative-mode-toggle"
+                    title={t("tentativeModeHint")}
+                    onClick={() => setTentativeMode((prev) => !prev)}
+                  >
+                    <PencilLine className="mr-2 h-4 w-4" />
+                    {t("tentativeMode")}
+                  </Button>
+                )}
                 <Button
                   variant="outline"
                   size="sm"
@@ -475,24 +489,26 @@ export function PollDetailClient({
           <div className="flex flex-col gap-4">
             <div className="flex items-center justify-between">
               <Label>{t("slotsLabel", { count: filteredSlots.length })}</Label>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  if (editingMatches) {
-                    setSelectedMatchIds(poll.matches.map((m) => m.id));
-                    setEditingMatches(false);
-                  } else {
-                    setSelectedMatchIds(poll.matches.map((m) => m.id));
-                    setEditingMatches(true);
-                  }
-                }}
-              >
-                {editingMatches ? tCommon("cancel") : t("editMatches")}
-              </Button>
+              {canEdit && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    if (editingMatches) {
+                      setSelectedMatchIds(poll.matches.map((m) => m.id));
+                      setEditingMatches(false);
+                    } else {
+                      setSelectedMatchIds(poll.matches.map((m) => m.id));
+                      setEditingMatches(true);
+                    }
+                  }}
+                >
+                  {editingMatches ? tCommon("cancel") : t("editMatches")}
+                </Button>
+              )}
             </div>
 
-            {editingMatches ? (
+            {canEdit && editingMatches ? (
               <div className="flex flex-col gap-4">
                 <MatchSelector
                   matches={allSelectableMatches}
@@ -602,7 +618,10 @@ export function PollDetailClient({
                                         />
                                         <MatchNoteButton
                                           match={match}
-                                          variant="editor"
+                                          variant={
+                                            canEdit ? "editor" : "indicator"
+                                          }
+                                          readOnly={!canEdit}
                                           onSaved={refreshPoll}
                                         />
                                       </div>

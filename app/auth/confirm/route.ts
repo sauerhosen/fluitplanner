@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { type EmailOtpType } from "@supabase/supabase-js";
+import type { MemberRole } from "@/lib/types/domain";
 import { redirect } from "next/navigation";
 import { type NextRequest } from "next/server";
 
@@ -23,6 +24,10 @@ export async function GET(request: NextRequest) {
         data: { user },
       } = await supabase.auth.getUser();
       const invitedToOrg = user?.app_metadata?.invited_to_org;
+      // Stamped by invitePlanner alongside invited_to_org; invites sent
+      // before the viewer role existed carry no role and were all planners.
+      const invitedRole: MemberRole =
+        user?.app_metadata?.invited_role === "viewer" ? "viewer" : "planner";
 
       if (user && invitedToOrg) {
         const serviceClient = createServiceClient();
@@ -33,15 +38,19 @@ export async function GET(request: NextRequest) {
             {
               organization_id: invitedToOrg,
               user_id: user.id,
-              role: "planner",
+              role: invitedRole,
             },
-            { onConflict: "organization_id,user_id" },
+            // A master admin may have added or re-roled this membership
+            // while the invite was pending (invitePlanner's existing-user
+            // branch, updateMemberRole); the stamped invite role must not
+            // overwrite that, so an existing row is left untouched.
+            { onConflict: "organization_id,user_id", ignoreDuplicates: true },
           );
 
         // Only clear metadata if upsert succeeded
         if (!upsertError) {
           await serviceClient.auth.admin.updateUserById(user.id, {
-            app_metadata: { invited_to_org: null },
+            app_metadata: { invited_to_org: null, invited_role: null },
           });
         }
       }

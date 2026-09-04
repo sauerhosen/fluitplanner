@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { PageHeader } from "@/components/shared/page-header";
 import { StickyToolbar } from "@/components/shared/sticky-toolbar";
+import { useIsPlanner } from "@/components/shared/role-provider";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -40,14 +41,12 @@ export function MatchesPageClient({
   polls,
   syncState = null,
   showSync = false,
-  isPlanner = false,
 }: {
   initialMatches: MatchWithPoll[];
   managedTeams: ManagedTeam[];
   polls: { id: string; title: string | null; status: string }[];
   syncState?: HockeySyncState | null;
   showSync?: boolean;
-  isPlanner?: boolean;
 }) {
   const [matches, setMatches] = useState(initialMatches);
   const [currentPolls, setCurrentPolls] = useState(polls);
@@ -58,6 +57,8 @@ export function MatchesPageClient({
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const t = useTranslations("matches");
+  // Viewers keep the filters and the table; everything that writes is gone.
+  const canEdit = useIsPlanner();
 
   const defaultDateRange = useMemo<DateRange>(() => {
     const now = new Date();
@@ -132,32 +133,34 @@ export function MatchesPageClient({
           <h1 className="truncate text-xl font-semibold">{t("pageTitle")}</h1>
         }
         actions={
-          <>
-            <Button size="sm" onClick={() => setShowAddDialog(true)}>
-              <Plus className="mr-2 h-4 w-4" />
-              {t("addMatch")}
-            </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="size-8"
-                  aria-label={t("moreActions")}
-                >
-                  <MoreHorizontal className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuCheckboxItem
-                  checked={importOpen}
-                  onCheckedChange={setImportOpen}
-                >
-                  {t("importMatches")}
-                </DropdownMenuCheckboxItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </>
+          canEdit ? (
+            <>
+              <Button size="sm" onClick={() => setShowAddDialog(true)}>
+                <Plus className="mr-2 h-4 w-4" />
+                {t("addMatch")}
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="size-8"
+                    aria-label={t("moreActions")}
+                  >
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuCheckboxItem
+                    checked={importOpen}
+                    onCheckedChange={setImportOpen}
+                  >
+                    {t("importMatches")}
+                  </DropdownMenuCheckboxItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </>
+          ) : undefined
         }
       />
 
@@ -207,34 +210,40 @@ export function MatchesPageClient({
 
       {/* Import panel: opened from the overflow menu, shown under the toolbar
           so it never occupies a row of chrome while closed. */}
-      <Collapsible open={importOpen} onOpenChange={setImportOpen}>
-        <CollapsibleContent>
-          <UploadZone
-            managedTeams={managedTeams}
-            onImportComplete={refreshMatches}
-          />
-        </CollapsibleContent>
-      </Collapsible>
+      {canEdit && (
+        <Collapsible open={importOpen} onOpenChange={setImportOpen}>
+          <CollapsibleContent>
+            <UploadZone
+              managedTeams={managedTeams}
+              onImportComplete={refreshMatches}
+            />
+          </CollapsibleContent>
+        </Collapsible>
+      )}
 
       <MatchTable
         matches={matches}
         onEdit={(match) => setEditingMatch(match)}
         onDeleted={refreshMatches}
-        canDismissReview={isPlanner}
-        toolbarActions={(selectedIds, clearSelection) => (
-          <PollActionButtons
-            selectedIds={selectedIds}
-            matches={matches}
-            polls={currentPolls}
-            onComplete={refreshMatches}
-            clearSelection={clearSelection}
-          />
-        )}
+        canDismissReview={canEdit}
+        toolbarActions={
+          canEdit
+            ? (selectedIds, clearSelection) => (
+                <PollActionButtons
+                  selectedIds={selectedIds}
+                  matches={matches}
+                  polls={currentPolls}
+                  onComplete={refreshMatches}
+                  clearSelection={clearSelection}
+                />
+              )
+            : undefined
+        }
       />
 
       {/* Add dialog — mounted only while open, so each opening starts blank
           rather than holding on to the last match's details and note. */}
-      {showAddDialog && (
+      {canEdit && showAddDialog && (
         <MatchFormDialog
           match={null}
           open={true}
@@ -244,7 +253,7 @@ export function MatchesPageClient({
       )}
 
       {/* Edit dialog */}
-      {editingMatch && (
+      {canEdit && editingMatch && (
         <MatchFormDialog
           match={editingMatch}
           open={true}

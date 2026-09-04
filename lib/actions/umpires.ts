@@ -3,18 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireTenantId } from "@/lib/tenant";
-import { requirePlanner } from "@/lib/auth";
+import { requireAuthContext, requirePlanner } from "@/lib/auth";
 import { normalizeNote } from "@/lib/domain/notes";
 import type { RosteredUmpire, Umpire } from "@/lib/types/domain";
-
-async function requireAuth() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
-  return { supabase, user };
-}
 
 export type UmpireFilters = {
   search?: string;
@@ -24,7 +15,7 @@ export type UmpireFilters = {
 export async function getUmpires(
   filters?: UmpireFilters,
 ): Promise<RosteredUmpire[]> {
-  const { supabase } = await requireAuth();
+  const { supabase } = await requireAuthContext();
   const tenantId = await requireTenantId();
 
   const { data: roster, error: rosterError } = await supabase
@@ -96,8 +87,7 @@ export async function createUmpire(umpire: {
   level?: 1 | 2 | 3;
   notes?: string | null;
 }): Promise<RosteredUmpire> {
-  const { supabase } = await requireAuth();
-  const tenantId = await requireTenantId();
+  const { supabase, tenantId } = await requirePlanner();
   const normalizedEmail = umpire.email.trim().toLowerCase();
   // Validate before any write, so an over-long note fails the whole call
   // rather than leaving a rostered umpire behind without their note.
@@ -169,8 +159,7 @@ export async function updateUmpire(
     notes: string | null;
   }>,
 ): Promise<RosteredUmpire> {
-  const { supabase } = await requireAuth();
-  const tenantId = await requireTenantId();
+  const { supabase, tenantId } = await requirePlanner();
 
   // Verify the umpire belongs to the current org's roster
   const { data: rosterEntry } = await supabase
@@ -239,15 +228,13 @@ export async function updateUmpireNotes(
   id: string,
   notes: string,
 ): Promise<void> {
-  const { supabase } = await requireAuth();
-  const tenantId = await requireTenantId();
+  const { supabase, tenantId } = await requirePlanner();
 
   await writeUmpireNote(supabase, tenantId, id, notes);
 }
 
 export async function deleteUmpire(id: string): Promise<void> {
-  const { supabase } = await requireAuth();
-  const tenantId = await requireTenantId();
+  const { supabase, tenantId } = await requirePlanner();
 
   // Remove umpire from this organization's roster (not from the umpires table)
   const { error } = await supabase
@@ -263,8 +250,7 @@ export async function deleteUmpires(ids: string[]): Promise<void> {
   if (ids.length === 0) return;
   if (ids.length > 500)
     throw new Error("Cannot delete more than 500 items at once");
-  const { supabase } = await requireAuth();
-  const tenantId = await requireTenantId();
+  const { supabase, tenantId } = await requirePlanner();
 
   const { error } = await supabase
     .from("organization_umpires")

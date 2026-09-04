@@ -9,17 +9,20 @@ import { Suspense } from "react";
 import { getTranslations } from "next-intl/server";
 import { isRootDomain, getTenantSlug } from "@/lib/tenant";
 import { createClient } from "@/lib/supabase/server";
+import { getMembershipRole } from "@/lib/auth";
+import { RoleProvider } from "@/components/shared/role-provider";
 
 export default async function ProtectedLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const [t, isRoot, tenantSlug, supabase] = await Promise.all([
+  const [t, isRoot, tenantSlug, supabase, role] = await Promise.all([
     getTranslations("nav"),
     isRootDomain(),
     getTenantSlug(),
     createClient(),
+    getMembershipRole(),
   ]);
   const {
     data: { user },
@@ -40,6 +43,14 @@ export default async function ProtectedLayout({
                 />
               </Link>
               <OrganizationSwitcher currentSlug={tenantSlug} />
+              {role === "viewer" && (
+                <span
+                  className="rounded-full border px-2 py-0.5 text-[10px] sm:text-xs font-medium text-muted-foreground"
+                  title={t("readOnlyHint")}
+                >
+                  {t("readOnly")}
+                </span>
+              )}
               <div className="flex items-center gap-2 sm:gap-4 text-xs sm:text-sm font-normal">
                 <Link href="/protected/matches" className="hover:underline">
                   {t("matches")}
@@ -86,7 +97,7 @@ export default async function ProtectedLayout({
             without making this a scroll container, which would break every
             sticky toolbar inside it. */}
         <div className="flex-1 flex flex-col gap-20 w-full max-w-7xl p-5 overflow-x-clip">
-          {children}
+          <RoleProvider role={role}>{children}</RoleProvider>
         </div>
 
         <footer className="w-full flex items-center justify-center border-t mx-auto text-center text-xs gap-8 py-8">

@@ -117,6 +117,7 @@ test.describe("Poll response page", () => {
       // Close the poll via planner (authenticated context)
       await page.goto("/protected/polls");
       await page.getByText(pollTitle).click();
+      await expect(pollHeading(page, pollTitle)).toBeVisible();
       await pollOverflowAction(page, /close poll/i);
       await expect(page.getByText("Closed")).toBeVisible();
 
@@ -130,6 +131,7 @@ test.describe("Poll response page", () => {
       // Cleanup: reopen and delete
       await page.goto("/protected/polls");
       await page.getByText(pollTitle).click();
+      await expect(pollHeading(page, pollTitle)).toBeVisible();
       await pollOverflowAction(page, /reopen/i);
       page.on("dialog", (dialog) => dialog.accept());
       await pollOverflowAction(page, /delete/i);

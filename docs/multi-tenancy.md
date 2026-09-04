@@ -92,11 +92,46 @@ gives a signed-in user a working tenant context for data-scoped queries.
 `organization_members.role` is `planner` | `viewer`, unique per `(organization_id, user_id)`.
 
 - **planner** — full CRUD on the club's matches, umpires, polls, assignments, and settings
-- **viewer** — read only
+- **viewer** — sees everything the club's planners see (dashboard, matches, umpires and
+  their notes, polls, responses, assignments, settings, exports) but can change nothing
 
-Server actions gate on this through `requirePlanner()` in `lib/auth.ts`, which resolves the
-tenant and checks the role in one query, throwing the `NOT_PLANNER` sentinel. Never
-re-implement that check inline.
+The viewer role is enforced in three layers, and the UI is the least important one:
+
+1. **RLS** (`20260903000001_viewer_read_only.sql`): tenant-owned tables allow `select` to any
+   member (`get_user_org_ids()`) and `insert`/`update`/`delete` only to planners
+   (`get_user_planner_org_ids()`, a `security definer` helper like its sibling so a policy on
+   `organization_members` cannot recurse). A viewer's write through PostgREST with the browser
+   key gets `42501` on insert and matches zero rows on update/delete.
+2. **Server actions**: every mutating action calls `requirePlanner()` from `lib/auth.ts`,
+   which resolves the tenant and checks the role in one query and throws the `NOT_PLANNER`
+   sentinel. Reads use `requireAuthContext()` and lean on the proxy's membership check plus
+   RLS; `requireMember()` is there for a read that needs the caller's role. Never re-implement
+   the check inline.
+3. **UI**: `app/protected/layout.tsx` reads the role once with `getMembershipRole()`, shows a
+   "Read-only" badge in the nav for viewers, and provides the role through
+   `components/shared/role-provider.tsx`. Client components call `useIsPlanner()` and do not
+   render create/edit/delete controls for viewers; grids render as inert data. Server pages
+   that render an action button (polls list) or are themselves a write (`/protected/polls/new`
+   redirects) use `getMembershipRole()` directly. Hiding a control is a courtesy, not a
+   security boundary — layers 1 and 2 are.
+
+The master admin picks the role when inviting someone (`invitePlanner(orgId, email, role)`
+stamps `app_metadata.invited_role` next to `invited_to_org`; `/auth/confirm` redeems both) and
+can change it later from `/protected/users`. The MCP server and OAuth consent are planner-only
+(`lib/mcp/auth.ts`, `lib/actions/oauth-consent.ts`), so a viewer cannot connect an AI
+assistant to the club.
+
+What a viewer can still reach that is worth knowing about:
+
+- **Exports** (day sheets, XLSX/HTML/Markdown) are generated client-side from data the viewer
+  can read anyway, so they stay available.
+- **The anonymous poll surface** is untouched: `polls`, `poll_matches`, `poll_slots` and
+  `availability_responses` keep their `anon`/`authenticated` `select` policies and the
+  response `insert`/`update` policies, and `umpires` keeps its open `insert`, because
+  `/poll/<token>` reads and writes with the caller's own client and filters by token in the
+  query. A signed-in viewer filling in a poll
+  as an umpire therefore still works. Tightening that surface means moving the public poll
+  flow onto the service client first.
 
 An `admin` role that would let a club manage its own planners is designed but **not built** —
 see [`plans/2026-08-30-club-admin-role-design.md`](plans/2026-08-30-club-admin-role-design.md).

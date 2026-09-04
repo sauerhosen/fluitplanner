@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { updatePollResponse } from "@/lib/actions/poll-responses";
 import type { PollSlot, AvailabilityResponse } from "@/lib/types/domain";
 import { useTranslations, useFormatter } from "next-intl";
+import { useIsPlanner } from "@/components/shared/role-provider";
 
 type ResponseValue = "yes" | "if_need_be" | "no";
 
@@ -74,6 +75,8 @@ export function ResponseSummary({
 }: Props) {
   const t = useTranslations("polls");
   const format = useFormatter();
+  // A viewer sees the same grid, but a cell is a reading, not a button.
+  const canEdit = useIsPlanner();
 
   function groupSlotsByDate(slotsToGroup: PollSlot[]): DateGroup[] {
     const groups: DateGroup[] = [];
@@ -256,27 +259,38 @@ export function ResponseSummary({
                   const response = responseMap.get(key) ?? null;
                   const config = response ? RESPONSE_ICONS[response] : null;
                   const label = `${name} – ${formatTime(slot.start_time)}: ${config?.label ?? t("noResponseLabel")}`;
+                  const content = config ? (
+                    <config.icon
+                      className={`mx-auto h-5 w-5 ${config.className}`}
+                    />
+                  ) : (
+                    <span className="text-muted-foreground text-xs">
+                      {"\u2014"}
+                    </span>
+                  );
                   return (
                     <td
                       key={slot.id}
                       className={`border-b text-center p-0 ${gi > 0 && si === 0 ? "border-l-2 border-border" : ""}`}
                     >
-                      <button
-                        type="button"
-                        onClick={() => handleClick(slot.id, umpireId)}
-                        className="w-full h-full p-1 cursor-pointer hover:bg-muted/50 transition-colors rounded-sm"
-                        aria-label={label}
-                      >
-                        {config ? (
-                          <config.icon
-                            className={`mx-auto h-5 w-5 ${config.className}`}
-                          />
-                        ) : (
-                          <span className="text-muted-foreground text-xs">
-                            {"\u2014"}
-                          </span>
-                        )}
-                      </button>
+                      {canEdit ? (
+                        <button
+                          type="button"
+                          onClick={() => handleClick(slot.id, umpireId)}
+                          className="w-full h-full p-1 cursor-pointer hover:bg-muted/50 transition-colors rounded-sm"
+                          aria-label={label}
+                        >
+                          {content}
+                        </button>
+                      ) : (
+                        <span
+                          role="img"
+                          aria-label={label}
+                          className="block w-full h-full p-1 rounded-sm"
+                        >
+                          {content}
+                        </span>
+                      )}
                     </td>
                   );
                 }),

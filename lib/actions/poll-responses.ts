@@ -1,23 +1,7 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
-import { requireTenantId } from "@/lib/tenant";
+import { requirePlanner } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
-
-/**
- * Ensures the request is authenticated and returns a Supabase client and the current user.
- *
- * @returns An object containing `supabase` (the Supabase client) and `user` (the authenticated user record).
- * @throws Error when no authenticated user is present ("Not authenticated").
- */
-async function requireAuth() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
-  return { supabase, user };
-}
 
 /**
  * Create, update, or remove an umpire's availability response for a poll slot, verify that the caller owns the poll, and revalidate the poll page.
@@ -34,10 +18,9 @@ export async function updatePollResponse(
   umpireId: string,
   response: "yes" | "if_need_be" | "no" | null,
 ): Promise<{ error?: string }> {
-  const { supabase } = await requireAuth();
+  const { supabase, tenantId } = await requirePlanner();
 
   // Verify ownership via organization
-  const tenantId = await requireTenantId();
   const { data: poll, error: pollError } = await supabase
     .from("polls")
     .select("id, organization_id")
