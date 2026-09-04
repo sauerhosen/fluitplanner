@@ -19,16 +19,16 @@ Fluitplanner gives every club its own subdomain, and each subdomain is a
 separate origin — so listing them individually runs out after a handful of clubs
 and needs a manual Supabase config change every time a club is added.
 
-Instead, ceremonies happen only on the apex (`fluiten.org`), which spends a
-single slot and scales to any number of clubs. A club page bounces to
-`/auth/passkey` on the apex and comes back:
+Instead, ceremonies happen on **one** origin, which spends a single slot and
+scales to any number of clubs. A club page bounces to `/auth/passkey` on that
+origin and comes back:
 
 ```
 hic.fluiten.org/auth/login
    [Sign in with a passkey]
         │
         ▼
-fluiten.org/auth/passkey?mode=signin&next=https://hic.fluiten.org/protected
+www.fluiten.org/auth/passkey?mode=signin&next=https://hic.fluiten.org/protected
    WebAuthn ceremony → session cookie on .fluiten.org
         │
         ▼
@@ -44,13 +44,27 @@ enrolled keeps working.
 
 `lib/passkey/ceremony-url.ts` holds the rule: **if the browser is already on the
 ceremony origin, run inline; otherwise redirect.** Two cases fall out of it for
-free — master admins are already on the apex, and local development runs on
-`localhost:3000` with `rp_id = "localhost"`. Neither needs a special case, and
-the second is what keeps the flow testable locally without wildcard DNS or TLS.
+free — a master admin is already on the canonical host, and local development
+runs on `localhost:3000` with `rp_id = "localhost"`. Neither needs a special
+case, and the second is what keeps the flow testable locally without wildcard
+DNS or TLS.
 
-`www` is deliberately _not_ treated as "already home": it resolves as the root
-surface for tenancy, but `https://www.fluiten.org` is a different WebAuthn
-origin and is not in `rp_origins`.
+### The ceremony origin is configuration, not something to derive
+
+**`NEXT_PUBLIC_PASSKEY_ORIGIN` must name your deployment's canonical origin,**
+and must match the dashboard's Relying Party Origins character for character.
+
+This is the trap, and it bit once already. `fluiten.org` and `www.fluiten.org`
+are _different WebAuthn origins_, and only one of them can be in `rp_origins`.
+Vercel canonicalises this project to `www`, so `https://fluiten.org/auth/passkey`
+answers `307 → https://www.fluiten.org/auth/passkey`. The first version of this
+code derived the ceremony origin as the apex, so the button on `www` redirected
+to the apex, the apex redirected back to `www`, and the page reloaded itself
+forever — enrolment was simply impossible, with no error to explain it.
+
+Deriving it cannot work: whether the apex or `www` is canonical is a hosting
+decision this code has no way to see. So it is named explicitly, defaulting to
+the apex only for the case where nothing redirects.
 
 ## The session cookie spans the base domain
 
@@ -84,11 +98,16 @@ rp_origins = ["http://localhost:3000"]
 `supabase/templates/` (see [`auth-email-flows.md`](auth-email-flows.md)). Under
 _Authentication → Passkeys_:
 
-| Setting                    | Value                 |
-| -------------------------- | --------------------- |
-| Relying Party Display Name | `Fluitplanner`        |
-| Relying Party ID           | `fluiten.org`         |
-| Relying Party Origins      | `https://fluiten.org` |
+| Setting                    | Value                                            |
+| -------------------------- | ------------------------------------------------ |
+| Relying Party Display Name | `Fluitplanner`                                   |
+| Relying Party ID           | `fluiten.org`                                    |
+| Relying Party Origins      | `https://www.fluiten.org` — the canonical origin |
+
+The Relying Party **ID** stays the bare `fluiten.org` even though the origin is
+`www`: an RP ID may be any registrable-domain suffix of the origin, and keeping
+it at the apex is what lets one credential work across every club subdomain.
+`NEXT_PUBLIC_PASSKEY_ORIGIN` must equal the Origins entry exactly.
 
 Two warnings worth taking seriously:
 

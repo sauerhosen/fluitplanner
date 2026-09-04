@@ -6,8 +6,14 @@ import { resolveTenantFromHost } from "@/lib/tenant-resolver";
  * GoTrue validates the ceremony's origin against `rp_origins`, an exact-match
  * allow-list capped at five entries with no wildcards. Fluitplanner gives every
  * club its own subdomain, so listing them individually would run out after a
- * handful of clubs. Instead every ceremony runs on the apex, which spends a
+ * handful of clubs. Instead every ceremony runs on one origin, which spends a
  * single slot and scales to any number of clubs.
+ *
+ * *Which* origin is deployment configuration, not something to derive: a host
+ * that canonicalises `fluiten.org` to `www.fluiten.org` (or the reverse) will
+ * redirect a guess straight back, and the ceremony page would bounce forever.
+ * `NEXT_PUBLIC_PASSKEY_ORIGIN` names it explicitly and must match the
+ * `rp_origins` entry in the Supabase dashboard character for character.
  *
  * The browser would happily let `hic.fluiten.org` request `rp_id=fluiten.org` —
  * WebAuthn permits a registrable-domain suffix. It is the server-side origin
@@ -54,26 +60,50 @@ export function passkeysAvailable(host: string, baseDomain: string): boolean {
 }
 
 /**
+ * The one origin GoTrue will accept a ceremony from.
+ *
+ * Must equal the `rp_origins` entry in the Supabase dashboard exactly. It
+ * defaults to the apex, but any deployment that canonicalises to `www` (or to
+ * anything else) has to set `NEXT_PUBLIC_PASSKEY_ORIGIN` to its canonical
+ * origin — otherwise the redirect below lands on a host that immediately
+ * redirects back, and the ceremony page bounces in a loop.
+ */
+export function configuredCeremonyOrigin(baseDomain: string): string {
+  const configured = process.env.NEXT_PUBLIC_PASSKEY_ORIGIN?.trim();
+  if (configured) return configured.replace(/\/+$/, "");
+  return `https://${stripPort(baseDomain)}`;
+}
+
+/**
  * The origin to run the ceremony on, or `null` for "run it right here".
  *
- * Null on the apex (master admins are already there) and on localhost (dev and
- * E2E have no subdomain, so the ceremony is same-origin) — which is what keeps
- * the happy path testable locally without wildcard DNS or TLS.
+ * Null when the browser is already on the ceremony origin — which covers a
+ * master admin on the canonical host — and on localhost, where dev and E2E have
+ * no subdomain and the ceremony is same-origin. That is what keeps the happy
+ * path testable locally without wildcard DNS or TLS.
  *
- * Note `www` is *not* null: it resolves as the root surface for tenancy, but
- * `https://www.fluiten.org` is a different WebAuthn origin than
- * `https://fluiten.org` and is not in `rp_origins`.
+ * The comparison is against the *configured* origin, never a derived one:
+ * `www.fluiten.org` and `fluiten.org` are different WebAuthn origins, and only
+ * one of them is in `rp_origins`.
  */
 export function passkeyCeremonyOrigin(
   host: string,
   baseDomain: string,
+  ceremonyOrigin: string = configuredCeremonyOrigin(baseDomain),
 ): string | null {
   const hostname = stripPort(host);
   const base = stripPort(baseDomain);
   if (!hostname || !base) return null;
   if (isLoopback(hostname)) return null;
-  if (hostname === base) return null;
-  return `https://${base}`;
+
+  let target: string;
+  try {
+    target = new URL(ceremonyOrigin).hostname.toLowerCase();
+  } catch {
+    return null;
+  }
+  if (hostname === target) return null;
+  return ceremonyOrigin;
 }
 
 /**

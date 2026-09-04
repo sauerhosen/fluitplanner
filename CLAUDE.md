@@ -209,6 +209,7 @@ Quick reference:
 - `SMTP_FROM` — sender address (e.g. `Fluitplanner <noreply@fluitplanner.nl>`)
 - `NEXT_PUBLIC_SITE_URL` — base URL for magic links (e.g. `https://fluitplanner.nl`)
 - `NEXT_PUBLIC_BASE_DOMAIN` — base domain whose subdomains resolve to tenant slugs (defaults to `fluiten.org`)
+- `NEXT_PUBLIC_PASSKEY_ORIGIN` — the one origin WebAuthn ceremonies run on; must be the deployment's **canonical** origin and match the Supabase dashboard's Relying Party Origins exactly (defaults to `https://<base domain>`; unset locally). See [`docs/passkeys.md`](docs/passkeys.md)
 - `CRON_SECRET` — shared secret for Vercel cron routes (`/api/cron/*`); Vercel sends it automatically as a Bearer token when set
 - `E2E_TEST_EMAIL` / `E2E_TEST_PASSWORD` — account Playwright's global setup logs in with (E2E only; optional, defaults to a built-in test account)
 
