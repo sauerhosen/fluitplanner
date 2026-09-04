@@ -161,6 +161,62 @@ describe("PasskeyButton", () => {
     expect(screen.queryByText(/aborted/i)).toBeNull();
   });
 
+  /**
+   * Regression: the ceremony page used to redirect like any other host. When
+   * the configured origin disagreed with the deployment's canonical one, the
+   * redirect landed on a host that redirected back and the page bounced
+   * forever, showing nothing. Running here surfaces a real error instead.
+   */
+  it("never redirects away from the ceremony page itself", async () => {
+    setHost("www.fluiten.org", "/auth/passkey");
+    render(<PasskeyButton mode="enroll" forceInline />);
+
+    await userEvent.click(
+      screen.getByRole("button", { name: /add a passkey/i }),
+    );
+
+    expect(assign).not.toHaveBeenCalled();
+    await waitFor(() => expect(registerPasskey).toHaveBeenCalledTimes(1));
+  });
+
+  it("surfaces a rejected origin instead of bouncing", async () => {
+    setHost("www.fluiten.org", "/auth/passkey");
+    registerPasskey.mockResolvedValue({
+      data: null,
+      error: Object.assign(new Error("Origin not allowed"), {
+        name: "AuthApiError",
+      }),
+    });
+    render(<PasskeyButton mode="enroll" forceInline />);
+
+    await userEvent.click(
+      screen.getByRole("button", { name: /add a passkey/i }),
+    );
+
+    expect(await screen.findByText("Origin not allowed")).toBeTruthy();
+    expect(assign).not.toHaveBeenCalled();
+  });
+
+  // A cancelled ceremony shows no message, but must still leave a trace:
+  // NotAllowedError is also what the browser throws when it refuses one.
+  it("logs even a silent cancellation", async () => {
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    setHost("localhost:3000");
+    signInWithPasskey.mockResolvedValue({
+      data: null,
+      error: Object.assign(new Error("aborted"), { name: "NotAllowedError" }),
+    });
+    render(<PasskeyButton mode="signin" />);
+
+    await userEvent.click(
+      screen.getByRole("button", { name: /sign in with a passkey/i }),
+    );
+
+    await waitFor(() => expect(logged).toHaveBeenCalled());
+    expect(screen.queryByText(/aborted/i)).toBeNull();
+    logged.mockRestore();
+  });
+
   // A preview deployment can never match the production rp_origins list.
   it("renders nothing on a Vercel preview host", () => {
     setHost("fluitplanner-abc123.vercel.app");
