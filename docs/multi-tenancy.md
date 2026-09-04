@@ -87,6 +87,51 @@ A user can belong to several clubs. `OrganizationSwitcher` in the authenticated 
 server-side before writing the `x-tenant` cookie. On the root domain the cookie is also what
 gives a signed-in user a working tenant context for data-scoped queries.
 
+## The session cookie spans the base domain
+
+A host-only cookie stops at the host that set it, which would mean a separate
+sign-in per club subdomain. The Supabase auth cookie is therefore scoped to the
+base domain — `Domain=.fluiten.org` — so one session covers the root surface and
+every club the user belongs to. `lib/supabase/cookie-domain.ts` decides the scope;
+the browser, server and proxy clients all take their options from the same
+`authCookieOptions()` and **must agree**, or a cookie written at one scope and
+cleared at another leaves a stale duplicate and users get logged out at random.
+
+Three things worth knowing:
+
+- **`Secure` is set alongside `domain`.** Supabase's cookie defaults carry no
+  `Secure` flag, and a domain-wide cookie without one would be sent to any
+  plain-http subdomain. Loopback hosts are never widened, since local development
+  runs over plain http and would otherwise drop every auth cookie.
+- **The cookie is `httpOnly: false` and now readable on every subdomain**, so:
+  **no club subdomain may ever be pointed at third-party hosting.** Any subdomain
+  of the base domain can read the session.
+- **The `x-tenant` cookie stays host-only on purpose.** It picks a club, and one
+  subdomain has no business rewriting another's.
+
+### Migrating a session that predates the change
+
+`@supabase/ssr` clears the host-only counterpart of a domain-scoped cookie only
+when it _removes_ cookies (`signOut`), not when a token refresh writes one. Left
+alone, a browser that signed in before the change holds two cookies of the same
+name and which one is read is undefined — and for chunked cookies a
+mixed-generation read decodes to invalid JSON and is silently treated as no
+session at all.
+
+`clearStaleHostOnlyAuthCookies()` in `lib/supabase/proxy.ts` handles it: whenever
+the proxy has just written a domain-scoped auth cookie, it also emits a host-only
+deletion for every `sb-` name in that response. It goes out through
+`headers.append("set-cookie", …)` because Next's `ResponseCookies` is keyed by
+name only and would otherwise collapse the deletion and the write into one.
+
+That same name-keying is why _emptied_ names are cleared too. The library does
+emit a host-only removal for a chunk it drops, but the domain-scoped removal for
+the same name lands immediately after and overwrites it — so a session shrinking
+from `.0`/`.1` to `.0` alone would strand a host-only `.1` that corrupts the next
+read. The guard — only ever clearing alongside a freshly written session — is
+what stops any of this signing a user out. Sessions converge within one
+`jwt_expiry`.
+
 ## Roles
 
 `organization_members.role` is `planner` | `viewer`, unique per `(organization_id, user_id)`.

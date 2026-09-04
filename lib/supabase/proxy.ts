@@ -3,6 +3,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { hasEnvVars } from "../utils";
 import { createServiceClient } from "@/lib/supabase/service";
 import { resolveTenantFromHost } from "@/lib/tenant-resolver";
+import { getBaseDomain } from "@/lib/base-domain";
+import { authCookieOptions } from "@/lib/supabase/cookie-domain";
 
 const TENANT_COOKIE = "x-tenant";
 
@@ -68,12 +70,20 @@ export async function updateSession(request: NextRequest) {
     return supabaseResponse;
   }
 
+  // Read before creating the client: nothing may run between createServerClient
+  // and getClaims() below, and the client needs the cookie scope up front.
+  const host = request.headers.get("host") ?? "localhost:3000";
+  const baseDomain = getBaseDomain();
+  const cookieOptions = authCookieOptions(host, baseDomain);
+
   // With Fluid compute, don't put this client in a global environment
   // variable. Always create a new one on each request.
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
     {
+      // Must match the browser and server clients exactly — see authCookieOptions.
+      cookieOptions,
       cookies: {
         getAll() {
           return request.cookies.getAll();
@@ -103,8 +113,6 @@ export async function updateSession(request: NextRequest) {
   const user = data?.claims;
 
   // Tenant resolution
-  const host = request.headers.get("host") ?? "localhost:3000";
-  const baseDomain = process.env.NEXT_PUBLIC_BASE_DOMAIN ?? "fluiten.org";
   const resolution = resolveTenantFromHost(host, baseDomain);
 
   if (resolution.type === "root") {
@@ -206,6 +214,11 @@ export async function updateSession(request: NextRequest) {
   supabaseResponse.cookies.getAll().forEach((cookie) => {
     updatedResponse.cookies.set(cookie);
   });
+  clearStaleHostOnlyAuthCookies(
+    supabaseResponse,
+    updatedResponse,
+    cookieOptions,
+  );
 
   // Organization membership check
   const orgId = request.headers.get("x-organization-id");
@@ -355,5 +368,53 @@ async function autoJoinAsPlanner(
 
   if (error) {
     console.warn(`[proxy] Dev tenant auto-join failed: ${error.message}`);
+  }
+}
+
+/**
+ * Delete the host-only auth cookies left over from before the session cookie was
+ * widened to the base domain.
+ *
+ * @supabase/ssr clears the host-only counterpart only on the *removal* path
+ * (`signOut`), not when a token refresh writes a new cookie. Without this, a
+ * browser that signed in before the change holds two cookies with the same name
+ * — the stale host-only one and the new `.fluiten.org` one. Which one is read is
+ * undefined, and for chunked cookies a mixed-generation read decodes to invalid
+ * JSON and is treated as absent: a silent logout.
+ *
+ * It has to go out as a raw header. Next's `ResponseCookies` is keyed by name
+ * only, so a host-only delete and a domain-scoped set for the same name would
+ * collapse into a single `Set-Cookie`.
+ *
+ * That same name-keying is why the *emptied* entries need clearing here too.
+ * The library does emit a host-only removal for a chunk it is dropping — but it
+ * emits the domain-scoped removal for the same name right after, and in a
+ * name-keyed store the second overwrites the first. So a session that used to
+ * span `.0` and `.1` and now fits in `.0` alone leaves a stale host-only `.1`
+ * behind; the next request reassembles a fresh `.0` with it and decodes garbage.
+ *
+ * Guarded on having *just written* a domain-scoped auth cookie. That guard is
+ * the safety property: clearing the host-only cookies on a request that writes no
+ * replacement would sign the user out with nothing to fall back on. Sessions
+ * converge within one `jwt_expiry`.
+ */
+function clearStaleHostOnlyAuthCookies(
+  supabaseResponse: NextResponse,
+  updatedResponse: NextResponse,
+  cookieOptions: { domain?: string },
+) {
+  if (!cookieOptions.domain) return;
+
+  const authCookies = supabaseResponse.cookies
+    .getAll()
+    .filter(({ name }) => name.startsWith("sb-"));
+  // The safety guard: only ever clear alongside a freshly written session.
+  if (!authCookies.some(({ value }) => value)) return;
+
+  for (const { name } of authCookies) {
+    updatedResponse.headers.append(
+      "set-cookie",
+      `${name}=; Path=/; Max-Age=0; SameSite=Lax`,
+    );
   }
 }
