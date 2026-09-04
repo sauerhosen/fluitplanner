@@ -96,6 +96,13 @@ layout provides the role via `components/shared/role-provider.tsx`; client compo
 `useIsPlanner()` and skip mutation controls for viewers. A not-yet-started `admin` role is
 designed in `docs/plans/2026-08-30-club-admin-role-design.md`.
 
+Email-based auth (invite, password reset, magic link, signup confirmation) all
+runs through `/auth/confirm` using `{{ .TokenHash }}` links — see
+[`docs/auth-email-flows.md`](docs/auth-email-flows.md). The templates in
+`supabase/templates/` are local-dev only and **must be mirrored by hand into the
+Supabase dashboard**; a stock `{{ .ConfirmationURL }}` template silently breaks
+every email link.
+
 **Master admin is not a DB role.** It is `user.app_metadata.is_master_admin` — service-role-writable only — read in RLS via the `public.is_master_admin()` function (migration `20260830000001_master_admin_app_metadata.sql`). Master admin pages additionally require the root domain.
 
 ### Multi-tenancy
@@ -206,6 +213,7 @@ Set automatically by Vercel, not in `.env.local`: `VERCEL_URL` (`app/layout.tsx`
 | Doc                                                                  | Covers                                                                                                                                                                                                                           |
 | -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [`docs/multi-tenancy.md`](docs/multi-tenancy.md)                     | Subdomains, tenant resolution, roles, data scoping                                                                                                                                                                               |
+| [`docs/auth-email-flows.md`](docs/auth-email-flows.md)               | Invite / reset / magic-link emails, the token-hash flow through `/auth/confirm`, and the dashboard templates that must stay in sync                                                                                              |
 | [`docs/page-chrome.md`](docs/page-chrome.md)                         | Page header + sticky toolbar pattern — read before touching a page top                                                                                                                                                           |
 | [`docs/mcp-server.md`](docs/mcp-server.md)                           | MCP server, OAuth, tool inventory                                                                                                                                                                                                |
 | [`docs/hockey-sync.md`](docs/hockey-sync.md)                         | Hockey.nl Match Center sync: tracked teams, cron, review flags                                                                                                                                                                   |

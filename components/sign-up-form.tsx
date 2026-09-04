@@ -42,13 +42,10 @@ export function SignUpForm({
     }
 
     try {
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/protected`,
-        },
-      });
+      // No emailRedirectTo: the confirmation email template builds the link
+      // itself, as {{ .SiteURL }}/auth/confirm?token_hash=...&type=email.
+      // See docs/auth-email-flows.md.
+      const { error } = await supabase.auth.signUp({ email, password });
       if (error) throw error;
       router.push("/auth/sign-up-success");
     } catch (error: unknown) {
