@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.26.0](https://github.com/sauerhosen/fluitplanner/compare/v2.25.0...v2.26.0) (2026-09-04)
+
+
+### Features
+
+* **auth:** sign in with, enrol and remove passkeys ([902d588](https://github.com/sauerhosen/fluitplanner/commit/902d588bf59c41edcd173fd7e8c5584e255c90b7))
+
 ## [2.25.0](https://github.com/sauerhosen/fluitplanner/compare/v2.24.1...v2.25.0) (2026-09-04)
 
 
