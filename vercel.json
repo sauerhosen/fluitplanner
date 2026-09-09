@@ -1,4 +1,9 @@
 {
+  "git": {
+    "deploymentEnabled": {
+      "release-please--*": false
+    }
+  },
   "crons": [
     {
       "path": "/api/cron/hockey-sync",
