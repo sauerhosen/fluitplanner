@@ -4,6 +4,7 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { mapMatchesToSlots } from "@/lib/domain/match-slot-mapping";
 import { groupMatchesIntoSlots } from "@/lib/domain/slots";
 import { diffSlots } from "@/lib/domain/diff-slots";
+import { buildPollShareUrl } from "@/lib/domain/poll-share-link";
 import { createHockeyDeps } from "@/lib/hockey/deps";
 import { syncWithLease } from "@/lib/hockey/sync";
 import { normalizeNote, MAX_NOTE_LENGTH } from "@/lib/domain/notes";
@@ -1766,7 +1767,7 @@ export async function createPollForPlanner(
     match_count: uniqueIds.length,
     slot_count: slots.length,
     matches_without_time: uniqueIds.length - withTime.length,
-    url: `${baseUrl()}/poll/${token}`,
+    url: buildPollShareUrl(baseUrl(), token, trimmed),
     note: "The poll link is NOT sent to anyone automatically — the planner shares it with the umpires themselves.",
   };
 }
@@ -2701,7 +2702,7 @@ export async function getChaseContext(ctx: McpPlannerContext, pollId: string) {
   return {
     poll_title: poll.title,
     poll_status: poll.status,
-    poll_url: `${baseUrl()}/poll/${poll.token}`,
+    poll_url: buildPollShareUrl(baseUrl(), poll.token, poll.title),
     club: ctx.organizationName,
     non_responders: availability.non_responders,
     at_risk_slots: availability.slot_risk.filter((s) => s.at_risk),
