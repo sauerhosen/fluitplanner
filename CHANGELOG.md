@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.26.3](https://github.com/sauerhosen/fluitplanner/compare/v2.26.2...v2.26.3) (2026-09-12)
+
+
+### Bug Fixes
+
+* **polls:** re-unfurl the share link after a poll is renamed ([bbbb4fc](https://github.com/sauerhosen/fluitplanner/commit/bbbb4fceb780ead0dd38220c4020f34f52bce81a))
+* **polls:** re-unfurl the share link after a poll is renamed ([f49945e](https://github.com/sauerhosen/fluitplanner/commit/f49945e2ccc03b77d625619d54bbd1a9bb847435))
+* **polls:** stamp the open-poll-page link too ([3d878d4](https://github.com/sauerhosen/fluitplanner/commit/3d878d49ddf95713b5196d937effa91dd146f2d3))
+
 ## [2.26.2](https://github.com/sauerhosen/fluitplanner/compare/v2.26.1...v2.26.2) (2026-09-04)
 
 
