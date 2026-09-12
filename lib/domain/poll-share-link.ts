@@ -36,12 +36,23 @@ export function pollTitleVersion(
   return fnv1a(trimmed).toString(36);
 }
 
+/**
+ * Root-relative form, for links rendered in markup — the planner's "open poll
+ * page" anchor lands on the same stamped URL the copy button hands out, so
+ * copying it out of the address bar shares a link that unfurls fresh too.
+ */
+export function buildPollSharePath(
+  token: string,
+  title: string | null | undefined,
+): string {
+  const version = pollTitleVersion(title);
+  return version ? `/poll/${token}?v=${version}` : `/poll/${token}`;
+}
+
 export function buildPollShareUrl(
   origin: string,
   token: string,
   title: string | null | undefined,
 ): string {
-  const base = `${origin.replace(/\/+$/, "")}/poll/${token}`;
-  const version = pollTitleVersion(title);
-  return version ? `${base}?v=${version}` : base;
+  return `${origin.replace(/\/+$/, "")}${buildPollSharePath(token, title)}`;
 }

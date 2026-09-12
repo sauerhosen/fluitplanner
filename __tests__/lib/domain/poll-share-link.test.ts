@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   pollTitleVersion,
+  buildPollSharePath,
   buildPollShareUrl,
 } from "@/lib/domain/poll-share-link";
 
@@ -59,5 +60,23 @@ describe("buildPollShareUrl", () => {
     expect(buildPollShareUrl("https://vvv.fluiten.org/", "abc123", null)).toBe(
       "https://vvv.fluiten.org/poll/abc123",
     );
+  });
+});
+
+describe("buildPollSharePath", () => {
+  it("stamps the root-relative link the same way", () => {
+    expect(buildPollSharePath("abc123", "Herfst")).toBe(
+      `/poll/abc123?v=${pollTitleVersion("Herfst")}`,
+    );
+  });
+
+  it("omits the param for an untitled poll", () => {
+    expect(buildPollSharePath("abc123", null)).toBe("/poll/abc123");
+  });
+
+  it("agrees with the absolute builder", () => {
+    expect(
+      buildPollShareUrl("https://vvv.fluiten.org", "abc123", "Herfst"),
+    ).toBe(`https://vvv.fluiten.org${buildPollSharePath("abc123", "Herfst")}`);
   });
 });

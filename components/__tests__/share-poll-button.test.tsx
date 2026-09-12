@@ -3,7 +3,10 @@ import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { render } from "@/__tests__/helpers/render";
 import { SharePollButton } from "@/components/polls/share-poll-button";
-import { pollTitleVersion } from "@/lib/domain/poll-share-link";
+import {
+  buildPollSharePath,
+  pollTitleVersion,
+} from "@/lib/domain/poll-share-link";
 
 const writeText = vi.fn();
 
@@ -47,6 +50,16 @@ describe("SharePollButton", () => {
     );
 
     expect(writeText.mock.calls[1][0]).not.toBe(before);
+  });
+
+  it("points the open-poll-page link at the stamped URL too, so copying it out of the address bar still unfurls fresh", async () => {
+    render(<SharePollButton token="abc123" title="Herfst" variant="menu" />);
+
+    await userEvent.click(screen.getByRole("button", { name: /share/i }));
+
+    expect(
+      screen.getByRole("menuitem", { name: /open poll page/i }),
+    ).toHaveAttribute("href", buildPollSharePath("abc123", "Herfst"));
   });
 
   it("copies the bare link for an untitled poll", async () => {

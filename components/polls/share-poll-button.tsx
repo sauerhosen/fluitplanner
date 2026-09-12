@@ -10,7 +10,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Check, Copy, Share2, ExternalLink, ChevronDown } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { buildPollShareUrl } from "@/lib/domain/poll-share-link";
+import {
+  buildPollSharePath,
+  buildPollShareUrl,
+} from "@/lib/domain/poll-share-link";
 
 const subscribeNoop = () => () => {};
 const getCanShare = () => !!navigator.share;
@@ -91,7 +94,7 @@ export function SharePollButton({ token, title, variant = "buttons" }: Props) {
           )}
           <DropdownMenuItem asChild>
             <a
-              href={`/poll/${token}`}
+              href={buildPollSharePath(token, title)}
               target="_blank"
               rel="noopener noreferrer"
             >
