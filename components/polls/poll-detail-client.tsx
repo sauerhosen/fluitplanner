@@ -348,7 +348,11 @@ export function PollDetailClient({
         actions={
           canEdit ? (
             <>
-              <SharePollButton token={poll.token} variant="menu" />
+              <SharePollButton
+                token={poll.token}
+                title={poll.title}
+                variant="menu"
+              />
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button

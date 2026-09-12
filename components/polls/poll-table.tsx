@@ -162,7 +162,7 @@ export function PollTable({
                 <TableCell>{poll.response_count}</TableCell>
                 {canEdit && (
                   <TableCell>
-                    <SharePollButton token={poll.token} />
+                    <SharePollButton token={poll.token} title={poll.title} />
                   </TableCell>
                 )}
                 <TableCell>

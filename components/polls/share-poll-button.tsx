@@ -10,6 +10,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Check, Copy, Share2, ExternalLink, ChevronDown } from "lucide-react";
 import { useTranslations } from "next-intl";
+import {
+  buildPollSharePath,
+  buildPollShareUrl,
+} from "@/lib/domain/poll-share-link";
 
 const subscribeNoop = () => () => {};
 const getCanShare = () => !!navigator.share;
@@ -18,6 +22,11 @@ const getCanShareServer = () => false;
 type Props = {
   token: string;
   /**
+   * Stamped onto the shared URL so a renamed poll unfurls a fresh link preview
+   * instead of the card WhatsApp cached under the old title.
+   */
+  title: string | null;
+  /**
    * "buttons" puts copy and share side by side — right for a table row, where
    * there is no other control competing for attention. "menu" collapses them
    * into one primary button, for a page header that has to stay one row tall.
@@ -25,7 +34,7 @@ type Props = {
   variant?: "buttons" | "menu";
 };
 
-export function SharePollButton({ token, variant = "buttons" }: Props) {
+export function SharePollButton({ token, title, variant = "buttons" }: Props) {
   const [copied, setCopied] = useState(false);
   const canShare = useSyncExternalStore(
     subscribeNoop,
@@ -35,7 +44,7 @@ export function SharePollButton({ token, variant = "buttons" }: Props) {
   const t = useTranslations("polls");
 
   function getPollUrl() {
-    return `${window.location.origin}/poll/${token}`;
+    return buildPollShareUrl(window.location.origin, token, title);
   }
 
   async function handleShare() {
@@ -85,7 +94,7 @@ export function SharePollButton({ token, variant = "buttons" }: Props) {
           )}
           <DropdownMenuItem asChild>
             <a
-              href={`/poll/${token}`}
+              href={buildPollSharePath(token, title)}
               target="_blank"
               rel="noopener noreferrer"
             >
