@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.27.0](https://github.com/sauerhosen/fluitplanner/compare/v2.26.3...v2.27.0) (2026-09-12)
+
+
+### Features
+
+* **polls:** narrow the assignment grid to one umpire ([024e7ca](https://github.com/sauerhosen/fluitplanner/commit/024e7ca41d78e4d993ea4f609da6f3c01f65fef4))
+* **polls:** narrow the assignment grid to one umpire ([9e37728](https://github.com/sauerhosen/fluitplanner/commit/9e377282d9209af5e616c90e20c742419d2f079a))
+
 ## [2.26.3](https://github.com/sauerhosen/fluitplanner/compare/v2.26.2...v2.26.3) (2026-09-12)
 
 
