@@ -78,7 +78,11 @@ export function UmpireFocusMenu({
   if (variant === "menu") {
     return (
       <DropdownMenuSub>
-        <DropdownMenuSubTrigger inset data-testid="umpire-focus-menu-item">
+        <DropdownMenuSubTrigger
+          inset
+          className={className}
+          data-testid="umpire-focus-menu-item"
+        >
           <User className="mr-2 h-4 w-4" />
           {focused ? focused.name : t("focusUmpire")}
         </DropdownMenuSubTrigger>

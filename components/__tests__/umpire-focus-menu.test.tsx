@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { render } from "@/__tests__/helpers/render";
@@ -25,10 +25,8 @@ function setup(
 }
 
 describe("UmpireFocusMenu", () => {
-  beforeEach(() => {
-    // Radix measures its popover; jsdom reports nothing without this.
-    window.HTMLElement.prototype.scrollIntoView = vi.fn();
-  });
+  // Radix's jsdom polyfills (`scrollIntoView`, pointer capture) live in
+  // `vitest.setup.ts`, so nothing to stub here.
 
   it("offers every umpire alongside the unfiltered grid", async () => {
     const user = userEvent.setup();

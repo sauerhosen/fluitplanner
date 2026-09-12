@@ -196,11 +196,16 @@ export function PollDetailClient({
   // Only the grid narrows. Exports, counts and conflicts keep the whole
   // roster, so a focused grid still reports honestly how full a match is.
   // An umpire that disappears from the roster (a merge, a refetch) silently
-  // gives the grid back rather than leaving it empty.
-  const gridUmpires = useMemo(() => {
-    const focused = umpires.find((u) => u.id === focusedUmpireId);
-    return focused ? [focused] : umpires;
-  }, [umpires, focusedUmpireId]);
+  // gives the grid back rather than leaving it empty — hence the lookup rather
+  // than trusting `focusedUmpireId` on its own.
+  const focusedUmpire = useMemo(
+    () => umpires.find((u) => u.id === focusedUmpireId) ?? null,
+    [umpires, focusedUmpireId],
+  );
+  const gridUmpires = useMemo(
+    () => (focusedUmpire ? [focusedUmpire] : umpires),
+    [focusedUmpire, umpires],
+  );
 
   async function handleSaveTitle() {
     setSaving(true);
@@ -681,7 +686,7 @@ export function PollDetailClient({
             assignments={poll.assignments}
             umpires={gridUmpires}
             transposed={transposed}
-            focused={gridUmpires !== umpires}
+            focused={focusedUmpire !== null}
             tentativeMode={tentativeMode}
             clubName={clubName}
             onAssignmentsChange={setLiveAssignments}
