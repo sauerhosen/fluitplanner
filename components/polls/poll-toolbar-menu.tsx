@@ -22,6 +22,7 @@ import {
 import { useDateRangePresets } from "@/hooks/use-date-range-presets";
 import { useIsPlanner } from "@/components/shared/role-provider";
 import { ExportDropdown } from "./export-dropdown";
+import { UmpireFocusMenu } from "./umpire-focus-menu";
 import { useTranslations } from "next-intl";
 import type {
   Match,
@@ -44,6 +45,8 @@ type Props = {
   tentativeMode: boolean;
   onTentativeModeChange: (next: boolean) => void;
   onSwapAxes: () => void;
+  focusedUmpireId: string | null;
+  onFocusedUmpireChange: (umpireId: string | null) => void;
   className?: string;
 };
 
@@ -68,6 +71,8 @@ export function PollToolbarMenu({
   tentativeMode,
   onTentativeModeChange,
   onSwapAxes,
+  focusedUmpireId,
+  onFocusedUmpireChange,
   className,
 }: Props) {
   const t = useTranslations("polls");
@@ -143,6 +148,12 @@ export function PollToolbarMenu({
               <ArrowRightLeft className="mr-2 h-4 w-4" />
               {t("swapAxes")}
             </DropdownMenuItem>
+            <UmpireFocusMenu
+              variant="menu"
+              umpires={umpires}
+              focusedUmpireId={focusedUmpireId}
+              onFocusedUmpireChange={onFocusedUmpireChange}
+            />
           </>
         )}
       </DropdownMenuContent>

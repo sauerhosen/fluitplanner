@@ -49,6 +49,13 @@ type Props = {
   umpires: RosteredUmpire[];
   transposed?: boolean;
   /**
+   * The roster has been narrowed to one umpire for a screenshot. Poll-wide
+   * chrome steps aside: the tentative summary counts everyone's sketches and
+   * says out loud that they are hidden from umpires, which is not something to
+   * paste into a message to one of them.
+   */
+  focused?: boolean;
+  /**
    * While on, a click sketches a tentative appointment instead of a real one.
    * Owned by the page so the switch can live in the poll's toolbar row rather
    * than in a strip of its own above the grid.
@@ -82,6 +89,7 @@ export function AssignmentGrid({
   assignments: initialAssignments,
   umpires,
   transposed = false,
+  focused = false,
   tentativeMode = false,
   clubName,
   onAssignmentsChange,
@@ -517,7 +525,7 @@ export function AssignmentGrid({
    */
   function renderTentativeBar() {
     const tentativeCount = counts.tentativeTotal;
-    if (tentativeCount === 0) return null;
+    if (tentativeCount === 0 || focused) return null;
 
     return (
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">

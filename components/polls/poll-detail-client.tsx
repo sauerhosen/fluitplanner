@@ -54,6 +54,7 @@ import {
 } from "lucide-react";
 import { ExportDropdown } from "./export-dropdown";
 import { PollToolbarMenu } from "./poll-toolbar-menu";
+import { UmpireFocusMenu } from "./umpire-focus-menu";
 import { useTranslations, useFormatter } from "next-intl";
 import { DateRangePicker } from "@/components/shared/date-range-picker";
 import type { DateRange } from "react-day-picker";
@@ -102,6 +103,9 @@ export function PollDetailClient({
   );
   const [transposed, setTransposed] = useState(true);
   const [tentativeMode, setTentativeMode] = useState(false);
+  // Talking to one umpire: the grid narrows to their row alone, so a
+  // screenshot of it is about them and not the whole roster.
+  const [focusedUmpireId, setFocusedUmpireId] = useState<string | null>(null);
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
   const [liveAssignments, setLiveAssignments] = useState<Assignment[]>(
     initialPoll.assignments,
@@ -188,6 +192,20 @@ export function PollDetailClient({
   const refreshUmpires = useCallback(async () => {
     setUmpires(await getUmpiresForPoll(poll.id));
   }, [poll.id]);
+
+  // Only the grid narrows. Exports, counts and conflicts keep the whole
+  // roster, so a focused grid still reports honestly how full a match is.
+  // An umpire that disappears from the roster (a merge, a refetch) silently
+  // gives the grid back rather than leaving it empty — hence the lookup rather
+  // than trusting `focusedUmpireId` on its own.
+  const focusedUmpire = useMemo(
+    () => umpires.find((u) => u.id === focusedUmpireId) ?? null,
+    [umpires, focusedUmpireId],
+  );
+  const gridUmpires = useMemo(
+    () => (focusedUmpire ? [focusedUmpire] : umpires),
+    [focusedUmpire, umpires],
+  );
 
   async function handleSaveTitle() {
     setSaving(true);
@@ -449,6 +467,8 @@ export function PollDetailClient({
             tentativeMode={tentativeMode}
             onTentativeModeChange={setTentativeMode}
             onSwapAxes={() => setTransposed((prev) => !prev)}
+            focusedUmpireId={focusedUmpireId}
+            onFocusedUmpireChange={setFocusedUmpireId}
           />
           <div className="hidden items-center gap-2 sm:flex">
             <DateRangePicker value={dateRange} onChange={setDateRange} />
@@ -463,6 +483,11 @@ export function PollDetailClient({
             />
             {activeTab === "assignments" && (
               <>
+                <UmpireFocusMenu
+                  umpires={umpires}
+                  focusedUmpireId={focusedUmpireId}
+                  onFocusedUmpireChange={setFocusedUmpireId}
+                />
                 {canEdit && (
                   <Button
                     variant={tentativeMode ? "default" : "outline"}
@@ -663,8 +688,9 @@ export function PollDetailClient({
             slots={filteredSlots}
             responses={poll.responses}
             assignments={poll.assignments}
-            umpires={umpires}
+            umpires={gridUmpires}
             transposed={transposed}
+            focused={focusedUmpire !== null}
             tentativeMode={tentativeMode}
             clubName={clubName}
             onAssignmentsChange={setLiveAssignments}
