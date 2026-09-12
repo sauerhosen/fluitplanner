@@ -597,6 +597,32 @@ describe("AssignmentGrid", () => {
     expect(screen.getByTestId("confirm-tentative")).toBeInTheDocument();
   });
 
+  it("keeps the poll-wide sketch summary out of a one-umpire screenshot", () => {
+    render(
+      <AssignmentGrid
+        {...defaultProps}
+        focused
+        assignments={[
+          makeAssignment({
+            match_id: "m1",
+            umpire_id: "u1",
+            status: "tentative",
+          }),
+          makeAssignment({
+            match_id: "m1",
+            umpire_id: "u2",
+            status: "tentative",
+          }),
+        ]}
+      />,
+    );
+
+    // It counts everyone's sketches and says they are hidden from umpires —
+    // not something to paste into a message to one of them.
+    expect(screen.queryByTestId("tentative-summary")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("confirm-tentative")).not.toBeInTheDocument();
+  });
+
   it("confirms every tentative appointment at once", async () => {
     const { confirmTentativeAssignments } =
       await import("@/lib/actions/assignments");

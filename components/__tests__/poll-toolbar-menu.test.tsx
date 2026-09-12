@@ -13,6 +13,7 @@ const baseProps = {
   umpires: [],
   dateRange: undefined,
   tentativeMode: false,
+  focusedUmpireId: null,
 };
 
 function setup(
@@ -21,6 +22,7 @@ function setup(
   const onDateRangeChange = vi.fn();
   const onTentativeModeChange = vi.fn();
   const onSwapAxes = vi.fn();
+  const onFocusedUmpireChange = vi.fn();
   render(
     <PollToolbarMenu
       {...baseProps}
@@ -28,10 +30,16 @@ function setup(
       onDateRangeChange={onDateRangeChange}
       onTentativeModeChange={onTentativeModeChange}
       onSwapAxes={onSwapAxes}
+      onFocusedUmpireChange={onFocusedUmpireChange}
       {...overrides}
     />,
   );
-  return { onDateRangeChange, onTentativeModeChange, onSwapAxes };
+  return {
+    onDateRangeChange,
+    onTentativeModeChange,
+    onSwapAxes,
+    onFocusedUmpireChange,
+  };
 }
 
 describe("PollToolbarMenu", () => {
@@ -50,6 +58,21 @@ describe("PollToolbarMenu", () => {
     expect(screen.getByText("Export")).toBeInTheDocument();
     expect(screen.getByText("Tentative mode")).toBeInTheDocument();
     expect(screen.getByText("Swap axes")).toBeInTheDocument();
+    expect(screen.getByText("One umpire")).toBeInTheDocument();
+  });
+
+  it("names the focused umpire, so a phone can see the grid is filtered", async () => {
+    const user = userEvent.setup();
+    setup({
+      umpires: [{ id: "u1", name: "Caroline Michels" }] as never,
+      focusedUmpireId: "u1",
+    });
+
+    await user.click(screen.getByTestId("poll-tools-menu"));
+
+    expect(screen.getByTestId("umpire-focus-menu-item")).toHaveTextContent(
+      "Caroline Michels",
+    );
   });
 
   it("leaves out the assignment tools on the other tabs", async () => {
@@ -60,6 +83,9 @@ describe("PollToolbarMenu", () => {
 
     expect(screen.queryByText("Tentative mode")).not.toBeInTheDocument();
     expect(screen.queryByText("Swap axes")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("umpire-focus-menu-item"),
+    ).not.toBeInTheDocument();
     expect(screen.getByText("Date range")).toBeInTheDocument();
   });
 
