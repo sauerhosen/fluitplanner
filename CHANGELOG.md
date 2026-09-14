@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.27.1](https://github.com/sauerhosen/fluitplanner/compare/v2.27.0...v2.27.1) (2026-09-14)
+
+
+### Bug Fixes
+
+* **deps:** bump @types/node to ^22 for vitest 5 peer range ([41ed8c2](https://github.com/sauerhosen/fluitplanner/commit/41ed8c20505cac90071285166e1d13b4f25b41c2))
+
 ## [2.27.0](https://github.com/sauerhosen/fluitplanner/compare/v2.26.3...v2.27.0) (2026-09-12)
 
 
