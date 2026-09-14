@@ -4,6 +4,10 @@ import { requireTenantId } from "@/lib/tenant";
 import { requireAuthContext, requirePlanner } from "@/lib/auth";
 import { groupMatchesIntoSlots } from "@/lib/domain/slots";
 import { diffSlots } from "@/lib/domain/diff-slots";
+import {
+  carryOverCandidates,
+  planResponseCarryOver,
+} from "@/lib/domain/carry-over-responses";
 import { resolveFeaturedOnReplace } from "@/lib/domain/featured-matches";
 import type {
   Match,
@@ -37,6 +41,31 @@ export type PollDetail = Poll & {
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
 /* ------------------------------------------------------------------ */
+
+const RESPONSE_PAGE_SIZE = 1000;
+
+/**
+ * Every answer on the given slots. PostgREST truncates a select at max_rows
+ * silently, so this pages until a short page arrives.
+ */
+async function getResponsesForSlots(
+  supabase: Awaited<ReturnType<typeof requirePlanner>>["supabase"],
+  slotIds: string[],
+): Promise<AvailabilityResponse[]> {
+  const rows: AvailabilityResponse[] = [];
+  for (let from = 0; ; from += RESPONSE_PAGE_SIZE) {
+    const { data, error } = await supabase
+      .from("availability_responses")
+      .select("*")
+      .in("slot_id", slotIds)
+      .order("id")
+      .range(from, from + RESPONSE_PAGE_SIZE - 1);
+
+    if (error) throw new Error(error.message);
+    rows.push(...(data ?? []));
+    if ((data ?? []).length < RESPONSE_PAGE_SIZE) return rows;
+  }
+}
 
 /* ------------------------------------------------------------------ */
 /*  getPollOptions (lightweight, for filter dropdowns)                  */
@@ -414,20 +443,16 @@ export async function updatePollMatches(
   if (slotError) throw new Error(slotError.message);
 
   // Diff slots
-  const { toAdd, toRemove } = diffSlots(existingSlots ?? [], desiredSlots);
+  const { toAdd, toRemove, toKeep } = diffSlots(
+    existingSlots ?? [],
+    desiredSlots,
+  );
 
-  // Remove slots that are no longer needed
-  if (toRemove.length > 0) {
-    const removeIds = toRemove.map((s) => s.id);
-    const { error } = await supabase
-      .from("poll_slots")
-      .delete()
-      .in("id", removeIds);
-
-    if (error) throw new Error(error.message);
-  }
-
-  // Add new slots
+  // Destructive step last. A slot whose window changed is replaced, and
+  // deleting it cascades its answers away — so insert the new windows first,
+  // copy over the answers of windows that only shifted (a nearby match merged
+  // in or left), and delete the stale slots only once that has succeeded.
+  let insertedSlots: PollSlot[] = [];
   if (toAdd.length > 0) {
     const slotRows = toAdd.map((s) => ({
       poll_id: pollId,
@@ -435,7 +460,51 @@ export async function updatePollMatches(
       end_time: s.end.toISOString(),
     }));
 
-    const { error } = await supabase.from("poll_slots").insert(slotRows);
+    const { data, error } = await supabase
+      .from("poll_slots")
+      .insert(slotRows)
+      .select("*");
+
+    if (error) throw new Error(error.message);
+    insertedSlots = data ?? [];
+  }
+
+  if (toRemove.length > 0) {
+    const removeIds = toRemove.map((s) => s.id);
+    const targets = carryOverCandidates(toRemove, [
+      ...insertedSlots,
+      ...toKeep,
+    ]);
+
+    if (targets.length > 0) {
+      const responses = await getResponsesForSlots(supabase, [
+        ...removeIds,
+        ...targets.map((s) => s.id),
+      ]);
+      const { carried } = planResponseCarryOver(toRemove, targets, responses);
+
+      if (carried.length > 0) {
+        const { error } = await supabase.from("availability_responses").insert(
+          // A fresh id per copy: the originals cascade away with their slot.
+          carried.map((r) => ({
+            poll_id: r.poll_id,
+            slot_id: r.slot_id,
+            umpire_id: r.umpire_id,
+            participant_name: r.participant_name,
+            response: r.response,
+            created_at: r.created_at,
+            updated_at: r.updated_at,
+          })),
+        );
+
+        if (error) throw new Error(error.message);
+      }
+    }
+
+    const { error } = await supabase
+      .from("poll_slots")
+      .delete()
+      .in("id", removeIds);
 
     if (error) throw new Error(error.message);
   }

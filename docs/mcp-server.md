@@ -75,7 +75,7 @@ Tokens can be revoked in the same settings section; revocation takes effect imme
 | `set_match_notes` / `set_umpire_notes` | write | Capture planner notes the moment they're said (S3)                               |
 | `create_match` / `update_match`        | write | Add a friendly, move a kick-off, fix a venue (S4)                                |
 | `create_poll`                          | write | Poll from a plain request; link sharing stays manual (S5)                        |
-| `add_matches_to_poll`                  | write | Extend an open poll with matches; slots recomputed, discarded answers reported   |
+| `add_matches_to_poll`                  | write | Extend an open poll with matches; slots recomputed, answers carried or reported  |
 | `remove_matches_from_poll`             | write | Shrink an open poll; confirmed matches refused, drafts and lost answers reported |
 | `suggest_swaps`                        | read  | Direct picks plus one-move swap chains to repair an unfillable match             |
 | `get_season_stats`                     | read  | Coverage, load distribution, responsiveness, hardest-to-fill (C3)                |

@@ -289,6 +289,7 @@
     "slotsLabel": "Slots ({count})",
     "editMatches": "Edit Matches",
     "updatedSlotsPreview": "Updated Time Slots Preview",
+    "matchChangeDiscardsAnswers": "Saving deletes {count, plural, one {# availability answer} other {# availability answers}} for time slots that no longer exist. Those umpires will need to answer again.",
     "saving": "Saving...",
     "saveMatchChanges": "Save Match Changes",
     "noMatchesInSlot": "No matches in this slot",

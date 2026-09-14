@@ -289,6 +289,7 @@
     "slotsLabel": "Sloten ({count})",
     "editMatches": "Wedstrijden bewerken",
     "updatedSlotsPreview": "Bijgewerkt tijdsloten voorbeeld",
+    "matchChangeDiscardsAnswers": "Opslaan verwijdert {count, plural, one {# beschikbaarheidsantwoord} other {# beschikbaarheidsantwoorden}} voor tijdsloten die niet meer bestaan. Die scheidsrechters moeten opnieuw invullen.",
     "saving": "Opslaan...",
     "saveMatchChanges": "Wedstrijdwijzigingen opslaan",
     "noMatchesInSlot": "Geen wedstrijden in dit tijdslot",

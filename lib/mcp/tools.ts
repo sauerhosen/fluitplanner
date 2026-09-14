@@ -547,7 +547,7 @@ export function registerMcpTools(server: McpServer, ctx: McpPlannerContext) {
     {
       title: "Add matches to a poll",
       description:
-        "Add matches to an existing OPEN poll; time slots are extended automatically. Existing availability answers are kept, except when a new match shifts a slot's time window — then that slot's answers are discarded, which is counted and reported. Use create_poll for a new poll; matches already in the poll are skipped.",
+        "Add matches to an existing OPEN poll; time slots are extended automatically. Existing availability answers are kept: when a new match shifts a slot's time window by at most 15 minutes, that slot's answers carry over to the new window (reported as answers_carried_over); a window that moves further loses its answers, which is counted and reported. Use create_poll for a new poll; matches already in the poll are skipped.",
       inputSchema: z.object({
         poll_id: pollId,
         match_ids: z.array(matchId).min(1).max(200),
@@ -565,7 +565,7 @@ export function registerMcpTools(server: McpServer, ctx: McpPlannerContext) {
     {
       title: "Remove matches from a poll",
       description:
-        "Take matches out of an existing OPEN poll; time slots shrink automatically and tentative drafts on the removed matches are dropped. Matches with CONFIRMED assignments in the poll are refused (unassign in the app first), and an emptied poll stays — polls are never deleted here. Counterpart of add_matches_to_poll.",
+        "Take matches out of an existing OPEN poll; time slots shrink automatically (answers carry over when a window only shifts by at most 15 minutes; answers for slots that disappear are discarded and counted) and tentative drafts on the removed matches are dropped. Matches with CONFIRMED assignments in the poll are refused (unassign in the app first), and an emptied poll stays — polls are never deleted here. Counterpart of add_matches_to_poll.",
       inputSchema: z.object({
         poll_id: pollId,
         match_ids: z.array(matchId).min(1).max(200),
