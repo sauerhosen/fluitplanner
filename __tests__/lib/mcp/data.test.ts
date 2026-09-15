@@ -9,7 +9,8 @@ vi.mock("@/lib/supabase/service", () => ({
   createServiceClient: () => hoisted.client as SupabaseClient,
 }));
 
-const { addMatchesToPollForPlanner } = await import("@/lib/mcp/data");
+const { addMatchesToPollForPlanner, removeMatchesFromPollForPlanner } =
+  await import("@/lib/mcp/data");
 
 /* ------------------------------------------------------------------ */
 /*  A fake PostgREST builder                                           */
@@ -37,6 +38,8 @@ type Settled = {
 
 type Builder = {
   select: (cols?: string, opts?: { count?: string; head?: boolean }) => Builder;
+  order: (col: string) => Builder;
+  range: (from: number, to: number) => Builder;
   insert: (payload: unknown) => Builder;
   delete: () => Builder;
   eq: (key: string, value: unknown) => Builder;
@@ -80,8 +83,15 @@ function makeClient(respond: (op: RecordedOp) => Reply) {
 
     const builder: Builder = {
       select(_cols, opts) {
-        op.kind = "select";
+        // insert(...).select() still writes; it only asks for the rows back.
+        if (op.kind !== "insert" && op.kind !== "delete") op.kind = "select";
         if (opts?.count) op.counting = true;
+        return builder;
+      },
+      order() {
+        return builder;
+      },
+      range() {
         return builder;
       },
       insert(payload) {
@@ -156,6 +166,30 @@ type SlotRow = {
   end_time: string;
 };
 
+type ResponseRow = {
+  id: string;
+  poll_id: string;
+  slot_id: string;
+  umpire_id: string;
+  participant_name: string;
+  response: "yes" | "if_need_be" | "no";
+  created_at: string;
+  updated_at: string;
+};
+
+function answersOn(slotId: string, count: number): ResponseRow[] {
+  return Array.from({ length: count }, (_, i) => ({
+    id: `r-${slotId}-${i}`,
+    poll_id: poll.id,
+    slot_id: slotId,
+    umpire_id: `u${i + 1}`,
+    participant_name: `Umpire ${i + 1}`,
+    response: "yes",
+    created_at: "2026-03-01T10:00:00Z",
+    updated_at: "2026-03-02T10:00:00Z",
+  }));
+}
+
 function slotsFor(matches: { id: string; start_time: string }[]): SlotRow[] {
   return groupMatchesIntoSlots(matches).map((s, i) => ({
     id: `s${i + 1}`,
@@ -169,8 +203,9 @@ function scenario(opts: {
   pollMatchIds: string[];
   allMatches: { id: string; start_time: string | null }[];
   existingSlots: SlotRow[];
-  discardedPerBatch?: number;
+  responses?: ResponseRow[];
   failPollMatchesInsert?: boolean;
+  failResponsesInsert?: boolean;
 }) {
   return makeClient((op): Reply => {
     if (op.table === "polls") return { data: [poll] };
@@ -195,9 +230,22 @@ function scenario(opts: {
     if (op.table === "poll_slots" && op.kind === "select") {
       return { data: opts.existingSlots };
     }
+    if (op.table === "poll_slots" && op.kind === "insert") {
+      // Inserted slots come back with fresh ids.
+      const rows = op.payload as Omit<SlotRow, "id">[];
+      return { data: rows.map((r, i) => ({ ...r, id: `new-${i + 1}` })) };
+    }
     if (op.table === "poll_slots") return {};
+    if (op.table === "availability_responses" && op.kind === "insert") {
+      return opts.failResponsesInsert
+        ? { error: { message: "insert into availability_responses failed" } }
+        : {};
+    }
     if (op.table === "availability_responses") {
-      return { count: opts.discardedPerBatch ?? 0 };
+      const ids = (op.filters["slot_id"] as string[]) ?? [];
+      return {
+        data: (opts.responses ?? []).filter((r) => ids.includes(r.slot_id)),
+      };
     }
     return { data: [] };
   });
@@ -220,7 +268,7 @@ describe("addMatchesToPollForPlanner", () => {
       pollMatchIds: ["m1"],
       allMatches: [M1, M3],
       existingSlots: slotsFor([M1]),
-      discardedPerBatch: 4,
+      responses: answersOn("s1", 4),
       failPollMatchesInsert: true,
     });
     hoisted.client = client;
@@ -239,7 +287,7 @@ describe("addMatchesToPollForPlanner", () => {
       pollMatchIds: ["m1"],
       allMatches: [M1, M3],
       existingSlots: slotsFor([M1]),
-      discardedPerBatch: 4,
+      responses: answersOn("s1", 4),
     });
     hoisted.client = client;
 
@@ -249,17 +297,75 @@ describe("addMatchesToPollForPlanner", () => {
     expect(writes(ops)).toEqual([
       "poll_matches insert",
       "poll_slots insert",
+      "availability_responses insert",
       "poll_slots delete",
     ]);
-    expect(result.answers_discarded?.count).toBe(4);
   });
 
-  it("does not blame the added matches for discarded answers", async () => {
-    const { client } = scenario({
+  it("carries answers over when adding a match only shifts a slot", async () => {
+    const { client, ops } = scenario({
       pollMatchIds: ["m1"],
       allMatches: [M1, M3],
       existingSlots: slotsFor([M1]),
-      discardedPerBatch: 4,
+      responses: answersOn("s1", 4),
+    });
+    hoisted.client = client;
+
+    const result = await addMatchesToPollForPlanner(ctx, poll.id, ["m3"]);
+
+    const copy = ops.find(
+      (o) => o.table === "availability_responses" && o.kind === "insert",
+    );
+    const rows = copy?.payload as Record<string, unknown>[];
+    expect(rows).toHaveLength(4);
+    expect(rows.every((r) => r.slot_id === "new-1")).toBe(true);
+    // A fresh id per copy; the originals are about to cascade away.
+    expect(rows.some((r) => "id" in r)).toBe(false);
+    expect(rows[0]).toMatchObject({
+      poll_id: poll.id,
+      umpire_id: "u1",
+      participant_name: "Umpire 1",
+      response: "yes",
+      created_at: "2026-03-01T10:00:00Z",
+      updated_at: "2026-03-02T10:00:00Z",
+    });
+
+    expect(result.answers_carried_over).toBe(4);
+    expect(result.answers_discarded).toBeUndefined();
+  });
+
+  it("keeps the old slot when copying its answers fails", async () => {
+    const { client, ops } = scenario({
+      pollMatchIds: ["m1"],
+      allMatches: [M1, M3],
+      existingSlots: slotsFor([M1]),
+      responses: answersOn("s1", 4),
+      failResponsesInsert: true,
+    });
+    hoisted.client = client;
+
+    await expect(
+      addMatchesToPollForPlanner(ctx, poll.id, ["m3"]),
+    ).rejects.toThrow(/availability_responses/);
+
+    expect(writes(ops)).not.toContain("poll_slots delete");
+  });
+
+  it("does not blame the added matches for discarded answers", async () => {
+    // m1's kick-off moved hours after the poll was built: its old window has
+    // no stand-in, so those answers really are gone.
+    const { client } = scenario({
+      pollMatchIds: ["m1"],
+      allMatches: [M1, M3],
+      existingSlots: [
+        {
+          id: "s-stale",
+          poll_id: poll.id,
+          start_time: "2026-03-15T07:00:00Z",
+          end_time: "2026-03-15T09:00:00Z",
+        },
+      ],
+      responses: answersOn("s-stale", 4),
     });
     hoisted.client = client;
 
@@ -329,7 +435,7 @@ describe("addMatchesToPollForPlanner", () => {
       pollMatchIds: ["m1"],
       allMatches: [M1],
       existingSlots: stale,
-      discardedPerBatch: 2,
+      responses: stale.flatMap((s) => answersOn(s.id, 2)),
     });
     hoisted.client = client;
 
@@ -338,17 +444,91 @@ describe("addMatchesToPollForPlanner", () => {
     const deletes = ops.filter(
       (o) => o.table === "poll_slots" && o.kind === "delete",
     );
-    const counts = ops.filter((o) => o.table === "availability_responses");
+    const reads = ops.filter(
+      (o) => o.table === "availability_responses" && o.kind === "select",
+    );
 
     expect(deletes).toHaveLength(3);
-    expect(counts).toHaveLength(3);
+    expect(reads).toHaveLength(3);
     for (const d of deletes) {
       expect((d.filters["id"] as string[]).length).toBeLessThanOrEqual(100);
     }
     expect(deletes.flatMap((d) => d.filters["id"] as string[])).toHaveLength(
       250,
     );
-    // Counted per batch, not just the first one.
-    expect(result.answers_discarded?.count).toBe(6);
+    // Read per batch, not just the first one.
+    expect(result.answers_discarded?.count).toBe(500);
+  });
+});
+
+describe("removeMatchesFromPollForPlanner", () => {
+  beforeEach(() => {
+    hoisted.client = null;
+  });
+
+  it("carries answers over when removing a match only shrinks a slot", async () => {
+    // m1 + m3 share 10:45–13:00; without m3 the window is 10:45–12:45.
+    const merged = slotsFor([M1, M3]);
+    const { client, ops } = scenario({
+      pollMatchIds: ["m1", "m3"],
+      allMatches: [M1, M3],
+      existingSlots: merged,
+      responses: answersOn(merged[0].id, 3),
+    });
+    hoisted.client = client;
+
+    const result = await removeMatchesFromPollForPlanner(ctx, poll.id, ["m3"]);
+
+    expect(result.removed).toBe(1);
+    expect(result.answers_carried_over).toBe(3);
+    expect(result.answers_discarded).toBeUndefined();
+    expect(writes(ops).slice(-3)).toEqual([
+      "poll_slots insert",
+      "availability_responses insert",
+      "poll_slots delete",
+    ]);
+  });
+
+  it("repairs leftover slots when a retry finds the match already gone", async () => {
+    // A failed earlier call removed m3 from the poll and inserted m1's new
+    // window, then failed before the stale merged slot was deleted.
+    const [stale] = slotsFor([M1, M3]);
+    const [replacement] = slotsFor([M1]);
+    const { client, ops } = scenario({
+      pollMatchIds: ["m1"],
+      allMatches: [M1, M3],
+      existingSlots: [
+        { ...stale, id: "s-stale" },
+        { ...replacement, id: "s-new" },
+      ],
+      responses: answersOn("s-stale", 3),
+    });
+    hoisted.client = client;
+
+    const result = await removeMatchesFromPollForPlanner(ctx, poll.id, ["m3"]);
+
+    expect(result.removed).toBe(0);
+    expect(result.slots_removed).toBe(1);
+    expect(result.answers_carried_over).toBe(3);
+    expect(result.note).not.toMatch(/nothing changed/);
+    expect(writes(ops)).toEqual([
+      "availability_responses insert",
+      "poll_slots delete",
+    ]);
+  });
+
+  it("still reports nothing changed when the slots already match", async () => {
+    const { client, ops } = scenario({
+      pollMatchIds: ["m1"],
+      allMatches: [M1, M3],
+      existingSlots: slotsFor([M1]),
+    });
+    hoisted.client = client;
+
+    const result = await removeMatchesFromPollForPlanner(ctx, poll.id, ["m3"]);
+
+    expect(result.removed).toBe(0);
+    expect(result.note).toMatch(/nothing changed/);
+    expect(writes(ops)).toEqual([]);
   });
 });

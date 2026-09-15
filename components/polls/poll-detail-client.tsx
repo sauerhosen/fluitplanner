@@ -18,8 +18,10 @@ import {
   deletePoll,
 } from "@/lib/actions/polls";
 import { groupMatchesIntoSlots } from "@/lib/domain/slots";
+import { countDiscardedResponses } from "@/lib/domain/carry-over-responses";
 import { MatchSelector } from "./match-selector";
 import { SlotPreview } from "./slot-preview";
+import { DiscardedAnswersWarning } from "./discarded-answers-warning";
 import { ResponseSummary } from "./response-summary";
 import { AssignmentGrid } from "./assignment-grid";
 import { SharePollButton } from "./share-poll-button";
@@ -160,6 +162,16 @@ export function PollDetailClient({
     const withStartTime = selected.filter((m) => m.start_time);
     return groupMatchesIntoSlots(withStartTime as { start_time: string }[]);
   }, [editingMatches, selectedMatchIds, allSelectableMatches]);
+
+  // The save carries answers over when a slot only shifts; anything beyond
+  // that is deleted, so say how much before the planner commits to it.
+  const discardedAnswerCount = useMemo(
+    () =>
+      editingMatches
+        ? countDiscardedResponses(poll.slots, previewSlots, liveResponses)
+        : 0,
+    [editingMatches, poll.slots, previewSlots, liveResponses],
+  );
 
   const refreshPoll = useCallback(async () => {
     const updated = await getPoll(poll.id);
@@ -548,6 +560,7 @@ export function PollDetailClient({
                   <Label>{t("updatedSlotsPreview")}</Label>
                   <SlotPreview slots={previewSlots} />
                 </div>
+                <DiscardedAnswersWarning count={discardedAnswerCount} />
                 <Button onClick={handleSaveMatches} disabled={saving}>
                   {saving ? t("saving") : t("saveMatchChanges")}
                 </Button>

@@ -4,6 +4,10 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { mapMatchesToSlots } from "@/lib/domain/match-slot-mapping";
 import { groupMatchesIntoSlots } from "@/lib/domain/slots";
 import { diffSlots } from "@/lib/domain/diff-slots";
+import {
+  carryOverCandidates,
+  planResponseCarryOver,
+} from "@/lib/domain/carry-over-responses";
 import { buildPollShareUrl } from "@/lib/domain/poll-share-link";
 import { createHockeyDeps } from "@/lib/hockey/deps";
 import { syncWithLease } from "@/lib/hockey/sync";
@@ -11,6 +15,7 @@ import { normalizeNote, MAX_NOTE_LENGTH } from "@/lib/domain/notes";
 import { composeAmsterdamTimestamp } from "@/lib/domain/timezone";
 import type {
   Assignment,
+  AvailabilityResponse,
   Match,
   Poll,
   PollSlot,
@@ -81,23 +86,6 @@ async function selectInBatches<Row>(
     rows.push(...(data ?? []));
   }
   return rows;
-}
-
-/** Same URL-length rule as selectInBatches, for a counting head request. */
-async function countInBatches(
-  ids: string[],
-  query: (batch: string[]) => PromiseLike<{
-    count: number | null;
-    error: { message: string } | null;
-  }>,
-): Promise<number> {
-  let total = 0;
-  for (const batch of batches(ids)) {
-    const { count, error } = await query(batch);
-    throwDb(error);
-    total += count ?? 0;
-  }
-  return total;
 }
 
 /** Same URL-length rule as selectInBatches, for a delete. */
@@ -1775,8 +1763,10 @@ export async function createPollForPlanner(
 /**
  * Recompute the poll's slot set over its (final) match ids and diff-apply it
  * — the same operation the app performs when a poll's matches change. Slots
- * whose window disappears are deleted (their answers cascade away); the
- * discarded-answer count is returned so callers can report who to re-ask.
+ * whose window disappears are deleted (their answers cascade away), but an
+ * answer first moves onto a slot whose window only shifted by a quarter hour
+ * (see planResponseCarryOver). What is left discarded is counted so callers
+ * can report who to re-ask.
  *
  * Callers settle poll_matches membership BEFORE calling this: if a later
  * step fails, the residue is then stale slots with answers intact rather
@@ -1791,6 +1781,7 @@ async function reconcilePollSlots(
   matchesWithTime: Set<string>;
   slotsAdded: number;
   slotsRemoved: number;
+  carriedResponses: number;
   discardedResponses: number;
 }> {
   const matchRows = await selectInBatches<{
@@ -1814,36 +1805,80 @@ async function reconcilePollSlots(
     .select("*")
     .eq("poll_id", pollId);
   throwDb(slotError);
-  const { toAdd, toRemove } = diffSlots(
+  const { toAdd, toRemove, toKeep } = diffSlots(
     (existingSlots ?? []) as PollSlot[],
     desiredSlots,
   );
 
-  // Destructive step last: insert the new windows first, then count what the
-  // removals will discard, and delete the stale slots (and, via ON DELETE
-  // CASCADE, their answers) only at the end — a failure part-way leaves
-  // overlapping slots with every answer intact. poll_slots has no uniqueness
-  // constraint, so the briefly coexisting old and new slots are harmless.
+  // Destructive step last: insert the new windows, copy the answers that
+  // carry over onto them, and delete the stale slots (and, via ON DELETE
+  // CASCADE, their remaining answers) only at the end — a failure part-way
+  // leaves overlapping slots with every answer intact. poll_slots has no
+  // uniqueness constraint, so the briefly coexisting old and new slots are
+  // harmless, and a retry carries onto the already-inserted windows.
+  let insertedSlots: PollSlot[] = [];
   if (toAdd.length > 0) {
-    const { error } = await client.from("poll_slots").insert(
-      toAdd.map((s) => ({
-        poll_id: pollId,
-        start_time: s.start.toISOString(),
-        end_time: s.end.toISOString(),
-      })),
-    );
+    const { data, error } = await client
+      .from("poll_slots")
+      .insert(
+        toAdd.map((s) => ({
+          poll_id: pollId,
+          start_time: s.start.toISOString(),
+          end_time: s.end.toISOString(),
+        })),
+      )
+      .select("*");
     throwDb(error);
+    insertedSlots = (data ?? []) as PollSlot[];
   }
 
+  let carriedResponses = 0;
   let discardedResponses = 0;
   if (toRemove.length > 0) {
     const removeSlotIds = toRemove.map((s) => s.id);
-    discardedResponses = await countInBatches(removeSlotIds, (batch) =>
-      client
-        .from("availability_responses")
-        .select("id", { count: "exact", head: true })
-        .in("slot_id", batch),
+    const targets = carryOverCandidates(toRemove, [
+      ...insertedSlots,
+      ...toKeep,
+    ]);
+    const readSlotIds = [...removeSlotIds, ...targets.map((s) => s.id)];
+    // A batch of slots can hold more answers than one response page.
+    const responses: AvailabilityResponse[] = [];
+    for (const batch of batches(readSlotIds)) {
+      responses.push(
+        ...(await selectAllPages<AvailabilityResponse>((from, to) =>
+          client
+            .from("availability_responses")
+            .select("*")
+            .in("slot_id", batch)
+            .order("id")
+            .range(from, to),
+        )),
+      );
+    }
+
+    const { carried, discarded } = planResponseCarryOver(
+      toRemove,
+      targets,
+      responses,
     );
+    if (carried.length > 0) {
+      const { error } = await client.from("availability_responses").insert(
+        // A fresh id per copy: the originals cascade away with their slot.
+        carried.map((r) => ({
+          poll_id: r.poll_id,
+          slot_id: r.slot_id,
+          umpire_id: r.umpire_id,
+          participant_name: r.participant_name,
+          response: r.response,
+          created_at: r.created_at,
+          updated_at: r.updated_at,
+        })),
+      );
+      throwDb(error);
+    }
+    carriedResponses = carried.length;
+    discardedResponses = discarded.length;
+
     await deleteInBatches(removeSlotIds, (batch) =>
       client.from("poll_slots").delete().in("id", batch),
     );
@@ -1853,6 +1888,7 @@ async function reconcilePollSlots(
     matchesWithTime: new Set(withTime.map((m) => m.id)),
     slotsAdded: toAdd.length,
     slotsRemoved: toRemove.length,
+    carriedResponses,
     discardedResponses,
   };
 }
@@ -1910,8 +1946,8 @@ export async function addMatchesToPollForPlanner(
 
   // Settle membership first, then recompute the slot groups over ALL of the
   // poll's matches and diff-apply them. Adding a match can extend an
-  // existing group's window; the old slot is then replaced and its answers
-  // are discarded — the app does this silently, here it is counted and
+  // existing group's window; the old slot is then replaced, its answers carry
+  // over when the window only shifted, and any that cannot are counted and
   // reported so the planner knows who to re-ask.
   // Order matters, and it is the reverse of the obvious one: everything that
   // can fail runs before anything is destroyed. poll_matches is keyed
@@ -1937,8 +1973,13 @@ export async function addMatchesToPollForPlanner(
   }
 
   const mergedIds = [...existingIds, ...newIds];
-  const { matchesWithTime, slotsAdded, slotsRemoved, discardedResponses } =
-    await reconcilePollSlots(client, ctx, poll.id, mergedIds);
+  const {
+    matchesWithTime,
+    slotsAdded,
+    slotsRemoved,
+    carriedResponses,
+    discardedResponses,
+  } = await reconcilePollSlots(client, ctx, poll.id, mergedIds);
 
   if (newIds.length === 0 && slotsAdded === 0 && slotsRemoved === 0) {
     return {
@@ -1976,6 +2017,9 @@ export async function addMatchesToPollForPlanner(
       newIds.filter((id) => !matchesWithTime.has(id)).length || undefined,
     slots_added: slotsAdded,
     slots_replaced: slotsRemoved || undefined,
+    // A replaced slot whose window moved at most a quarter hour keeps its
+    // umpires' answers.
+    answers_carried_over: carriedResponses || undefined,
     answers_discarded:
       discardedResponses > 0
         ? {
@@ -2342,11 +2386,29 @@ export async function removeMatchesFromPollForPlanner(
   const toRemove = uniqueIds.filter((id) => inPoll.has(id));
   const notInPoll = uniqueIds.filter((id) => !inPoll.has(id));
   if (toRemove.length === 0) {
+    // Still reconcile: an earlier call can have settled membership and then
+    // failed before deleting the stale slots, and retrying it is the obvious
+    // repair — the same rule addMatchesToPollForPlanner follows.
+    const { slotsAdded, slotsRemoved, carriedResponses, discardedResponses } =
+      await reconcilePollSlots(client, ctx, poll.id, [...inPoll]);
+    if (slotsAdded === 0 && slotsRemoved === 0) {
+      return {
+        poll_id: poll.id,
+        removed: 0,
+        not_in_poll: notInPoll,
+        note: "None of the requested matches are in this poll; nothing changed.",
+      };
+    }
     return {
       poll_id: poll.id,
+      title: poll.title,
       removed: 0,
       not_in_poll: notInPoll,
-      note: "None of the requested matches are in this poll; nothing changed.",
+      slots_removed: slotsRemoved || undefined,
+      slots_added: slotsAdded || undefined,
+      answers_carried_over: carriedResponses || undefined,
+      answers_discarded: discardedResponses || undefined,
+      note: "None of the requested matches are in this poll, but its time slots were out of step with its matches and have been recomputed.",
     };
   }
 
@@ -2390,8 +2452,8 @@ export async function removeMatchesFromPollForPlanner(
   }
 
   // Settle membership first, then recompute slots over the remaining
-  // matches (same diff the app applies); removed windows discard their
-  // answers — counted and reported.
+  // matches (same diff the app applies); a window that only shrank keeps its
+  // answers, a removed one discards them — both counted and reported.
   for (const batch of batches(removable)) {
     const { error: delError } = await client
       .from("poll_matches")
@@ -2403,7 +2465,7 @@ export async function removeMatchesFromPollForPlanner(
 
   const removableSet = new Set(removable);
   const remainingIds = [...inPoll].filter((id) => !removableSet.has(id));
-  const { slotsAdded, slotsRemoved, discardedResponses } =
+  const { slotsAdded, slotsRemoved, carriedResponses, discardedResponses } =
     await reconcilePollSlots(client, ctx, poll.id, remainingIds);
 
   return {
@@ -2415,6 +2477,7 @@ export async function removeMatchesFromPollForPlanner(
     tentative_drafts_dropped: droppedTentative || undefined,
     slots_removed: slotsRemoved || undefined,
     slots_added: slotsAdded || undefined,
+    answers_carried_over: carriedResponses || undefined,
     answers_discarded: discardedResponses || undefined,
     poll_now_empty: remainingIds.length === 0 || undefined,
     note: "The poll itself is never deleted through this connection; an emptied poll stays for the planner to reuse or delete in the app.",
