@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.27.2](https://github.com/sauerhosen/fluitplanner/compare/v2.27.1...v2.27.2) (2026-09-15)
+
+
+### Bug Fixes
+
+* keep umpire answers when a poll slot only shifts ([49013db](https://github.com/sauerhosen/fluitplanner/commit/49013db3cc2129a4d9034a718effd574f32dcb18))
+* keep umpire answers when a poll slot only shifts ([7c858cd](https://github.com/sauerhosen/fluitplanner/commit/7c858cd204ad6614b72276607584fc4263d01f4b))
+* **mcp:** repair leftover slots when a match removal is retried ([043174c](https://github.com/sauerhosen/fluitplanner/commit/043174c9633f377321ab7cb2b47c8b5f5be9e0d4))
+
 ## [2.27.1](https://github.com/sauerhosen/fluitplanner/compare/v2.27.0...v2.27.1) (2026-09-14)
 
 
