@@ -488,4 +488,47 @@ describe("removeMatchesFromPollForPlanner", () => {
       "poll_slots delete",
     ]);
   });
+
+  it("repairs leftover slots when a retry finds the match already gone", async () => {
+    // A failed earlier call removed m3 from the poll and inserted m1's new
+    // window, then failed before the stale merged slot was deleted.
+    const [stale] = slotsFor([M1, M3]);
+    const [replacement] = slotsFor([M1]);
+    const { client, ops } = scenario({
+      pollMatchIds: ["m1"],
+      allMatches: [M1, M3],
+      existingSlots: [
+        { ...stale, id: "s-stale" },
+        { ...replacement, id: "s-new" },
+      ],
+      responses: answersOn("s-stale", 3),
+    });
+    hoisted.client = client;
+
+    const result = await removeMatchesFromPollForPlanner(ctx, poll.id, ["m3"]);
+
+    expect(result.removed).toBe(0);
+    expect(result.slots_removed).toBe(1);
+    expect(result.answers_carried_over).toBe(3);
+    expect(result.note).not.toMatch(/nothing changed/);
+    expect(writes(ops)).toEqual([
+      "availability_responses insert",
+      "poll_slots delete",
+    ]);
+  });
+
+  it("still reports nothing changed when the slots already match", async () => {
+    const { client, ops } = scenario({
+      pollMatchIds: ["m1"],
+      allMatches: [M1, M3],
+      existingSlots: slotsFor([M1]),
+    });
+    hoisted.client = client;
+
+    const result = await removeMatchesFromPollForPlanner(ctx, poll.id, ["m3"]);
+
+    expect(result.removed).toBe(0);
+    expect(result.note).toMatch(/nothing changed/);
+    expect(writes(ops)).toEqual([]);
+  });
 });

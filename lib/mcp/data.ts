@@ -2386,11 +2386,29 @@ export async function removeMatchesFromPollForPlanner(
   const toRemove = uniqueIds.filter((id) => inPoll.has(id));
   const notInPoll = uniqueIds.filter((id) => !inPoll.has(id));
   if (toRemove.length === 0) {
+    // Still reconcile: an earlier call can have settled membership and then
+    // failed before deleting the stale slots, and retrying it is the obvious
+    // repair — the same rule addMatchesToPollForPlanner follows.
+    const { slotsAdded, slotsRemoved, carriedResponses, discardedResponses } =
+      await reconcilePollSlots(client, ctx, poll.id, [...inPoll]);
+    if (slotsAdded === 0 && slotsRemoved === 0) {
+      return {
+        poll_id: poll.id,
+        removed: 0,
+        not_in_poll: notInPoll,
+        note: "None of the requested matches are in this poll; nothing changed.",
+      };
+    }
     return {
       poll_id: poll.id,
+      title: poll.title,
       removed: 0,
       not_in_poll: notInPoll,
-      note: "None of the requested matches are in this poll; nothing changed.",
+      slots_removed: slotsRemoved || undefined,
+      slots_added: slotsAdded || undefined,
+      answers_carried_over: carriedResponses || undefined,
+      answers_discarded: discardedResponses || undefined,
+      note: "None of the requested matches are in this poll, but its time slots were out of step with its matches and have been recomputed.",
     };
   }
 
