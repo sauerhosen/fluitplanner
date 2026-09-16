@@ -124,7 +124,11 @@ export function MatchCenterImportDialog({
   }
 
   function fixtureLabel(fixture: TeamFixture): string {
-    const date = format.dateTime(new Date(`${fixture.date}T00:00:00`), {
+    // `fixture.date` is a calendar date, not an instant: parse and format it
+    // in UTC so it reads the same whatever zone the viewer's browser is in.
+    // Parsed as local time it would land a day early east of Amsterdam.
+    const date = format.dateTime(new Date(`${fixture.date}T00:00:00Z`), {
+      timeZone: "UTC",
       weekday: "short",
       day: "numeric",
       month: "short",

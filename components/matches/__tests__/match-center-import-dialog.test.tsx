@@ -1,6 +1,6 @@
 import { screen, fireEvent, waitFor } from "@testing-library/react";
 import { render } from "@/__tests__/helpers/render";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { MatchCenterImportDialog } from "../match-center-import-dialog";
 
 vi.mock("@/lib/actions/hockey-teams", () => ({
@@ -55,6 +55,11 @@ async function openTeam() {
 describe("MatchCenterImportDialog", () => {
   const onImported = vi.fn();
   const onOpenChange = vi.fn();
+  const originalTz = process.env.TZ;
+
+  afterEach(() => {
+    process.env.TZ = originalTz;
+  });
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -150,6 +155,16 @@ describe("MatchCenterImportDialog", () => {
         matchIds: [2079156],
       });
     });
+  });
+
+  it("shows the fixture's own date, whatever zone the viewer's browser is in", async () => {
+    // A calendar date read as a local instant lands a day early east of
+    // Amsterdam, which is the app's formatting zone.
+    process.env.TZ = "Pacific/Auckland";
+    renderDialog();
+    await openTeam();
+
+    expect(await screen.findByText(/Sun, Sep 27/)).toBeInTheDocument();
   });
 
   it("marks a fixture whose kick-off time is not set yet", async () => {
