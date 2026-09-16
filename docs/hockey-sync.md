@@ -32,12 +32,46 @@ once they have dealt with it (`clearMatchReviewFlags`). Upstream cancellations a
 `cancelled_upstream`, which stays set after the flag is cleared so the row keeps its
 cancelled styling until the planner deletes it.
 
+**Matches page → "…" → Import from Match Center.** A one-off import for a team the club
+does _not_ track — the odd fixture the nightly sync will never see
+(`components/matches/match-center-import-dialog.tsx`). The planner searches a club, picks a
+team, and ticks individual fixtures; nothing is subscribed. Details below.
+
 **On demand.** `syncNow()` (`lib/actions/hockey-sync.ts`) runs the same engine for the
 current club, behind a **15-minute cooldown**. The cooldown is a returned status rather than
 a thrown error, because Next.js replaces server-action error messages with a generic digest
 in production. The MCP `trigger_sync` tool runs the same engine behind the same 15-minute window, though
 it calls `syncWithLease()` directly rather than going through `syncNow()` (and spells the
 cooldown constant out again — keep the two in step).
+
+## Importing single matches
+
+`lib/actions/hockey-import.ts` serves the matches page dialog with two planner-gated
+actions. Both resolve the team's current poule through `fetchClubDetail` (so a season
+rollover needs no extra handling) and read its fixtures through the same cached
+`fetchTeamPoule` the sync uses:
+
+- `getTeamFixtures()` — the team's importable fixtures, each flagged `alreadyImported` when
+  this club already has a row with that `external_id`
+- `importTeamFixtures()` — writes the picked ids. The client sends **ids only**; the server
+  re-reads the fixture details rather than trusting what the browser posts back
+
+`collectImportableFixtures()` (`lib/hockey/import.ts`) decides what is on offer: the team's
+own **home** fixtures, from today on, minus the played/live/unusable statuses and minus
+cancellations. It differs from the nightly sync on one point — a fixture still **awaiting a
+kick-off time** is offered, and imported with a null `start_time`, because a deliberate pick
+is not the same as an unattended import.
+
+Each picked fixture is inserted with `source = "hockey_sync"` and its `external_id`, at the
+`required_level` of the managed team whose name matches the home team (exact match, as a
+file import does; 1 otherwise). A row that already exists — by `external_id`, or by the
+natural key `date | home_team | away_team`, which adopts a match the planner added by hand —
+is updated in place instead of duplicated, and one that already matches upstream is skipped.
+An import never sets `needs_review` and never overwrites `required_level`: the planner asked
+for this row.
+
+Because the team is not tracked, the nightly run does not revisit these matches. Track the
+team if you want them kept up to date.
 
 ## The nightly run
 
@@ -140,6 +174,9 @@ hand-created matches have a null `external_id`.
 
 ## Tests
 
+`__tests__/lib/hockey/import.test.ts` and `__tests__/lib/actions/hockey-import.test.ts`
+cover the one-off import (what is on offer, and the insert/adopt/skip branches);
+`components/matches/__tests__/match-center-import-dialog.test.tsx` covers the dialog.
 `__tests__/lib/hockey/` covers the signing algorithm (`signature.test.ts`), the signed
 transport and its re-registration on 401 (`client.test.ts`), normalisation including the
 midnight/"awaiting time" rule (`normalize.test.ts`), and the claim/release lease protocol

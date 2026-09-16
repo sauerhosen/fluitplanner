@@ -3,7 +3,10 @@ import { fetchClubDetail, fetchTeamPoule } from "./discovery";
 import {
   amsterdamDateOf,
   fixtureToMatchRow,
+  isCancelledStatus,
+  isSkippedStatus,
   normalizeMatch,
+  sameInstant,
 } from "./normalize";
 import type { HockeyClient, NormalizedFixture } from "./types";
 import type { MatchReviewReason, TrackedTeam } from "@/lib/types/domain";
@@ -158,22 +161,6 @@ export async function syncWithLease(
   }
 }
 
-/** Matches already played or in an unusable state — never imported. */
-const SKIPPED_STATUSES = new Set([
-  "final",
-  "result",
-  "live",
-  "expired",
-  "unknown",
-]);
-
-const CANCELLED_STATUSES = new Set(["cancelled", "discontinued"]);
-
-function sameInstant(a: string | null, b: string | null): boolean {
-  if (a === null || b === null) return a === b;
-  return new Date(a).getTime() === new Date(b).getTime();
-}
-
 function mergeReasons(
   existing: unknown,
   added: MatchReviewReason[],
@@ -300,7 +287,7 @@ export async function syncOrganizationMatches(
         );
         for (const match of response.poule?.matches ?? []) {
           if (match.home?.id !== team.hockey_team_id) continue;
-          if (SKIPPED_STATUSES.has(match.status)) continue;
+          if (isSkippedStatus(match.status)) continue;
           const fixture = normalizeMatch(match);
           let fixtureDate: string;
           try {
@@ -310,7 +297,7 @@ export async function syncOrganizationMatches(
           }
           // Past matches are skipped — except cancellations, which must
           // still flag an imported row even when observed after match day.
-          if (fixtureDate < today && !CANCELLED_STATUSES.has(fixture.status)) {
+          if (fixtureDate < today && !isCancelledStatus(fixture.status)) {
             continue;
           }
           collected.push({ fixture, team });
@@ -323,11 +310,11 @@ export async function syncOrganizationMatches(
   }
 
   const cancelled = collected.filter(({ fixture }) =>
-    CANCELLED_STATUSES.has(fixture.status),
+    isCancelledStatus(fixture.status),
   );
   const importable = collected.filter(
     ({ fixture }) =>
-      !CANCELLED_STATUSES.has(fixture.status) && fixture.timeConfirmed,
+      !isCancelledStatus(fixture.status) && fixture.timeConfirmed,
   );
   result.awaitingTime = collected.length - cancelled.length - importable.length;
 
@@ -458,7 +445,7 @@ export async function syncOrganizationMatches(
   // an already-null start_time keeps subsequent syncs idempotent.
   const awaiting = collected.filter(
     ({ fixture }) =>
-      !CANCELLED_STATUSES.has(fixture.status) && !fixture.timeConfirmed,
+      !isCancelledStatus(fixture.status) && !fixture.timeConfirmed,
   );
   for (const { fixture } of awaiting) {
     const existing = byExternal.get(fixture.matchId);

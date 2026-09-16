@@ -1,6 +1,25 @@
 import type { ApiMatchSummary, NormalizedFixture } from "./types";
 import type { ParsedMatch } from "@/lib/parsers/types";
 
+/** Matches already played or in an unusable state — never imported. */
+const SKIPPED_STATUSES = new Set([
+  "final",
+  "result",
+  "live",
+  "expired",
+  "unknown",
+]);
+
+const CANCELLED_STATUSES = new Set(["cancelled", "discontinued"]);
+
+export function isSkippedStatus(status: string): boolean {
+  return SKIPPED_STATUSES.has(status);
+}
+
+export function isCancelledStatus(status: string): boolean {
+  return CANCELLED_STATUSES.has(status);
+}
+
 /**
  * An `announced` match with a local-midnight timestamp means "date announced,
  * time TBD" (docs/hockey-match-center-api.md §12). Check the literal time in
@@ -11,6 +30,12 @@ export function isTimeConfirmed(m: ApiMatchSummary): boolean {
   const time = m.date.match(/T(\d{2}:\d{2})/);
   if (!time) return false;
   return time[1] !== "00:00";
+}
+
+/** Two timestamps pointing at the same instant (or both absent). */
+export function sameInstant(a: string | null, b: string | null): boolean {
+  if (a === null || b === null) return a === b;
+  return new Date(a).getTime() === new Date(b).getTime();
 }
 
 export function normalizeMatch(m: ApiMatchSummary): NormalizedFixture {
