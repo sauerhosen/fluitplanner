@@ -9,9 +9,11 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { useTranslations, useFormatter } from "next-intl";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import { useDateRangePresets } from "@/hooks/use-date-range-presets";
 import type { DateRange } from "react-day-picker";
+
+const subscribeToNothing = () => () => {};
 
 type Props = {
   value: DateRange | undefined;
@@ -24,6 +26,15 @@ export function DateRangePicker({ value, onChange }: Props) {
   const [open, setOpen] = useState(false);
 
   const today = useMemo(() => new Date(), []);
+  // The calendar yields local midnights, so the label belongs in the browser's
+  // own zone: in the app's Amsterdam zone it slips a day east of Amsterdam. The
+  // server cannot know that zone, so the server render and hydration keep the
+  // app zone and the browser relabels right after.
+  const browserTimeZone = useSyncExternalStore(
+    subscribeToNothing,
+    () => Intl.DateTimeFormat().resolvedOptions().timeZone,
+    () => undefined,
+  );
   const presets = useDateRangePresets();
 
   function handlePreset(range: DateRange | undefined) {
@@ -39,7 +50,11 @@ export function DateRangePicker({ value, onChange }: Props) {
   }
 
   function formatDate(d: Date) {
-    return format.dateTime(d, { month: "short", day: "numeric" });
+    return format.dateTime(d, {
+      ...(browserTimeZone && { timeZone: browserTimeZone }),
+      month: "short",
+      day: "numeric",
+    });
   }
 
   const buttonText = value?.from
