@@ -1,6 +1,6 @@
 import { screen, fireEvent } from "@testing-library/react";
 import { render } from "@/__tests__/helpers/render";
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { MatchSelector } from "@/components/polls/match-selector";
 import type { Match } from "@/lib/types/domain";
 import { matchColumnDefaults } from "@/__tests__/helpers/fixtures";
@@ -57,6 +57,28 @@ const mockMatches: Match[] = [
 ];
 
 describe("MatchSelector", () => {
+  const originalTz = process.env.TZ;
+
+  afterEach(() => {
+    process.env.TZ = originalTz;
+  });
+
+  it("shows each match's own date, whatever zone the viewer's browser is in", () => {
+    // A calendar date read as a local instant lands a day early east of
+    // Amsterdam, which is the app's formatting zone.
+    process.env.TZ = "Pacific/Auckland";
+    render(
+      <MatchSelector
+        matches={mockMatches}
+        selectedIds={[]}
+        onSelectionChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText(/Sunday, February 15, 2026/)).toBeInTheDocument();
+    expect(screen.getByText(/Sunday, February 22, 2026/)).toBeInTheDocument();
+  });
+
   it("renders matches grouped by date", () => {
     render(
       <MatchSelector

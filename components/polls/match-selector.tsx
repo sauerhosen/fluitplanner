@@ -19,7 +19,10 @@ export function MatchSelector({
   const format = useFormatter();
 
   function formatMatchDate(dateStr: string): string {
-    return format.dateTime(new Date(dateStr + "T00:00:00"), {
+    // `dateStr` is a calendar date, not an instant: parse and format it in UTC
+    // so it reads the same whatever zone the viewer's browser is in.
+    return format.dateTime(new Date(`${dateStr}T00:00:00Z`), {
+      timeZone: "UTC",
       weekday: "long",
       day: "numeric",
       month: "long",

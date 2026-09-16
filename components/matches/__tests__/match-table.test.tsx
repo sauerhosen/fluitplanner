@@ -1,7 +1,7 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { render } from "@/__tests__/helpers/render";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { MatchTable } from "../match-table";
 import type { MatchWithPoll } from "@/lib/actions/matches";
 import { matchColumnDefaults } from "@/__tests__/helpers/fixtures";
@@ -69,6 +69,23 @@ function renderTable(onDeleted = vi.fn()) {
 beforeEach(() => {
   vi.clearAllMocks();
   mockUpdateMatchNotes.mockResolvedValue({ id: "m2" } as never);
+});
+
+describe("MatchTable dates", () => {
+  const originalTz = process.env.TZ;
+
+  afterEach(() => {
+    process.env.TZ = originalTz;
+  });
+
+  it("heads each group with its own date, whatever zone the viewer's browser is in", () => {
+    // A calendar date read as a local instant lands a day early east of
+    // Amsterdam, which is the app's formatting zone.
+    process.env.TZ = "Pacific/Auckland";
+    renderTable();
+
+    expect(screen.getByText(/Sunday, March 15, 2026/)).toBeInTheDocument();
+  });
 });
 
 describe("MatchTable notes column", () => {
