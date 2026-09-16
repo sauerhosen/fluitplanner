@@ -9,6 +9,7 @@ import { UploadZone } from "./upload-zone";
 import { MatchTable } from "./match-table";
 import { SyncNowButton } from "./sync-now-button";
 import { MatchFormDialog } from "./match-form";
+import { MatchCenterImportDialog } from "./match-center-import-dialog";
 import { PollActionButtons } from "./poll-action-buttons";
 import { DateRangePicker } from "@/components/shared/date-range-picker";
 import { Button } from "@/components/ui/button";
@@ -16,6 +17,7 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { PageHeader } from "@/components/shared/page-header";
@@ -56,6 +58,7 @@ export function MatchesPageClient({
   const [editingMatch, setEditingMatch] = useState<MatchWithPoll | null>(null);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [matchCenterOpen, setMatchCenterOpen] = useState(false);
   const t = useTranslations("matches");
   // Viewers keep the filters and the table; everything that writes is gone.
   const canEdit = useIsPlanner();
@@ -157,6 +160,9 @@ export function MatchesPageClient({
                   >
                     {t("importMatches")}
                   </DropdownMenuCheckboxItem>
+                  <DropdownMenuItem onSelect={() => setMatchCenterOpen(true)}>
+                    {t("matchCenterImport")}
+                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </>
@@ -249,6 +255,16 @@ export function MatchesPageClient({
           open={true}
           onOpenChange={setShowAddDialog}
           onSaved={refreshMatches}
+        />
+      )}
+
+      {/* Match Center import — mounted only while open, so each opening
+          starts at a blank club search. */}
+      {canEdit && matchCenterOpen && (
+        <MatchCenterImportDialog
+          open={true}
+          onOpenChange={setMatchCenterOpen}
+          onImported={refreshMatches}
         />
       )}
 
