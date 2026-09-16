@@ -40,12 +40,14 @@ export function ClubTeamBrowser({ renderTeam }: Props) {
   const [loadingTeams, setLoadingTeams] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchSeqRef = useRef(0);
+  const clubSeqRef = useRef(0);
 
   useEffect(
     () => () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
-      // Invalidate any in-flight search so it cannot set state after unmount.
+      // Invalidate any in-flight request so it cannot set state after unmount.
       searchSeqRef.current++;
+      clubSeqRef.current++;
     },
     [],
   );
@@ -81,22 +83,37 @@ export function ClubTeamBrowser({ renderTeam }: Props) {
   }
 
   async function handleSelectClub(club: ClubSearchResult) {
+    // Same sequence guard as the search: going back and picking another club
+    // must not let the first club's teams land under the second one's header.
+    const seq = ++clubSeqRef.current;
     setSelectedClub(club);
+    setTeams([]);
     setLoadingTeams(true);
     try {
-      setTeams(await getClubTeams(club.id));
+      const result = await getClubTeams(club.id);
+      if (seq !== clubSeqRef.current) return;
+      setTeams(result);
     } catch {
+      if (seq !== clubSeqRef.current) return;
       toast.error(t("hockeySyncSearchError"));
       setSelectedClub(null);
     } finally {
-      setLoadingTeams(false);
+      if (seq === clubSeqRef.current) setLoadingTeams(false);
     }
   }
 
   if (selectedClub) {
     return (
       <div className="space-y-3">
-        <Button variant="ghost" size="sm" onClick={() => setSelectedClub(null)}>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => {
+            clubSeqRef.current++;
+            setLoadingTeams(false);
+            setSelectedClub(null);
+          }}
+        >
           <ArrowLeft className="mr-1 h-4 w-4" />
           {selectedClub.name}
         </Button>

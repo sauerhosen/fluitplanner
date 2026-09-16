@@ -27,6 +27,26 @@ export function HockeyTeamPickerDialog({
   onTracked,
 }: Props) {
   const t = useTranslations("settings");
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>{t("hockeySyncAddTeam")}</DialogTitle>
+          <DialogDescription>{t("hockeySyncAddTeamHint")}</DialogDescription>
+        </DialogHeader>
+        {/* The picker is mounted only while the dialog is open — this dialog
+            itself stays mounted, so every bit of sitting-scoped state below
+            (the club search, and what was tracked in it) lives in there and
+            is dropped on close. */}
+        {open && <TeamPicker onTracked={onTracked} />}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function TeamPicker({ onTracked }: { onTracked: () => void }) {
+  const t = useTranslations("settings");
   const [trackingId, setTrackingId] = useState<number | null>(null);
   // Teams tracked in this sitting: the browser holds the upstream list, which
   // still carries the `tracked` flag as it was when the club was opened.
@@ -60,40 +80,32 @@ export function HockeyTeamPickerDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>{t("hockeySyncAddTeam")}</DialogTitle>
-          <DialogDescription>{t("hockeySyncAddTeamHint")}</DialogDescription>
-        </DialogHeader>
-        <ClubTeamBrowser
-          renderTeam={(team, club) => (
-            <div className="flex items-center justify-between rounded-md px-2 py-1.5">
-              <span className="text-sm">{team.name}</span>
-              {team.tracked || justTracked.includes(team.teamId) ? (
-                <span className="text-muted-foreground flex items-center gap-1 text-sm">
-                  <Check className="h-4 w-4" />
-                  {t("hockeySyncTracked")}
-                </span>
+    <ClubTeamBrowser
+      renderTeam={(team, club) => (
+        <div className="flex items-center justify-between rounded-md px-2 py-1.5">
+          <span className="text-sm">{team.name}</span>
+          {team.tracked || justTracked.includes(team.teamId) ? (
+            <span className="text-muted-foreground flex items-center gap-1 text-sm">
+              <Check className="h-4 w-4" />
+              {t("hockeySyncTracked")}
+            </span>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={trackingId !== null}
+              onClick={() => handleTrack(team, club)}
+            >
+              {trackingId === team.teamId ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={trackingId !== null}
-                  onClick={() => handleTrack(team, club)}
-                >
-                  {trackingId === team.teamId ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Plus className="h-4 w-4" />
-                  )}
-                  {t("hockeySyncTrack")}
-                </Button>
+                <Plus className="h-4 w-4" />
               )}
-            </div>
+              {t("hockeySyncTrack")}
+            </Button>
           )}
-        />
-      </DialogContent>
-    </Dialog>
+        </div>
+      )}
+    />
   );
 }

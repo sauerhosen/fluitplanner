@@ -180,6 +180,7 @@
     "matchCenterSkipped": "{count, plural, one {# match was already up to date} other {# matches were already up to date}}",
     "matchCenterLoadError": "Could not load this team's matches. Please try again later.",
     "matchCenterImportError": "Could not import the selected matches. Please try again.",
+    "matchCenterNothingImported": "Nothing was imported — those matches are no longer available in the Match Center.",
     "teamSelectorTitle": "Select teams to import",
     "teamSelectorManaged": "Managed",
     "teamSelectorSelectAll": "Select all",

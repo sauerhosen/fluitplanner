@@ -67,11 +67,17 @@ Each picked fixture is inserted with `source = "hockey_sync"` and its `external_
 file import does; 1 otherwise). A row that already exists — by `external_id`, or by the
 natural key `date | home_team | away_team`, which adopts a match the planner added by hand —
 is updated in place instead of duplicated, and one that already matches upstream is skipped.
-An import never sets `needs_review` and never overwrites `required_level`: the planner asked
-for this row.
+An import never sets `needs_review`, never overwrites `required_level`, and never clears a
+`start_time` that is already on the row (a fixture still awaiting its time upstream keeps the
+one the planner typed in): the planner asked for this row, so nothing about it is retracted
+behind their back.
 
-Because the team is not tracked, the nightly run does not revisit these matches. Track the
-team if you want them kept up to date.
+Because the team is not tracked, the nightly run does not revisit these matches — importing
+the same fixture again is how one picks up a kick-off time that was still TBD, which is why
+a fixture the club already has stays selectable in the dialog. The rows carry
+`source = "hockey_sync"`, so a later file import may only adjust their `required_level`
+(`lib/actions/matches.ts` treats the Match Center as the authority on sync-owned rows):
+correct them here, in the match editor, or by tracking the team.
 
 ## The nightly run
 

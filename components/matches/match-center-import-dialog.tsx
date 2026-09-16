@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useFormatter, useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { ArrowLeft, Loader2 } from "lucide-react";
@@ -49,25 +49,32 @@ export function MatchCenterImportDialog({
   const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState<number[]>([]);
   const [importing, setImporting] = useState(false);
+  const teamSeqRef = useRef(0);
 
   async function handleSelectTeam(
     club: ClubSearchResult,
     teamId: number,
     name: string,
   ) {
+    // Going back and picking another team must not let the first team's
+    // fixtures — or its failure — land on the second one.
+    const seq = ++teamSeqRef.current;
     setTeam({ club, teamId, name });
     setFixtures([]);
     setSelected([]);
     setLoading(true);
     try {
-      setFixtures(await getTeamFixtures({ clubId: club.id, teamId }));
+      const result = await getTeamFixtures({ clubId: club.id, teamId });
+      if (seq !== teamSeqRef.current) return;
+      setFixtures(result);
     } catch {
+      if (seq !== teamSeqRef.current) return;
       // Server-action error messages are a generic digest in production, so
       // every upstream failure reads the same here.
       toast.error(t("matchCenterLoadError"));
       setTeam(null);
     } finally {
-      setLoading(false);
+      if (seq === teamSeqRef.current) setLoading(false);
     }
   }
 
@@ -100,6 +107,10 @@ export function MatchCenterImportDialog({
 
       if (result.errors.length > 0) {
         toast.error(t("matchCenterImportError"));
+      } else if (parts.length === 0) {
+        // Every picked fixture vanished upstream between loading the list and
+        // importing it — nothing was written, so don't claim success.
+        toast.error(t("matchCenterNothingImported"));
       } else {
         toast.success(parts.join(", "));
       }
@@ -156,7 +167,15 @@ export function MatchCenterImportDialog({
 
         {team && (
           <div className="space-y-3">
-            <Button variant="ghost" size="sm" onClick={() => setTeam(null)}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                teamSeqRef.current++;
+                setLoading(false);
+                setTeam(null);
+              }}
+            >
               <ArrowLeft className="mr-1 h-4 w-4" />
               {team.name}
             </Button>
@@ -173,17 +192,15 @@ export function MatchCenterImportDialog({
               <ul className="max-h-72 space-y-1 overflow-y-auto">
                 {fixtures.map((fixture) => (
                   <li key={fixture.matchId}>
-                    <label
-                      className={`flex items-start gap-3 rounded-md px-2 py-2 text-sm ${
-                        fixture.alreadyImported
-                          ? "text-muted-foreground"
-                          : "hover:bg-muted cursor-pointer"
-                      }`}
-                    >
+                    {/* A fixture the club already has stays selectable: this
+                        is the only way to collect a kick-off time that was
+                        still TBD when it was imported, since the nightly sync
+                        does not follow this team. Re-importing an unchanged
+                        one writes nothing. */}
+                    <label className="hover:bg-muted flex cursor-pointer items-start gap-3 rounded-md px-2 py-2 text-sm">
                       <Checkbox
                         className="mt-0.5"
                         checked={selected.includes(fixture.matchId)}
-                        disabled={fixture.alreadyImported}
                         onCheckedChange={() => toggle(fixture.matchId)}
                       />
                       <span className="min-w-0">

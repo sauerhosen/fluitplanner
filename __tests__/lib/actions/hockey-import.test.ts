@@ -280,6 +280,90 @@ describe("importTeamFixtures", () => {
     expect(argsOf(update!, "eq")).toContainEqual(["id", "match-1"]);
   });
 
+  it("keeps a time already on the row when the fixture is back to TBD", async () => {
+    mockFetchTeamPoule.mockResolvedValue({
+      poule: {
+        matches: [
+          makeMatch({ status: "announced", date: "2099-09-27T00:00:00+02:00" }),
+        ],
+      },
+    });
+    handler = (query) => {
+      if (query.table !== "matches") return undefined;
+      if (!query.calls.some((call) => call.fn === "select")) return undefined;
+      return {
+        data: [
+          {
+            id: "match-1",
+            date: "2099-09-27",
+            // A time the planner typed in by hand, which upstream has not
+            // confirmed yet — importing must not wipe it.
+            start_time: "2099-09-27T12:45:00+02:00",
+            venue: null,
+            field: null,
+            competition: null,
+            external_id: null,
+            home_team: "VVV D3",
+            away_team: "AMVJ D3",
+          },
+        ],
+      };
+    };
+
+    const { importTeamFixtures } = await import("@/lib/actions/hockey-import");
+    const result = await importTeamFixtures({ ...INPUT, matchIds: [2079156] });
+
+    expect(result).toMatchObject({ imported: 0, updated: 1, skipped: 0 });
+    const update = queries.find((query) =>
+      query.calls.some((call) => call.fn === "update"),
+    );
+    const payload = argsOf(update!, "update")[0][0] as Record<string, unknown>;
+    expect(payload.start_time).toBe("2099-09-27T12:45:00+02:00");
+    expect(payload).toMatchObject({
+      venue: "Sportpark Kees Boekelaan",
+      external_id: 2079156,
+    });
+  });
+
+  it("writes nothing when a TBD fixture matches a row that already has a time", async () => {
+    mockFetchTeamPoule.mockResolvedValue({
+      poule: {
+        matches: [
+          makeMatch({ status: "announced", date: "2099-09-27T00:00:00+02:00" }),
+        ],
+      },
+    });
+    handler = (query) => {
+      if (query.table !== "matches") return undefined;
+      if (!query.calls.some((call) => call.fn === "select")) return undefined;
+      return {
+        data: [
+          {
+            id: "match-1",
+            date: "2099-09-27",
+            start_time: "2099-09-27T12:45:00+02:00",
+            venue: "Sportpark Kees Boekelaan",
+            field: "Veld 2",
+            competition: "3e klasse D",
+            external_id: 2079156,
+            home_team: "VVV D3",
+            away_team: "AMVJ D3",
+          },
+        ],
+      };
+    };
+
+    const { importTeamFixtures } = await import("@/lib/actions/hockey-import");
+    const result = await importTeamFixtures({ ...INPUT, matchIds: [2079156] });
+
+    expect(result).toMatchObject({ imported: 0, updated: 0, skipped: 1 });
+    const writes = queries.flatMap((query) => [
+      ...argsOf(query, "insert"),
+      ...argsOf(query, "update"),
+    ]);
+    expect(writes).toEqual([]);
+  });
+
   it("skips a fixture already imported unchanged", async () => {
     handler = (query) => {
       if (query.table !== "matches") return undefined;

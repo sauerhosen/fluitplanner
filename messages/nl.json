@@ -180,6 +180,7 @@
     "matchCenterSkipped": "{count, plural, one {# wedstrijd was al bijgewerkt} other {# wedstrijden waren al bijgewerkt}}",
     "matchCenterLoadError": "Kon de wedstrijden van dit team niet laden. Probeer het later opnieuw.",
     "matchCenterImportError": "Kon de geselecteerde wedstrijden niet importeren. Probeer het opnieuw.",
+    "matchCenterNothingImported": "Er is niets geïmporteerd — die wedstrijden staan niet meer in het Match Center.",
     "teamSelectorTitle": "Selecteer teams om te importeren",
     "teamSelectorManaged": "Beheerd",
     "teamSelectorSelectAll": "Alles selecteren",

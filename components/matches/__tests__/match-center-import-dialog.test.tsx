@@ -121,16 +121,35 @@ describe("MatchCenterImportDialog", () => {
     expect(screen.getByRole("button", { name: /^import$/i })).toBeDisabled();
   });
 
-  it("cannot re-import a fixture the club already has", async () => {
+  it("marks a fixture the club already has, but keeps it selectable", async () => {
+    // Re-importing is how a match imported before its kick-off time was set
+    // collects that time — nothing else syncs this untracked team.
     mockGetTeamFixtures.mockResolvedValue([
       { ...FIXTURE, alreadyImported: true },
     ]);
+    mockImportTeamFixtures.mockResolvedValue({
+      imported: 0,
+      updated: 1,
+      skipped: 0,
+      errors: [],
+    });
     renderDialog();
     await openTeam();
     await screen.findByText("VVV D3 – AMVJ D3");
 
-    expect(screen.getByRole("checkbox")).toBeDisabled();
     expect(screen.getByText(/already added/)).toBeInTheDocument();
+    expect(screen.getByRole("checkbox")).toBeEnabled();
+
+    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.click(screen.getByRole("button", { name: /import 1 match/i }));
+
+    await waitFor(() => {
+      expect(mockImportTeamFixtures).toHaveBeenCalledWith({
+        clubId: "VVV",
+        teamId: 774,
+        matchIds: [2079156],
+      });
+    });
   });
 
   it("marks a fixture whose kick-off time is not set yet", async () => {

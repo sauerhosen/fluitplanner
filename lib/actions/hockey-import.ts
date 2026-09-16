@@ -132,17 +132,22 @@ export async function importTeamFixtures(input: {
   const syncedAt = new Date().toISOString();
 
   for (const fixture of fixtures) {
-    const row = {
-      date: fixture.date,
-      start_time: fixture.start,
-      venue: fixture.venue,
-      field: fixture.field,
-      competition: fixture.competition,
-    };
     const existing =
       byExternal.get(fixture.matchId) ??
       byNatural.get(naturalKey(fixture)) ??
       null;
+
+    const row = {
+      date: fixture.date,
+      // A fixture still awaiting its kick-off time upstream must not delete a
+      // time that is already on the row — typically one the planner typed in
+      // by hand on the match this import is adopting. The sync clears a
+      // retracted time deliberately, and flags it; a one-off import does not.
+      start_time: fixture.start ?? existing?.start_time ?? null,
+      venue: fixture.venue,
+      field: fixture.field,
+      competition: fixture.competition,
+    };
 
     if (!existing) {
       const { error } = await supabase.from("matches").insert({
