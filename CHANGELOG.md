@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.28.0](https://github.com/sauerhosen/fluitplanner/compare/v2.27.2...v2.28.0) (2026-09-16)
+
+
+### Features
+
+* **matches:** import single matches from the Match Center ([ddc7cde](https://github.com/sauerhosen/fluitplanner/commit/ddc7cde47f8d0b61ea86e407f9fd73f5cebf8a0e))
+* **matches:** import single matches from the Match Center ([f534a21](https://github.com/sauerhosen/fluitplanner/commit/f534a21e7553fa41042e3af501314fed1180f7ed))
+
+
+### Bug Fixes
+
+* **matches:** harden the Match Center import after review ([3e4ff72](https://github.com/sauerhosen/fluitplanner/commit/3e4ff7296954a4703e2c3ac78b3ccd46ef523e40))
+* **matches:** read a fixture's date as a calendar date, not an instant ([92c963c](https://github.com/sauerhosen/fluitplanner/commit/92c963c86fb5234bbef6d77a1fc10427eb60a105))
+
 ## [2.27.2](https://github.com/sauerhosen/fluitplanner/compare/v2.27.1...v2.27.2) (2026-09-15)
 
 
