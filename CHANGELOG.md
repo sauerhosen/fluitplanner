@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.28.1](https://github.com/sauerhosen/fluitplanner/compare/v2.28.0...v2.28.1) (2026-09-17)
+
+
+### Bug Fixes
+
+* label the date range picker in the browser's own zone ([37c8b95](https://github.com/sauerhosen/fluitplanner/commit/37c8b95f4df68d2519fc14d57abc3fffde39b183))
+* read match and poll dates as calendar dates, not instants ([50eb2c0](https://github.com/sauerhosen/fluitplanner/commit/50eb2c0fd28865a82968f1d1f552eb840b5bc81f))
+* read match and poll dates as calendar dates, not instants ([42a1ac1](https://github.com/sauerhosen/fluitplanner/commit/42a1ac1255fddc794e64112f9cdda682335fa9c4)), closes [#183](https://github.com/sauerhosen/fluitplanner/issues/183)
+
 ## [2.28.0](https://github.com/sauerhosen/fluitplanner/compare/v2.27.2...v2.28.0) (2026-09-16)
 
 
