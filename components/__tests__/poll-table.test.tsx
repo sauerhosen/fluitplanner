@@ -1,7 +1,7 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { render } from "@/__tests__/helpers/render";
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { PollTable } from "@/components/polls/poll-table";
 import type { PollWithMeta } from "@/lib/actions/polls";
 
@@ -100,6 +100,24 @@ describe("PollTable", () => {
 
     expect(screen.getByText("Delete selected")).toBeInTheDocument();
     expect(screen.getByText("Clear selection")).toBeInTheDocument();
+  });
+});
+
+describe("PollTable dates", () => {
+  const originalTz = process.env.TZ;
+
+  afterEach(() => {
+    process.env.TZ = originalTz;
+  });
+
+  it("shows the poll's own match dates, whatever zone the viewer's browser is in", () => {
+    // A calendar date read as a local instant lands a day early east of
+    // Amsterdam, which is the app's formatting zone.
+    process.env.TZ = "Pacific/Auckland";
+    render(<PollTable polls={mockPolls} onDeleted={vi.fn()} />);
+
+    expect(screen.getByText("Feb 15 \u2013 Feb 16")).toBeInTheDocument();
+    expect(screen.getByText("Feb 22")).toBeInTheDocument();
   });
 });
 

@@ -334,7 +334,10 @@ export function AssignmentGrid({
       } else {
         groups.push({
           date: match.date,
-          label: format.dateTime(new Date(match.date + "T12:00:00"), {
+          // A calendar date, not an instant: parse and format it in UTC so it
+          // reads the same whatever zone the viewer's browser is in.
+          label: format.dateTime(new Date(`${match.date}T00:00:00Z`), {
+            timeZone: "UTC",
             weekday: "short",
             day: "numeric",
             month: "short",

@@ -1,7 +1,7 @@
 import { screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { render } from "@/__tests__/helpers/render";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { AssignmentGrid } from "@/components/polls/assignment-grid";
 import {
   createAssignment,
@@ -168,6 +168,20 @@ describe("AssignmentGrid", () => {
     assignments: [] as Assignment[],
     umpires: mockUmpires,
   };
+  const originalTz = process.env.TZ;
+
+  afterEach(() => {
+    process.env.TZ = originalTz;
+  });
+
+  it("heads each group with its own date, whatever zone the viewer's browser is in", () => {
+    // Noon local time is still the previous day in Amsterdam for a browser
+    // far enough east.
+    process.env.TZ = "Pacific/Kiritimati";
+    render(<AssignmentGrid {...defaultProps} />);
+
+    expect(screen.getAllByText(/Sun, Mar 15/).length).toBeGreaterThan(0);
+  });
 
   it("renders match rows and umpire columns", () => {
     render(<AssignmentGrid {...defaultProps} />);

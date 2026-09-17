@@ -1,6 +1,6 @@
 import { screen, fireEvent } from "@testing-library/react";
 import { render } from "@/__tests__/helpers/render";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { DateRangePicker } from "@/components/shared/date-range-picker";
 import type { DateRange } from "react-day-picker";
 
@@ -10,9 +10,30 @@ describe("DateRangePicker", () => {
     to: new Date(2026, 3, 15), // Apr 15
   };
   const onChange = vi.fn();
+  const originalTz = process.env.TZ;
 
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    process.env.TZ = originalTz;
+  });
+
+  it("labels the range with the picked days, whatever zone the viewer's browser is in", () => {
+    // The calendar hands back local midnights; labelled in Amsterdam they
+    // land a day early for a browser east of it.
+    process.env.TZ = "Pacific/Auckland";
+    render(
+      <DateRangePicker
+        value={{ from: new Date(2026, 1, 15), to: new Date(2026, 3, 15) }}
+        onChange={onChange}
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: /date range/i }),
+    ).toHaveTextContent("Feb 15 – Apr 15");
   });
 
   it("renders a button with the date range text", () => {

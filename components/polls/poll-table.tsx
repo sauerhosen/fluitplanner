@@ -56,8 +56,11 @@ export function PollTable({
 
   function formatDateRange(min: string | null, max: string | null): string {
     if (!min) return "\u2014";
+    // Calendar dates, not instants: parse and format them in UTC so they read
+    // the same whatever zone the viewer's browser is in.
     const fmt = (d: string) =>
-      format.dateTime(new Date(d + "T00:00:00"), {
+      format.dateTime(new Date(`${d}T00:00:00Z`), {
+        timeZone: "UTC",
         day: "numeric",
         month: "short",
       });
