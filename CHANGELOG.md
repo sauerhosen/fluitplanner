@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.29.1](https://github.com/sauerhosen/fluitplanner/compare/v2.29.0...v2.29.1) (2026-10-17)
+
+
+### Bug Fixes
+
+* share Match Center device registration across concurrent requests ([02265a6](https://github.com/sauerhosen/fluitplanner/commit/02265a6e4847883c8d281532055ff8e2d0c2d807))
+* share Match Center device registration across concurrent requests ([05c07d9](https://github.com/sauerhosen/fluitplanner/commit/05c07d93541cd7a246fb77e247d554ab57363796)), closes [#189](https://github.com/sauerhosen/fluitplanner/issues/189)
+
 ## [2.29.0](https://github.com/sauerhosen/fluitplanner/compare/v2.28.1...v2.29.0) (2026-10-17)
 
 
