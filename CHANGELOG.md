@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.29.0](https://github.com/sauerhosen/fluitplanner/compare/v2.28.1...v2.29.0) (2026-10-17)
+
+
+### Features
+
+* import all home matches of a club on a given day from Match Center ([598c112](https://github.com/sauerhosen/fluitplanner/commit/598c11287b833ea20e33f7826fc0f80b62e7d910))
+* import all home matches of a club on a given day from Match Center ([0c60385](https://github.com/sauerhosen/fluitplanner/commit/0c60385a120b8517c648a946050747f5c54fc4f9))
+
+
+### Bug Fixes
+
+* harden club-day Match Center import ([a6a894b](https://github.com/sauerhosen/fluitplanner/commit/a6a894b4ee0c4ec774e5dad2c7a3d39897687099))
+* load a club's day from venue match lists, not one poule per team ([a9bfb9d](https://github.com/sauerhosen/fluitplanner/commit/a9bfb9df6ec0801cc7ddf465776e3c09e4497e53))
+
 ## [2.28.1](https://github.com/sauerhosen/fluitplanner/compare/v2.28.0...v2.28.1) (2026-09-17)
 
 
