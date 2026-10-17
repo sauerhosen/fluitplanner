@@ -186,6 +186,7 @@
     "matchCenterDateLabel": "Datum",
     "matchCenterPickDate": "Kies een datum om alle thuiswedstrijden van deze club die dag te zien.",
     "matchCenterNoDayFixtures": "Geen thuiswedstrijden van deze club op die dag.",
+    "matchCenterDayLoadError": "Kon de wedstrijden van deze club op die dag niet laden. Probeer het later opnieuw.",
     "teamSelectorTitle": "Selecteer teams om te importeren",
     "teamSelectorManaged": "Beheerd",
     "teamSelectorSelectAll": "Alles selecteren",

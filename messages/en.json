@@ -186,6 +186,7 @@
     "matchCenterDateLabel": "Date",
     "matchCenterPickDate": "Pick a date to see all of this club's home matches that day.",
     "matchCenterNoDayFixtures": "No home matches for this club on that day.",
+    "matchCenterDayLoadError": "Could not load this club's matches for that day. Please try again later.",
     "teamSelectorTitle": "Select teams to import",
     "teamSelectorManaged": "Managed",
     "teamSelectorSelectAll": "Select all",

@@ -97,6 +97,11 @@ export async function fetchAllFacilities(
  * day lookup far below the upstream rate limit (one poule per team is not —
  * a big club has ~80 field teams). The upstream window's end is exclusive, so
  * a single day asks for `[date, date + 1)`.
+ *
+ * Facility-scoped matches can omit `location` — the containing facility is the
+ * context — so the facility's own name is filled in as the match's venue.
+ * Without it an import would write a null venue, and wipe the venue of a row
+ * it adopts.
  */
 export async function fetchFacilityMatches(
   deps: DiscoveryDeps,
@@ -117,7 +122,15 @@ export async function fetchFacilityMatches(
       ),
     deps.pause,
   );
-  return response.matches ?? [];
+  const venue = response?.name ?? null;
+  return (response?.matches ?? []).map((match) =>
+    match.location?.facility?.name || venue === null
+      ? match
+      : {
+          ...match,
+          location: { ...match.location, facility: { name: venue } },
+        },
+  );
 }
 
 /**
@@ -125,11 +138,18 @@ export async function fetchFacilityMatches(
  * "(VVV)" where the club is "VVV HC" or "Hockeyclub VVV".
  */
 function coreClubName(name: string | null): string {
-  return (name ?? "")
-    .toLowerCase()
-    .replace(/\b(m?hc|h\.c\.|hockeyclub|hockey club|hockeyvereniging)\b/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
+  return (
+    (name ?? "")
+      .toLowerCase()
+      // "h.c." ends on a non-word character, so it cannot sit inside the
+      // trailing `\b` group: "h.c. tilburg" would never lose its prefix.
+      .replace(
+        /\b(?:m?hc|hockeyclub|hockey club|hockeyvereniging)\b|\bh\.c\./g,
+        "",
+      )
+      .replace(/\s+/g, " ")
+      .trim()
+  );
 }
 
 /**
@@ -138,7 +158,9 @@ function coreClubName(name: string | null): string {
  * names them like "Sportpark 'Het Loopveld' (AMVJ)"), else the club's own
  * city. A wrong guess only costs a request — callers still filter matches by
  * the home team's club — but a club playing in another city under a name
- * that does not mention it will not be found.
+ * that does not mention it will not be found. When more venues match than the
+ * cap allows, those in the club's own city go first, so a name shared with a
+ * town ("Rotterdam") does not crowd out the club's own park.
  */
 export function pickClubFacilities(
   facilities: ApiFacility[],
@@ -153,13 +175,15 @@ export function pickClubFacilities(
     const facilityName = (facility.name ?? "").toLowerCase();
     return names.some((name) => facilityName.includes(name));
   });
+  const inCity = (facility: ApiFacility) =>
+    city !== "" && (facility.address?.city ?? "").trim().toLowerCase() === city;
+
   const picked =
     byName.length > 0
-      ? byName
-      : facilities.filter(
-          (facility) =>
-            city !== "" &&
-            (facility.address?.city ?? "").trim().toLowerCase() === city,
-        );
+      ? [
+          ...byName.filter(inCity),
+          ...byName.filter((facility) => !inCity(facility)),
+        ]
+      : facilities.filter(inCity);
   return picked.slice(0, MAX_CLUB_FACILITIES);
 }

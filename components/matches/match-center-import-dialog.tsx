@@ -117,7 +117,10 @@ export function MatchCenterImportDialog({
       setFixtures(result);
     } catch {
       if (seq !== teamSeqRef.current) return;
-      toast.error(t("matchCenterLoadError"));
+      toast.error(t("matchCenterDayLoadError"));
+      // Back to "pick a date": an empty list under the date would read as
+      // "no home matches that day" when the day simply failed to load.
+      setDate("");
     } finally {
       if (seq === teamSeqRef.current) setLoading(false);
     }

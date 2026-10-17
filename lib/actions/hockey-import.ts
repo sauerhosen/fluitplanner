@@ -98,7 +98,12 @@ async function loadClubDayFixtures(
   clubId: string,
   date: string,
 ): Promise<ImportableFixture[]> {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error("INVALID_DATE");
+  if (!isCalendarDate(date)) throw new Error("INVALID_DATE");
+  // Nothing before today is importable (played matches are skipped anyway).
+  // Answering without upstream also absorbs the partial years a date input
+  // emits while one is typed — 0002, 0020, 0202 — which would otherwise each
+  // cost up to five Match Center requests.
+  if (date < amsterdamDateOf(new Date().toISOString())) return [];
 
   const deps = createHockeyDeps();
   const club = (await fetchAllClubs(deps)).find(
@@ -113,12 +118,21 @@ async function loadClubDayFixtures(
 
   // A match is listed once per venue it is played at, but dedupe on id in
   // case two inferred venues are the same park under different records.
+  // The collected list is already sorted, and a Map keeps insertion order.
   const byId = new Map<number, ImportableFixture>();
   for (const fixture of collectClubDayFixtures(lists.flat(), clubId, date)) {
-    byId.set(fixture.matchId, fixture);
+    if (!byId.has(fixture.matchId)) byId.set(fixture.matchId, fixture);
   }
-  return Array.from(byId.values()).sort((a, b) =>
-    `${a.date}${a.start ?? ""}`.localeCompare(`${b.date}${b.start ?? ""}`),
+  return Array.from(byId.values());
+}
+
+/** A real `YYYY-MM-DD` day — "2026-13-01" or "2026-02-31" is not one. */
+function isCalendarDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00Z`);
+  return (
+    !Number.isNaN(parsed.getTime()) &&
+    parsed.toISOString().slice(0, 10) === value
   );
 }
 
