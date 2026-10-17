@@ -28,6 +28,8 @@ import { amsterdamDateOf, sameInstant } from "@/lib/hockey/normalize";
 export type TeamFixture = ImportableFixture & {
   /** This club already has a match for this upstream fixture. */
   alreadyImported: boolean;
+  /** That match's row, so the dialog can take it off again. */
+  existingMatchId: string | null;
 };
 
 export type ImportFixturesResult = {
@@ -136,6 +138,11 @@ function isCalendarDate(value: string): boolean {
   );
 }
 
+/**
+ * Flags the fixtures this club already has — by `external_id`, or by the
+ * natural key for a match added by hand — matching exactly the rows an import
+ * would update instead of inserting.
+ */
 async function markAlreadyImported(
   supabase: SupabaseClient,
   tenantId: string,
@@ -143,23 +150,22 @@ async function markAlreadyImported(
 ): Promise<TeamFixture[]> {
   if (fixtures.length === 0) return [];
 
-  const { data, error } = await supabase
-    .from("matches")
-    .select("external_id")
-    .eq("organization_id", tenantId)
-    .in(
-      "external_id",
-      fixtures.map((fixture) => fixture.matchId),
-    );
-  if (error) throw new Error(error.message);
-
-  const imported = new Set(
-    (data ?? []).map((row: { external_id: number | null }) => row.external_id),
+  const { byExternal, byNatural } = await loadExistingMatches(
+    supabase,
+    tenantId,
+    fixtures,
   );
-  return fixtures.map((fixture) => ({
-    ...fixture,
-    alreadyImported: imported.has(fixture.matchId),
-  }));
+  return fixtures.map((fixture) => {
+    const existing =
+      byExternal.get(fixture.matchId) ??
+      byNatural.get(naturalKey(fixture)) ??
+      null;
+    return {
+      ...fixture,
+      alreadyImported: existing !== null,
+      existingMatchId: existing?.id ?? null,
+    };
+  });
 }
 
 export async function getTeamFixtures(input: {

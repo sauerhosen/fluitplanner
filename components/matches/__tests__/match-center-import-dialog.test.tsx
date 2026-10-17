@@ -15,6 +15,10 @@ vi.mock("@/lib/actions/hockey-import", () => ({
   importClubDayFixtures: vi.fn(),
 }));
 
+vi.mock("@/lib/actions/matches", () => ({
+  deleteMatch: vi.fn(),
+}));
+
 vi.mock("sonner", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
@@ -26,6 +30,7 @@ import {
   getClubDayFixtures,
   importClubDayFixtures,
 } from "@/lib/actions/hockey-import";
+import { deleteMatch } from "@/lib/actions/matches";
 import { toast } from "sonner";
 
 const mockSearchClubs = vi.mocked(searchClubs);
@@ -34,6 +39,7 @@ const mockGetTeamFixtures = vi.mocked(getTeamFixtures);
 const mockImportTeamFixtures = vi.mocked(importTeamFixtures);
 const mockGetClubDayFixtures = vi.mocked(getClubDayFixtures);
 const mockImportClubDayFixtures = vi.mocked(importClubDayFixtures);
+const mockDeleteMatch = vi.mocked(deleteMatch);
 
 const FIXTURE = {
   matchId: 2079156,
@@ -46,7 +52,10 @@ const FIXTURE = {
   venue: "Sportpark Kees Boekelaan",
   field: "Veld 2",
   alreadyImported: false,
+  existingMatchId: null,
 };
+
+const ADDED = { ...FIXTURE, alreadyImported: true, existingMatchId: "match-1" };
 
 /** Walk the dialog from the club search to a team's fixture list. */
 async function openTeam() {
@@ -132,12 +141,20 @@ describe("MatchCenterImportDialog", () => {
     expect(screen.getByRole("button", { name: /^import$/i })).toBeDisabled();
   });
 
-  it("marks a fixture the club already has, but keeps it selectable", async () => {
-    // Re-importing is how a match imported before its kick-off time was set
-    // collects that time — nothing else syncs this untracked team.
-    mockGetTeamFixtures.mockResolvedValue([
-      { ...FIXTURE, alreadyImported: true },
-    ]);
+  it("shows a fixture the club already has as ticked", async () => {
+    mockGetTeamFixtures.mockResolvedValue([ADDED]);
+    renderDialog();
+    await openTeam();
+    await screen.findByText("VVV D3 – AMVJ D3");
+
+    expect(screen.getByText(/already added/i)).toBeInTheDocument();
+    expect(screen.getByRole("checkbox")).toBeChecked();
+  });
+
+  it("re-reads ticked fixtures the club has, to collect a time set since", async () => {
+    // Nothing else syncs this untracked team, so re-importing is how a match
+    // imported before its kick-off time was set collects that time.
+    mockGetTeamFixtures.mockResolvedValue([ADDED]);
     mockImportTeamFixtures.mockResolvedValue({
       imported: 0,
       updated: 1,
@@ -148,11 +165,7 @@ describe("MatchCenterImportDialog", () => {
     await openTeam();
     await screen.findByText("VVV D3 – AMVJ D3");
 
-    expect(screen.getByText(/already added/)).toBeInTheDocument();
-    expect(screen.getByRole("checkbox")).toBeEnabled();
-
-    fireEvent.click(screen.getByRole("checkbox"));
-    fireEvent.click(screen.getByRole("button", { name: /import 1 match/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^update$/i }));
 
     await waitFor(() => {
       expect(mockImportTeamFixtures).toHaveBeenCalledWith({
@@ -161,6 +174,68 @@ describe("MatchCenterImportDialog", () => {
         matchIds: [2079156],
       });
     });
+  });
+
+  it("counts only the new fixtures on the import button", async () => {
+    mockGetTeamFixtures.mockResolvedValue([
+      ADDED,
+      { ...FIXTURE, matchId: 2079157, awayTeam: "HIC D3" },
+    ]);
+    renderDialog();
+    await openTeam();
+    await screen.findByText("VVV D3 – HIC D3");
+
+    fireEvent.click(screen.getAllByRole("checkbox")[1]);
+
+    expect(
+      screen.getByRole("button", { name: /import 1 match/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("asks before unticking removes a match the club has", async () => {
+    mockGetTeamFixtures.mockResolvedValue([ADDED]);
+    mockDeleteMatch.mockResolvedValue(undefined);
+    renderDialog();
+    await openTeam();
+    await screen.findByText("VVV D3 – AMVJ D3");
+
+    fireEvent.click(screen.getByRole("checkbox"));
+    expect(mockDeleteMatch).not.toHaveBeenCalled();
+    fireEvent.click(await screen.findByRole("button", { name: /^remove$/i }));
+
+    await waitFor(() =>
+      expect(mockDeleteMatch).toHaveBeenCalledWith("match-1"),
+    );
+    await waitFor(() => expect(screen.getByRole("checkbox")).not.toBeChecked());
+    expect(screen.queryByText(/already added/i)).not.toBeInTheDocument();
+    expect(onImported).toHaveBeenCalled();
+  });
+
+  it("keeps the match when the removal is cancelled", async () => {
+    mockGetTeamFixtures.mockResolvedValue([ADDED]);
+    renderDialog();
+    await openTeam();
+    await screen.findByText("VVV D3 – AMVJ D3");
+
+    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.click(await screen.findByRole("button", { name: /^cancel$/i }));
+
+    expect(mockDeleteMatch).not.toHaveBeenCalled();
+    expect(screen.getByRole("checkbox")).toBeChecked();
+  });
+
+  it("keeps the fixture ticked when the removal fails", async () => {
+    mockGetTeamFixtures.mockResolvedValue([ADDED]);
+    mockDeleteMatch.mockRejectedValue(new Error("boom"));
+    renderDialog();
+    await openTeam();
+    await screen.findByText("VVV D3 – AMVJ D3");
+
+    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.click(await screen.findByRole("button", { name: /^remove$/i }));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+    expect(screen.getByRole("checkbox")).toBeChecked();
   });
 
   it("shows the fixture's own date, whatever zone the viewer's browser is in", async () => {
