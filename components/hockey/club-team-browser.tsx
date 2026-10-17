@@ -16,6 +16,8 @@ import {
 type Props = {
   /** Row content for one team — the caller owns what the row does. */
   renderTeam: (team: ClubTeamOption, club: ClubSearchResult) => ReactNode;
+  /** Optional row above the team list, for an action on the club as a whole. */
+  renderClubAction?: (club: ClubSearchResult) => ReactNode;
 };
 
 /**
@@ -27,7 +29,7 @@ type Props = {
  * The strings are the `settings` namespace's `hockeySync*` keys — one club
  * search vocabulary, wherever the browser is shown.
  */
-export function ClubTeamBrowser({ renderTeam }: Props) {
+export function ClubTeamBrowser({ renderTeam, renderClubAction }: Props) {
   const t = useTranslations("settings");
   const [query, setQuery] = useState("");
   const [searching, setSearching] = useState(false);
@@ -117,6 +119,7 @@ export function ClubTeamBrowser({ renderTeam }: Props) {
           <ArrowLeft className="mr-1 h-4 w-4" />
           {selectedClub.name}
         </Button>
+        {renderClubAction?.(selectedClub)}
         {loadingTeams ? (
           <div className="text-muted-foreground flex items-center gap-2 py-4 text-sm">
             <Loader2 className="h-4 w-4 animate-spin" />

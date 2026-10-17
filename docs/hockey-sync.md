@@ -35,7 +35,13 @@ cancelled styling until the planner deletes it.
 **Matches page → "…" → Import from Match Center.** A one-off import for a team the club
 does _not_ track — the odd fixture the nightly sync will never see
 (`components/matches/match-center-import-dialog.tsx`). The planner searches a club, picks a
-team, and ticks individual fixtures; nothing is subscribed. Details below.
+team, and ticks individual fixtures; nothing is subscribed. After picking a club, "All home
+matches on a day…" lists every field team's home match on one chosen date instead
+(`getClubDayFixtures` / `importClubDayFixtures`): the Match Center has no per-club or per-day
+listing, and one poule request per team trips its rate limit, so it reads the day's match list
+of the club's venues instead — inferred from facility names, else the club's city, at most
+five (`pickClubFacilities`) — keeps the club's own field home matches, and fails as a whole if
+one venue cannot be loaded. Details in [Importing single matches](#importing-single-matches).
 
 **On demand.** `syncNow()` (`lib/actions/hockey-sync.ts`) runs the same engine for the
 current club, behind a **15-minute cooldown**. The cooldown is a returned status rather than
@@ -46,15 +52,34 @@ cooldown constant out again — keep the two in step).
 
 ## Importing single matches
 
-`lib/actions/hockey-import.ts` serves the matches page dialog with two planner-gated
-actions. Both resolve the team's current poule through `fetchClubDetail` (so a season
-rollover needs no extra handling) and read its fixtures through the same cached
-`fetchTeamPoule` the sync uses:
+`lib/actions/hockey-import.ts` serves the matches page dialog with four planner-gated
+actions, two per way of picking. Each pair is a list action, whose fixtures are flagged
+`alreadyImported` when this club already has a row with that `external_id`, and an import
+action that writes the picked ids. The client sends **ids only**; the import action re-reads
+the fixtures server-side and imports only ids found in that fresh list, rather than trusting
+what the browser posts back.
 
-- `getTeamFixtures()` — the team's importable fixtures, each flagged `alreadyImported` when
-  this club already has a row with that `external_id`
-- `importTeamFixtures()` — writes the picked ids. The client sends **ids only**; the server
-  re-reads the fixture details rather than trusting what the browser posts back
+**By team** — `getTeamFixtures()` / `importTeamFixtures()`. Both resolve the team's current
+poule through `fetchClubDetail` (so a season rollover needs no extra handling) and read its
+fixtures through the same cached `fetchTeamPoule` the sync uses.
+
+**By day** — `getClubDayFixtures()` / `importClubDayFixtures()`. These skip the poule path
+entirely, since one poule request per team trips the Match Center's rate limit for a club with
+dozens of teams. Instead:
+
+- `fetchAllClubs` finds the club, and `pickClubFacilities` picks its venues from
+  `fetchAllFacilities`: facilities whose name carries the club's core name (prefixes like
+  "MHC" / "H.C." stripped), else those in the club's city. It keeps **at most five**, ordering
+  name matches in the club's own city first
+- `fetchFacilityMatches` reads each venue's match list for the day, in parallel. A match with
+  no location gets the facility's name as its venue
+- `collectClubDayFixtures` keeps the club's own field (`VE`) **home** matches on that date,
+  with the same status filters as the by-team list, and duplicates are dropped by match id
+- A date before today returns an empty list without calling upstream. This also absorbs the
+  partial years a date input emits while the planner types one. A date that isn't a real
+  calendar day throws `INVALID_DATE`
+- If one venue cannot be loaded, the whole load fails. A partial list would read as "that's
+  everything"
 
 `collectImportableFixtures()` (`lib/hockey/import.ts`) decides what is on offer: the team's
 own **home** fixtures, from today on, minus the played/live/unusable statuses and minus
@@ -156,7 +181,7 @@ above describes.
 - `lib/hockey/client.ts` — registers an anonymous device on first use, signs every request, re-registers once on a 401. **Never log the device uuid or token** — the pair is an access credential.
 - `lib/hockey/signature.ts` — the request-signing algorithm (API doc §5.3), kept pure and unit-tested.
 - `lib/hockey/credential-store.ts` — the single global device credential in `hockey_device_credentials` (one row, service-role only).
-- `lib/hockey/cache.ts` + `discovery.ts` — a read-through cache in `hockey_api_cache`, shared across clubs and surviving function invocations. TTLs: clubs 24h, club detail 6h, poule+team 15 min.
+- `lib/hockey/cache.ts` + `discovery.ts` — a read-through cache in `hockey_api_cache`, shared across clubs and surviving function invocations. TTLs: clubs 24h, facilities 24h, club detail 6h, poule+team 15 min, a facility's matches for a day 15 min.
 
 Everything upstream-facing runs on the **service-role client** (`lib/hockey/deps.ts`), since
 the sync also runs outside any request context. Org-scoped queries still filter on

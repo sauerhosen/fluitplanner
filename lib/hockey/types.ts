@@ -54,6 +54,16 @@ export type ApiMatchSummary = {
   round?: number | null;
 };
 
+export type ApiFacility = {
+  id: number;
+  name: string;
+  address?: { city?: string | null } | null;
+};
+
+export type ApiFacilityMatchesResponse = ApiFacility & {
+  matches: ApiMatchSummary[];
+};
+
 export type ApiTeamPouleResponse = {
   team: ApiTeamSummary & {
     poules: Array<{ id: number; name: string }>;
