@@ -16,7 +16,9 @@ export function createHockeyClient(opts: {
 }): HockeyClient {
   const { store } = opts;
   const fetchFn = opts.fetchFn ?? fetch;
-  let credentials: HockeyCredentials | null = null;
+  // Shared, not awaited per caller: one client serves parallel requests
+  // (loadClubDayFixtures), and each must not register a device of its own.
+  let credentials: Promise<HockeyCredentials> | null = null;
 
   async function register(): Promise<HockeyCredentials> {
     const uuid = randomUUID();
@@ -42,10 +44,35 @@ export function createHockeyClient(opts: {
     return fresh;
   }
 
-  async function ensureCredentials(): Promise<HockeyCredentials> {
-    if (credentials) return credentials;
-    credentials = (await store.load()) ?? (await register());
-    return credentials;
+  function share(
+    load: () => Promise<HockeyCredentials>,
+  ): Promise<HockeyCredentials> {
+    const pending = load();
+    credentials = pending;
+    // A failure must not stick: the next request tries again.
+    pending.catch(() => {
+      if (credentials === pending) credentials = null;
+    });
+    return pending;
+  }
+
+  function ensureCredentials(): Promise<HockeyCredentials> {
+    return (
+      credentials ??
+      share(async () => (await store.load()) ?? (await register()))
+    );
+  }
+
+  /**
+   * Replaces the credentials a request was rejected with. Parallel 401s on
+   * the same credentials share one registration; a request whose credentials
+   * were already replaced retries with the replacement.
+   */
+  function renewCredentials(
+    rejected: Promise<HockeyCredentials>,
+  ): Promise<HockeyCredentials> {
+    if (credentials && credentials !== rejected) return credentials;
+    return share(register);
   }
 
   function signedHeaders(
@@ -68,8 +95,11 @@ export function createHockeyClient(opts: {
     };
   }
 
-  async function execute(endpoint: string): Promise<Response> {
-    const creds = await ensureCredentials();
+  async function execute(
+    endpoint: string,
+    pending: Promise<HockeyCredentials>,
+  ): Promise<Response> {
+    const creds = await pending;
     return fetchFn(new URL(endpoint, API_BASE), {
       method: "GET",
       headers: signedHeaders(endpoint, creds),
@@ -77,26 +107,36 @@ export function createHockeyClient(opts: {
     });
   }
 
+  /** The upstream error message, if the failed response carries one. */
+  async function errorMessage(response: Response): Promise<string | null> {
+    try {
+      const body = (await response.json()) as { message?: unknown };
+      return typeof body?.message === "string" ? body.message : null;
+    } catch {
+      return null;
+    }
+  }
+
   return {
     async get<T>(endpoint: string): Promise<T> {
-      let response = await execute(endpoint);
+      const used = ensureCredentials();
+      let response = await execute(endpoint, used);
       if (response.status === 401) {
-        credentials = await register();
-        response = await execute(endpoint);
+        response = await execute(endpoint, renewCredentials(used));
       }
-      const payload = (await response.json()) as {
-        data?: T;
-        message?: string;
-      };
       if (!response.ok) {
-        // The one trace of an upstream failure: server actions hand the
-        // browser only a generic digest, so without this a throttle ("Too
-        // Many Attempts.") is indistinguishable from any other error.
+        // Checked before parsing: a proxy error page or empty body must not
+        // throw first and skip the log. The one trace of an upstream
+        // failure: server actions hand the browser only a generic digest, so
+        // without this a throttle ("Too Many Attempts.") is
+        // indistinguishable from any other error.
+        const message = await errorMessage(response);
         console.warn(
-          `Match Center GET ${endpoint} failed: HTTP ${response.status} ${payload.message ?? ""}`.trim(),
+          `Match Center GET ${endpoint} failed: HTTP ${response.status} ${message ?? ""}`.trim(),
         );
-        throw new Error(payload.message ?? `HTTP ${response.status}`);
+        throw new Error(message ?? `HTTP ${response.status}`);
       }
+      const payload = (await response.json()) as { data?: T };
       return payload.data as T;
     },
   };
