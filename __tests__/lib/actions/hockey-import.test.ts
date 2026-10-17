@@ -151,24 +151,54 @@ describe("getTeamFixtures", () => {
       homeTeam: "VVV D3",
       awayTeam: "AMVJ D3",
       alreadyImported: false,
+      existingMatchId: null,
     });
   });
 
   it("marks fixtures this club already has, scoped to the club's own org", async () => {
     handler = (query) =>
       query.table === "matches"
-        ? { data: [{ external_id: 2079156 }] }
+        ? { data: [{ id: "match-1", external_id: 2079156 }] }
         : undefined;
 
     const { getTeamFixtures } = await import("@/lib/actions/hockey-import");
     const fixtures = await getTeamFixtures(INPUT);
 
     expect(fixtures[0].alreadyImported).toBe(true);
+    expect(fixtures[0].existingMatchId).toBe("match-1");
     const lookup = queries.find((query) => query.table === "matches");
     expect(argsOf(lookup!, "eq")).toContainEqual([
       "organization_id",
       "test-org-id",
     ]);
+  });
+
+  it("marks a match the planner added by hand, which an import would adopt", async () => {
+    // Without an external_id the row is only found by date and teams — the
+    // same lookup the import uses, so the list never offers it as new.
+    handler = (query) =>
+      query.table === "matches" &&
+      query.calls.some((call) => call.fn === "in" && call.args[0] === "date")
+        ? {
+            data: [
+              {
+                id: "hand-1",
+                date: "2099-09-27",
+                external_id: null,
+                home_team: "VVV D3",
+                away_team: "AMVJ D3",
+              },
+            ],
+          }
+        : undefined;
+
+    const { getTeamFixtures } = await import("@/lib/actions/hockey-import");
+    const fixtures = await getTeamFixtures(INPUT);
+
+    expect(fixtures[0]).toMatchObject({
+      alreadyImported: true,
+      existingMatchId: "hand-1",
+    });
   });
 
   it("reports a team the club no longer lists", async () => {

@@ -54,8 +54,9 @@ cooldown constant out again — keep the two in step).
 
 `lib/actions/hockey-import.ts` serves the matches page dialog with four planner-gated
 actions, two per way of picking. Each pair is a list action, whose fixtures are flagged
-`alreadyImported` when this club already has a row with that `external_id`, and an import
-action that writes the picked ids. The client sends **ids only**; the import action re-reads
+`alreadyImported` (with that row's `existingMatchId`) when this club already has a row an
+import would update — by `external_id`, or by the natural key below — and an import action
+that writes the picked ids. The client sends **ids only**; the import action re-reads
 the fixtures server-side and imports only ids found in that fresh list, rather than trusting
 what the browser posts back.
 
@@ -99,7 +100,9 @@ behind their back.
 
 Because the team is not tracked, the nightly run does not revisit these matches — importing
 the same fixture again is how one picks up a kick-off time that was still TBD, which is why
-a fixture the club already has stays selectable in the dialog. The rows carry
+a fixture the club already has starts **ticked** (and green) in the dialog and is re-read on
+every import from that list; with only such ticks the button reads "Update". Unticking one
+deletes the match (`deleteMatch`), after a confirmation. The rows carry
 `source = "hockey_sync"`, so a later file import may only adjust their `required_level`
 (`lib/actions/matches.ts` treats the Match Center as the authority on sync-owned rows):
 correct them here, in the match editor, or by tracking the team.

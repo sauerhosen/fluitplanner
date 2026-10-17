@@ -28,6 +28,8 @@ import { amsterdamDateOf, sameInstant } from "@/lib/hockey/normalize";
 export type TeamFixture = ImportableFixture & {
   /** This club already has a match for this upstream fixture. */
   alreadyImported: boolean;
+  /** That match's row, so the dialog can take it off again. */
+  existingMatchId: string | null;
 };
 
 export type ImportFixturesResult = {
@@ -136,6 +138,11 @@ function isCalendarDate(value: string): boolean {
   );
 }
 
+/**
+ * Flags the fixtures this club already has — by `external_id`, or by the
+ * natural key for a match added by hand — matching exactly the rows an import
+ * would update instead of inserting.
+ */
 async function markAlreadyImported(
   supabase: SupabaseClient,
   tenantId: string,
@@ -143,23 +150,19 @@ async function markAlreadyImported(
 ): Promise<TeamFixture[]> {
   if (fixtures.length === 0) return [];
 
-  const { data, error } = await supabase
-    .from("matches")
-    .select("external_id")
-    .eq("organization_id", tenantId)
-    .in(
-      "external_id",
-      fixtures.map((fixture) => fixture.matchId),
-    );
-  if (error) throw new Error(error.message);
-
-  const imported = new Set(
-    (data ?? []).map((row: { external_id: number | null }) => row.external_id),
+  const { byExternal, byNatural } = await loadExistingMatches(
+    supabase,
+    tenantId,
+    fixtures,
   );
-  return fixtures.map((fixture) => ({
-    ...fixture,
-    alreadyImported: imported.has(fixture.matchId),
-  }));
+  return fixtures.map((fixture) => {
+    const existing = findExisting(byExternal, byNatural, fixture);
+    return {
+      ...fixture,
+      alreadyImported: existing !== null,
+      existingMatchId: existing?.id ?? null,
+    };
+  });
 }
 
 export async function getTeamFixtures(input: {
@@ -242,10 +245,7 @@ async function importFixtures(
   const syncedAt = new Date().toISOString();
 
   for (const fixture of fixtures) {
-    const existing =
-      byExternal.get(fixture.matchId) ??
-      byNatural.get(naturalKey(fixture)) ??
-      null;
+    const existing = findExisting(byExternal, byNatural, fixture);
 
     const row = {
       date: fixture.date,
@@ -318,6 +318,19 @@ function naturalKey(fixture: ImportableFixture): string {
   return `${fixture.date}|${fixture.homeTeam}|${fixture.awayTeam}`;
 }
 
+/** The row an import of `fixture` would update: by `external_id`, else by natural key. */
+function findExisting(
+  byExternal: Map<number, ExistingMatchRow>,
+  byNatural: Map<string, ExistingMatchRow>,
+  fixture: ImportableFixture,
+): ExistingMatchRow | null {
+  return (
+    byExternal.get(fixture.matchId) ??
+    byNatural.get(naturalKey(fixture)) ??
+    null
+  );
+}
+
 /** Required level per managed team name, matched exactly as a file import does. */
 async function loadRequiredLevels(
   supabase: SupabaseClient,
@@ -360,31 +373,37 @@ async function loadExistingMatches(
   const byExternal = new Map<number, ExistingMatchRow>();
   const byNatural = new Map<string, ExistingMatchRow>();
 
-  const { data: externalRows, error: externalError } = await supabase
-    .from("matches")
-    .select(MATCH_COLUMNS)
-    .eq("organization_id", organizationId)
-    .in(
-      "external_id",
-      fixtures.map((fixture) => fixture.matchId),
-    );
+  // Independent lookups, and both now sit on the list's load path too.
+  const [
+    { data: externalRows, error: externalError },
+    { data: naturalRows, error: naturalError },
+  ] = await Promise.all([
+    supabase
+      .from("matches")
+      .select(MATCH_COLUMNS)
+      .eq("organization_id", organizationId)
+      .in(
+        "external_id",
+        fixtures.map((fixture) => fixture.matchId),
+      ),
+    supabase
+      .from("matches")
+      .select(MATCH_COLUMNS)
+      .eq("organization_id", organizationId)
+      .in(
+        "date",
+        fixtures.map((fixture) => fixture.date),
+      )
+      .in(
+        "home_team",
+        fixtures.map((fixture) => fixture.homeTeam),
+      ),
+  ]);
   if (externalError) throw new Error(externalError.message);
   for (const row of (externalRows ?? []) as ExistingMatchRow[]) {
     if (row.external_id != null) byExternal.set(row.external_id, row);
   }
 
-  const { data: naturalRows, error: naturalError } = await supabase
-    .from("matches")
-    .select(MATCH_COLUMNS)
-    .eq("organization_id", organizationId)
-    .in(
-      "date",
-      fixtures.map((fixture) => fixture.date),
-    )
-    .in(
-      "home_team",
-      fixtures.map((fixture) => fixture.homeTeam),
-    );
   if (naturalError) throw new Error(naturalError.message);
   for (const row of (naturalRows ?? []) as ExistingMatchRow[]) {
     byNatural.set(`${row.date}|${row.home_team}|${row.away_team}`, row);

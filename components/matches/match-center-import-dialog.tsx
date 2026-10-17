@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { useFormatter, useTranslations } from "next-intl";
 import { toast } from "sonner";
-import { ArrowLeft, CalendarDays, Loader2 } from "lucide-react";
+import { ArrowLeft, CalendarDays, CircleCheck, Loader2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -12,6 +12,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -24,6 +34,8 @@ import {
   type TeamFixture,
 } from "@/lib/actions/hockey-import";
 import type { ClubSearchResult } from "@/lib/actions/hockey-teams";
+import { deleteMatch } from "@/lib/actions/matches";
+import { cn } from "@/lib/utils";
 
 type Props = {
   open: boolean;
@@ -50,6 +62,7 @@ export function MatchCenterImportDialog({
   onImported,
 }: Props) {
   const t = useTranslations("matches");
+  const tCommon = useTranslations("common");
   const format = useFormatter();
   // What the fixture list shows: one team's upcoming home matches, or every
   // home match of a club on one day.
@@ -63,6 +76,11 @@ export function MatchCenterImportDialog({
   const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState<number[]>([]);
   const [importing, setImporting] = useState(false);
+  // An added fixture the planner unticked, awaiting their go-ahead to delete.
+  const [removing, setRemoving] = useState<TeamFixture | null>(null);
+  // A confirmed removal still in flight: an import read while it runs would
+  // re-insert the match being deleted, so the list and button wait for it.
+  const [deleting, setDeleting] = useState(false);
   const teamSeqRef = useRef(0);
 
   async function handleSelectTeam(
@@ -80,7 +98,7 @@ export function MatchCenterImportDialog({
     try {
       const result = await getTeamFixtures({ clubId: club.id, teamId });
       if (seq !== teamSeqRef.current) return;
-      setFixtures(result);
+      showFixtures(result);
     } catch {
       if (seq !== teamSeqRef.current) return;
       // Server-action error messages are a generic digest in production, so
@@ -114,7 +132,7 @@ export function MatchCenterImportDialog({
     try {
       const result = await getClubDayFixtures({ clubId: club.id, date: value });
       if (seq !== teamSeqRef.current) return;
-      setFixtures(result);
+      showFixtures(result);
     } catch {
       if (seq !== teamSeqRef.current) return;
       toast.error(t("matchCenterDayLoadError"));
@@ -124,6 +142,48 @@ export function MatchCenterImportDialog({
     } finally {
       if (seq === teamSeqRef.current) setLoading(false);
     }
+  }
+
+  /** A fixture the club already has starts ticked: the tick means "in the club". */
+  function showFixtures(result: TeamFixture[]) {
+    setFixtures(result);
+    setSelected(
+      result
+        .filter((fixture) => fixture.alreadyImported)
+        .map((fixture) => fixture.matchId),
+    );
+  }
+
+  function handleCheckedChange(fixture: TeamFixture) {
+    // Unticking a match the club has deletes it — only after confirming.
+    if (fixture.alreadyImported && selected.includes(fixture.matchId)) {
+      setRemoving(fixture);
+      return;
+    }
+    toggle(fixture.matchId);
+  }
+
+  async function handleRemove(fixture: TeamFixture) {
+    if (!fixture.existingMatchId) return;
+    setDeleting(true);
+    try {
+      await deleteMatch(fixture.existingMatchId);
+    } catch {
+      toast.error(t("matchCenterRemoveError"));
+      return;
+    } finally {
+      setDeleting(false);
+    }
+    setFixtures((prev) =>
+      prev.map((candidate) =>
+        candidate.matchId === fixture.matchId
+          ? { ...candidate, alreadyImported: false, existingMatchId: null }
+          : candidate,
+      ),
+    );
+    setSelected((prev) => prev.filter((id) => id !== fixture.matchId));
+    toast.success(t("matchCenterRemoved"));
+    onImported();
   }
 
   function toggle(matchId: number) {
@@ -177,6 +237,10 @@ export function MatchCenterImportDialog({
       setImporting(false);
     }
   }
+
+  const newCount = fixtures.filter(
+    (fixture) => !fixture.alreadyImported && selected.includes(fixture.matchId),
+  ).length;
 
   function fixtureLabel(fixture: TeamFixture): string {
     // `fixture.date` is a calendar date, not an instant: parse and format it
@@ -287,28 +351,39 @@ export function MatchCenterImportDialog({
               <ul className="max-h-72 space-y-1 overflow-y-auto">
                 {fixtures.map((fixture) => (
                   <li key={fixture.matchId}>
-                    {/* A fixture the club already has stays selectable: this
-                        is the only way to collect a kick-off time that was
-                        still TBD when it was imported, since the nightly sync
-                        does not follow this team. Re-importing an unchanged
-                        one writes nothing. */}
-                    <label className="hover:bg-muted flex cursor-pointer items-start gap-3 rounded-md px-2 py-2 text-sm">
+                    {/* A fixture the club already has stays ticked and is
+                        re-read on import: this is the only way to collect a
+                        kick-off time that was still TBD when it was imported,
+                        since the nightly sync does not follow this team.
+                        Re-importing an unchanged one writes nothing. */}
+                    <label
+                      className={cn(
+                        "flex cursor-pointer items-start gap-3 rounded-md border-l-4 px-2 py-2 text-sm",
+                        fixture.alreadyImported
+                          ? "border-green-600 bg-green-50 hover:bg-green-100 dark:bg-green-900/30 dark:hover:bg-green-900/50"
+                          : "hover:bg-muted border-transparent",
+                      )}
+                    >
                       <Checkbox
                         className="mt-0.5"
                         checked={selected.includes(fixture.matchId)}
-                        onCheckedChange={() => toggle(fixture.matchId)}
+                        disabled={deleting || importing}
+                        onCheckedChange={() => handleCheckedChange(fixture)}
                       />
                       <span className="min-w-0">
                         <span className="block truncate font-medium">
                           {fixture.homeTeam} – {fixture.awayTeam}
                         </span>
                         <span className="text-muted-foreground block truncate text-xs">
+                          {fixture.alreadyImported && (
+                            <span className="font-medium text-green-700 dark:text-green-400">
+                              <CircleCheck className="mr-1 inline h-3.5 w-3.5 align-[-0.2em]" />
+                              {t("matchCenterAlreadyAdded")} ·{" "}
+                            </span>
+                          )}
                           {fixtureLabel(fixture)}
                           {fixture.venue ? ` · ${fixture.venue}` : ""}
                           {fixture.field ? ` · ${fixture.field}` : ""}
-                          {fixture.alreadyImported
-                            ? ` · ${t("matchCenterAlreadyAdded")}`
-                            : ""}
                         </span>
                       </span>
                     </label>
@@ -323,13 +398,47 @@ export function MatchCenterImportDialog({
           <DialogFooter>
             <Button
               onClick={handleImport}
-              disabled={selected.length === 0 || importing}
+              disabled={selected.length === 0 || importing || deleting}
             >
               {importing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {t("matchCenterImportSelected", { count: selected.length })}
+              {/* Only the new ticks count as imports; with none, the button
+                  just re-reads the matches the club already has. */}
+              {newCount === 0 && selected.length > 0
+                ? t("matchCenterUpdate")
+                : t("matchCenterImportSelected", { count: newCount })}
             </Button>
           </DialogFooter>
         )}
+
+        <AlertDialog
+          open={removing !== null}
+          onOpenChange={(isOpen) => {
+            if (!isOpen) setRemoving(null);
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>{t("matchCenterRemoveTitle")}</AlertDialogTitle>
+              <AlertDialogDescription>
+                {removing &&
+                  t("matchCenterRemoveBody", {
+                    match: `${removing.homeTeam} – ${removing.awayTeam}`,
+                  })}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>{tCommon("cancel")}</AlertDialogCancel>
+              <AlertDialogAction
+                variant="destructive"
+                onClick={() => {
+                  if (removing) void handleRemove(removing);
+                }}
+              >
+                {t("matchCenterRemove")}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </DialogContent>
     </Dialog>
   );
