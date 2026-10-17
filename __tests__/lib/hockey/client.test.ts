@@ -162,4 +162,91 @@ describe("createHockeyClient", () => {
     expect(line).not.toContain("12345678-abcd");
     warn.mockRestore();
   });
+
+  it("registers one device for concurrent first requests", async () => {
+    const store = makeMemoryStore();
+    const fetchFn = vi.fn(async (url: RequestInfo | URL) =>
+      String(url).endsWith("/device/register")
+        ? jsonResponse(200, { token: "tok-1" })
+        : jsonResponse(200, { data: [] }),
+    );
+
+    const client = createHockeyClient({ store, fetchFn });
+    await Promise.all([client.get("/a"), client.get("/b"), client.get("/c")]);
+
+    const registrations = fetchFn.mock.calls.filter(([url]) =>
+      String(url).endsWith("/device/register"),
+    );
+    expect(registrations).toHaveLength(1);
+    expect(store.saved).toHaveLength(1);
+  });
+
+  it("re-registers once when concurrent requests all get a 401", async () => {
+    const store = makeMemoryStore({
+      uuid: "12345678-abcd-4ef0-9876-0123456789ab",
+      token: "tok-stale",
+    });
+    const fetchFn = vi.fn(
+      async (url: RequestInfo | URL, init?: RequestInit) => {
+        if (String(url).endsWith("/device/register")) {
+          return jsonResponse(200, { token: "tok-fresh" });
+        }
+        const headers = init?.headers as Record<string, string>;
+        return headers["X-HAPI-Authorization"] === "tok-fresh"
+          ? jsonResponse(200, { data: { ok: true } })
+          : jsonResponse(401, { message: "Unauthenticated" });
+      },
+    );
+
+    const client = createHockeyClient({ store, fetchFn });
+    const results = await Promise.all([
+      client.get("/a"),
+      client.get("/b"),
+      client.get("/c"),
+    ]);
+
+    expect(results).toEqual([{ ok: true }, { ok: true }, { ok: true }]);
+    const registrations = fetchFn.mock.calls.filter(([url]) =>
+      String(url).endsWith("/device/register"),
+    );
+    expect(registrations).toHaveLength(1);
+    expect(store.saved.map((c) => c.token)).toEqual(["tok-fresh"]);
+  });
+
+  it("retries registration on the next request after one fails", async () => {
+    const store = makeMemoryStore();
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(500, { message: "nope" }))
+      .mockResolvedValueOnce(jsonResponse(200, { token: "tok-1" }))
+      .mockResolvedValueOnce(jsonResponse(200, { data: { ok: true } }));
+
+    const client = createHockeyClient({ store, fetchFn });
+    await expect(client.get("/clubs")).rejects.toThrow(
+      "Device registration failed",
+    );
+    await expect(client.get("/clubs")).resolves.toEqual({ ok: true });
+  });
+
+  it("logs a failed request whose body is not JSON", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const store = makeMemoryStore({
+      uuid: "12345678-abcd-4ef0-9876-0123456789ab",
+      token: "tok",
+    });
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response("<html>Bad Gateway</html>", { status: 502 }),
+      );
+
+    const client = createHockeyClient({ store, fetchFn });
+    await expect(client.get("/poules/1")).rejects.toThrow("HTTP 502");
+
+    expect(warn).toHaveBeenCalledTimes(1);
+    const line = String(warn.mock.calls[0].join(" "));
+    expect(line).toContain("/poules/1");
+    expect(line).toContain("502");
+    warn.mockRestore();
+  });
 });

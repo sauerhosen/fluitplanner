@@ -178,7 +178,7 @@ above describes.
 
 ## Upstream access
 
-- `lib/hockey/client.ts` — registers an anonymous device on first use, signs every request, re-registers once on a 401. **Never log the device uuid or token** — the pair is an access credential.
+- `lib/hockey/client.ts` — registers an anonymous device on first use, signs every request, re-registers once on a 401. Concurrent requests share one registration (cold start or a parallel batch of 401s), so a parallel batch never registers several devices. **Never log the device uuid or token** — the pair is an access credential.
 - `lib/hockey/signature.ts` — the request-signing algorithm (API doc §5.3), kept pure and unit-tested.
 - `lib/hockey/credential-store.ts` — the single global device credential in `hockey_device_credentials` (one row, service-role only).
 - `lib/hockey/cache.ts` + `discovery.ts` — a read-through cache in `hockey_api_cache`, shared across clubs and surviving function invocations. TTLs: clubs 24h, facilities 24h, club detail 6h, poule+team 15 min, a facility's matches for a day 15 min.
