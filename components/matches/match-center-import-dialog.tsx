@@ -78,6 +78,9 @@ export function MatchCenterImportDialog({
   const [importing, setImporting] = useState(false);
   // An added fixture the planner unticked, awaiting their go-ahead to delete.
   const [removing, setRemoving] = useState<TeamFixture | null>(null);
+  // A confirmed removal still in flight: an import read while it runs would
+  // re-insert the match being deleted, so the list and button wait for it.
+  const [deleting, setDeleting] = useState(false);
   const teamSeqRef = useRef(0);
 
   async function handleSelectTeam(
@@ -162,11 +165,14 @@ export function MatchCenterImportDialog({
 
   async function handleRemove(fixture: TeamFixture) {
     if (!fixture.existingMatchId) return;
+    setDeleting(true);
     try {
       await deleteMatch(fixture.existingMatchId);
     } catch {
       toast.error(t("matchCenterRemoveError"));
       return;
+    } finally {
+      setDeleting(false);
     }
     setFixtures((prev) =>
       prev.map((candidate) =>
@@ -361,6 +367,7 @@ export function MatchCenterImportDialog({
                       <Checkbox
                         className="mt-0.5"
                         checked={selected.includes(fixture.matchId)}
+                        disabled={deleting || importing}
                         onCheckedChange={() => handleCheckedChange(fixture)}
                       />
                       <span className="min-w-0">
@@ -391,7 +398,7 @@ export function MatchCenterImportDialog({
           <DialogFooter>
             <Button
               onClick={handleImport}
-              disabled={selected.length === 0 || importing}
+              disabled={selected.length === 0 || importing || deleting}
             >
               {importing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {/* Only the new ticks count as imports; with none, the button

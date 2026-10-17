@@ -156,10 +156,7 @@ async function markAlreadyImported(
     fixtures,
   );
   return fixtures.map((fixture) => {
-    const existing =
-      byExternal.get(fixture.matchId) ??
-      byNatural.get(naturalKey(fixture)) ??
-      null;
+    const existing = findExisting(byExternal, byNatural, fixture);
     return {
       ...fixture,
       alreadyImported: existing !== null,
@@ -248,10 +245,7 @@ async function importFixtures(
   const syncedAt = new Date().toISOString();
 
   for (const fixture of fixtures) {
-    const existing =
-      byExternal.get(fixture.matchId) ??
-      byNatural.get(naturalKey(fixture)) ??
-      null;
+    const existing = findExisting(byExternal, byNatural, fixture);
 
     const row = {
       date: fixture.date,
@@ -324,6 +318,19 @@ function naturalKey(fixture: ImportableFixture): string {
   return `${fixture.date}|${fixture.homeTeam}|${fixture.awayTeam}`;
 }
 
+/** The row an import of `fixture` would update: by `external_id`, else by natural key. */
+function findExisting(
+  byExternal: Map<number, ExistingMatchRow>,
+  byNatural: Map<string, ExistingMatchRow>,
+  fixture: ImportableFixture,
+): ExistingMatchRow | null {
+  return (
+    byExternal.get(fixture.matchId) ??
+    byNatural.get(naturalKey(fixture)) ??
+    null
+  );
+}
+
 /** Required level per managed team name, matched exactly as a file import does. */
 async function loadRequiredLevels(
   supabase: SupabaseClient,
@@ -366,31 +373,37 @@ async function loadExistingMatches(
   const byExternal = new Map<number, ExistingMatchRow>();
   const byNatural = new Map<string, ExistingMatchRow>();
 
-  const { data: externalRows, error: externalError } = await supabase
-    .from("matches")
-    .select(MATCH_COLUMNS)
-    .eq("organization_id", organizationId)
-    .in(
-      "external_id",
-      fixtures.map((fixture) => fixture.matchId),
-    );
+  // Independent lookups, and both now sit on the list's load path too.
+  const [
+    { data: externalRows, error: externalError },
+    { data: naturalRows, error: naturalError },
+  ] = await Promise.all([
+    supabase
+      .from("matches")
+      .select(MATCH_COLUMNS)
+      .eq("organization_id", organizationId)
+      .in(
+        "external_id",
+        fixtures.map((fixture) => fixture.matchId),
+      ),
+    supabase
+      .from("matches")
+      .select(MATCH_COLUMNS)
+      .eq("organization_id", organizationId)
+      .in(
+        "date",
+        fixtures.map((fixture) => fixture.date),
+      )
+      .in(
+        "home_team",
+        fixtures.map((fixture) => fixture.homeTeam),
+      ),
+  ]);
   if (externalError) throw new Error(externalError.message);
   for (const row of (externalRows ?? []) as ExistingMatchRow[]) {
     if (row.external_id != null) byExternal.set(row.external_id, row);
   }
 
-  const { data: naturalRows, error: naturalError } = await supabase
-    .from("matches")
-    .select(MATCH_COLUMNS)
-    .eq("organization_id", organizationId)
-    .in(
-      "date",
-      fixtures.map((fixture) => fixture.date),
-    )
-    .in(
-      "home_team",
-      fixtures.map((fixture) => fixture.homeTeam),
-    );
   if (naturalError) throw new Error(naturalError.message);
   for (const row of (naturalRows ?? []) as ExistingMatchRow[]) {
     byNatural.set(`${row.date}|${row.home_team}|${row.away_team}`, row);
