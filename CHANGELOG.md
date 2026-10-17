@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.30.0](https://github.com/sauerhosen/fluitplanner/compare/v2.29.1...v2.30.0) (2026-10-17)
+
+
+### Features
+
+* show already-added Match Center fixtures as ticked and green ([2e25d32](https://github.com/sauerhosen/fluitplanner/commit/2e25d32e53777b6c0ca3113fbabd613932ab50bd))
+* show already-added Match Center fixtures as ticked and green ([cf6f3c5](https://github.com/sauerhosen/fluitplanner/commit/cf6f3c590e9ff7f7a888c888a9f0c96d07c39aad))
+
+
+### Bug Fixes
+
+* block Match Center import while a removal is in flight ([1edd628](https://github.com/sauerhosen/fluitplanner/commit/1edd628adeaa122f8b2e3f92eb2af5d8cceb0d38))
+
 ## [2.29.1](https://github.com/sauerhosen/fluitplanner/compare/v2.29.0...v2.29.1) (2026-10-17)
 
 
