@@ -36,10 +36,42 @@ export function collectImportableFixtures(
   teamId: number,
   today: string,
 ): ImportableFixture[] {
+  return collectFixtures(
+    matches,
+    (match) => match.home?.id === teamId,
+    (date) => date >= today,
+  );
+}
+
+/**
+ * The fixtures a club hosts on one calendar day (Europe/Amsterdam), from a
+ * list that may cover several clubs — a venue's match list. Field hockey
+ * only, matching the team browser; a team with no type is given the benefit
+ * of the doubt. Same cuts as `collectImportableFixtures` otherwise.
+ */
+export function collectClubDayFixtures(
+  matches: ApiMatchSummary[],
+  clubId: string,
+  day: string,
+): ImportableFixture[] {
+  return collectFixtures(
+    matches,
+    (match) =>
+      match.home?.federation_reference_id === clubId &&
+      (match.home.hockey_type == null || match.home.hockey_type === "VE"),
+    (date) => date === day,
+  );
+}
+
+function collectFixtures(
+  matches: ApiMatchSummary[],
+  isWanted: (match: ApiMatchSummary) => boolean,
+  isInRange: (date: string) => boolean,
+): ImportableFixture[] {
   const fixtures: ImportableFixture[] = [];
 
   for (const match of matches) {
-    if (match.home?.id !== teamId) continue;
+    if (!isWanted(match)) continue;
     if (isSkippedStatus(match.status) || isCancelledStatus(match.status)) {
       continue;
     }
@@ -51,7 +83,7 @@ export function collectImportableFixtures(
     } catch {
       continue; // unparseable upstream date
     }
-    if (date < today) continue;
+    if (!isInRange(date)) continue;
 
     fixtures.push({
       matchId: normalized.matchId,

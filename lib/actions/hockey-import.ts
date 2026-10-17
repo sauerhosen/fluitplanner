@@ -4,8 +4,16 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { revalidatePath } from "next/cache";
 import { requirePlanner } from "@/lib/auth";
 import { createHockeyDeps } from "@/lib/hockey/deps";
-import { fetchClubDetail, fetchTeamPoule } from "@/lib/hockey/discovery";
 import {
+  fetchAllClubs,
+  fetchAllFacilities,
+  fetchClubDetail,
+  fetchFacilityMatches,
+  fetchTeamPoule,
+  pickClubFacilities,
+} from "@/lib/hockey/discovery";
+import {
+  collectClubDayFixtures,
   collectImportableFixtures,
   type ImportableFixture,
 } from "@/lib/hockey/import";
@@ -78,15 +86,13 @@ async function loadFixtures(
   );
 }
 
-/** How many teams' poules are read from upstream at once. */
-const DAY_LOAD_CONCURRENCY = 4;
-
 /**
- * Every importable home fixture a club's field teams play on `date`. The
- * Match Center has no per-club or per-day listing, so this reads each team's
- * current poule (cached 15 min, shared across clubs) — a few at a time, to
- * stay polite upstream. One failing team fails the whole load: a partial
- * list would read as "that's everything" and silently hide a team's match.
+ * Every importable home fixture a club hosts on `date`. The Match Center has
+ * no per-club or per-day listing, and one request per team trips its rate
+ * limit ("Too Many Attempts") for a club with dozens of teams — so this asks
+ * for the club's venues' match lists for the day instead (1–5 requests) and
+ * keeps the club's own home matches. One failing venue fails the whole load:
+ * a partial list would read as "that's everything".
  */
 async function loadClubDayFixtures(
   clubId: string,
@@ -95,34 +101,23 @@ async function loadClubDayFixtures(
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error("INVALID_DATE");
 
   const deps = createHockeyDeps();
-  const detail = await fetchClubDetail(deps, clubId);
-  // Field hockey only — the same cut the team browser makes.
-  const teams = (detail.teams ?? []).filter(
-    (team) => team.hockey_type === "VE" && team.recent_poule_id != null,
+  const club = (await fetchAllClubs(deps)).find(
+    (candidate) => candidate.federation_reference_id === clubId,
+  );
+  if (!club) throw new Error("CLUB_NOT_FOUND");
+
+  const facilities = pickClubFacilities(await fetchAllFacilities(deps), club);
+  const lists = await Promise.all(
+    facilities.map((facility) => fetchFacilityMatches(deps, facility.id, date)),
   );
 
-  const today = amsterdamDateOf(new Date().toISOString());
-  const fixtures: ImportableFixture[] = [];
-  for (let i = 0; i < teams.length; i += DAY_LOAD_CONCURRENCY) {
-    const batch = teams.slice(i, i + DAY_LOAD_CONCURRENCY);
-    const loaded = await Promise.all(
-      batch.map(async (team) => {
-        const response = await fetchTeamPoule(
-          deps,
-          team.recent_poule_id as number,
-          team.id,
-        );
-        return collectImportableFixtures(
-          response.poule?.matches ?? [],
-          team.id,
-          today,
-        ).filter((fixture) => fixture.date === date);
-      }),
-    );
-    fixtures.push(...loaded.flat());
+  // A match is listed once per venue it is played at, but dedupe on id in
+  // case two inferred venues are the same park under different records.
+  const byId = new Map<number, ImportableFixture>();
+  for (const fixture of collectClubDayFixtures(lists.flat(), clubId, date)) {
+    byId.set(fixture.matchId, fixture);
   }
-
-  return fixtures.sort((a, b) =>
+  return Array.from(byId.values()).sort((a, b) =>
     `${a.date}${a.start ?? ""}`.localeCompare(`${b.date}${b.start ?? ""}`),
   );
 }

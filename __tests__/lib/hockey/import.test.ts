@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { collectImportableFixtures } from "@/lib/hockey/import";
+import {
+  collectClubDayFixtures,
+  collectImportableFixtures,
+} from "@/lib/hockey/import";
 import type { ApiMatchSummary } from "@/lib/hockey/types";
 
 const TEAM_ID = 774;
@@ -115,6 +118,76 @@ describe("collectImportableFixtures", () => {
       [makeMatch({ date: "not a date" })],
       TEAM_ID,
       TODAY,
+    );
+
+    expect(fixtures).toEqual([]);
+  });
+});
+
+describe("collectClubDayFixtures", () => {
+  const CLUB = "HH11AS0";
+  const DAY = "2026-10-24";
+
+  const home = (id: number, club: string | null = CLUB) => ({
+    id,
+    name: `Team ${id}`,
+    hockey_type: "VE",
+    federation_reference_id: club,
+  });
+
+  it("keeps the club's home matches on that day, soonest first", () => {
+    const fixtures = collectClubDayFixtures(
+      [
+        makeMatch({ id: 2, home: home(1), date: "2026-10-24T10:15:00+02:00" }),
+        makeMatch({ id: 1, home: home(2), date: "2026-10-24T08:30:00+02:00" }),
+        makeMatch({ id: 3, home: home(3), date: "2026-10-25T08:30:00+02:00" }),
+      ],
+      CLUB,
+      DAY,
+    );
+
+    expect(fixtures.map((f) => f.matchId)).toEqual([1, 2]);
+  });
+
+  it("drops other clubs' matches at a shared venue", () => {
+    const fixtures = collectClubDayFixtures(
+      [makeMatch({ id: 1, home: home(1, "HH11RD6") })],
+      CLUB,
+      DAY,
+    );
+
+    expect(fixtures).toEqual([]);
+  });
+
+  it("drops the club's away matches and indoor teams", () => {
+    const fixtures = collectClubDayFixtures(
+      [
+        makeMatch({ id: 1, home: home(9, "HH11RD6"), away: home(1) }),
+        makeMatch({ id: 2, home: { ...home(2), hockey_type: "ZA" } }),
+      ],
+      CLUB,
+      DAY,
+    );
+
+    expect(fixtures).toEqual([]);
+  });
+
+  it("drops cancelled matches", () => {
+    const fixtures = collectClubDayFixtures(
+      [makeMatch({ id: 1, home: home(1), status: "cancelled" })],
+      CLUB,
+      DAY,
+    );
+
+    expect(fixtures).toEqual([]);
+  });
+
+  it("tells the day apart in Europe/Amsterdam, not UTC", () => {
+    // 00:30 on the 25th in Amsterdam is still the 24th in UTC.
+    const fixtures = collectClubDayFixtures(
+      [makeMatch({ id: 1, home: home(1), date: "2026-10-25T00:30:00+02:00" })],
+      CLUB,
+      DAY,
     );
 
     expect(fixtures).toEqual([]);

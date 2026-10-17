@@ -135,4 +135,31 @@ describe("createHockeyClient", () => {
       "Device registration failed",
     );
   });
+
+  it("logs a failed request with its endpoint and status, never the credentials", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const store = makeMemoryStore({
+      uuid: "12345678-abcd-4ef0-9876-0123456789ab",
+      token: "secret-token",
+    });
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse(429, { message: "Too Many Attempts." }),
+      );
+
+    const client = createHockeyClient({ store, fetchFn });
+    await expect(client.get("/poules/1/teams/2")).rejects.toThrow(
+      "Too Many Attempts.",
+    );
+
+    expect(warn).toHaveBeenCalledTimes(1);
+    const line = String(warn.mock.calls[0].join(" "));
+    expect(line).toContain("/poules/1/teams/2");
+    expect(line).toContain("429");
+    expect(line).toContain("Too Many Attempts.");
+    expect(line).not.toContain("secret-token");
+    expect(line).not.toContain("12345678-abcd");
+    warn.mockRestore();
+  });
 });

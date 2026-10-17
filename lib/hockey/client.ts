@@ -89,6 +89,12 @@ export function createHockeyClient(opts: {
         message?: string;
       };
       if (!response.ok) {
+        // The one trace of an upstream failure: server actions hand the
+        // browser only a generic digest, so without this a throttle ("Too
+        // Many Attempts.") is indistinguishable from any other error.
+        console.warn(
+          `Match Center GET ${endpoint} failed: HTTP ${response.status} ${payload.message ?? ""}`.trim(),
+        );
         throw new Error(payload.message ?? `HTTP ${response.status}`);
       }
       return payload.data as T;

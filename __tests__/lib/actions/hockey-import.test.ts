@@ -4,6 +4,9 @@ import type { ApiMatchSummary } from "@/lib/hockey/types";
 const mockRequirePlanner = vi.fn();
 const mockFetchClubDetail = vi.fn();
 const mockFetchTeamPoule = vi.fn();
+const mockFetchAllClubs = vi.fn();
+const mockFetchAllFacilities = vi.fn();
+const mockFetchFacilityMatches = vi.fn();
 
 type Call = { fn: string; args: unknown[] };
 type Query = { table: string; calls: Call[] };
@@ -68,9 +71,18 @@ vi.mock("@/lib/hockey/deps", () => ({
   })),
 }));
 
-vi.mock("@/lib/hockey/discovery", () => ({
+vi.mock("@/lib/hockey/discovery", async () => ({
   fetchClubDetail: mockFetchClubDetail,
   fetchTeamPoule: mockFetchTeamPoule,
+  fetchAllClubs: mockFetchAllClubs,
+  fetchAllFacilities: mockFetchAllFacilities,
+  fetchFacilityMatches: mockFetchFacilityMatches,
+  // The real picker is pure — keep it, mock only the network readers.
+  pickClubFacilities: (
+    await vi.importActual<typeof import("@/lib/hockey/discovery")>(
+      "@/lib/hockey/discovery",
+    )
+  ).pickClubFacilities,
 }));
 
 const TEAM_ID = 774;
@@ -421,38 +433,48 @@ describe("importTeamFixtures", () => {
 
 describe("getClubDayFixtures", () => {
   const DAY_INPUT = { clubId: "VVV", date: "2099-09-27" };
+  const club = { id: 1, hockey_type: "VE", federation_reference_id: "VVV" };
 
   beforeEach(() => {
-    mockFetchClubDetail.mockResolvedValue({
-      teams: [
-        { id: TEAM_ID, name: "VVV D3", hockey_type: "VE", recent_poule_id: 1 },
-        { id: 775, name: "VVV H1", hockey_type: "VE", recent_poule_id: 2 },
-        { id: 776, name: "VVV Zaal", hockey_type: "ZA", recent_poule_id: 3 },
-        { id: 777, name: "VVV D9", hockey_type: "VE", recent_poule_id: null },
-      ],
-    });
-    mockFetchTeamPoule.mockImplementation(
-      async (_deps: unknown, _pouleId: number, teamId: number) => ({
-        team: { id: teamId, name: "x", poules: [] },
-        poule: {
-          id: 1,
-          name: "Poule",
-          matches:
-            teamId === TEAM_ID
-              ? [
-                  makeMatch({ id: 1, date: "2099-09-27T14:00:00+02:00" }),
-                  makeMatch({ id: 2, date: "2099-10-04T14:00:00+02:00" }),
-                ]
-              : [
-                  makeMatch({
-                    id: 3,
-                    date: "2099-09-27T12:30:00+02:00",
-                    home: { id: 775, name: "VVV H1" },
-                  }),
-                ],
-        },
+    mockFetchAllClubs.mockResolvedValue([
+      {
+        federation_reference_id: "VVV",
+        name: "VVV",
+        friendly_name: "VVV",
+        city: "Amstelveen",
+        type: "regular",
+      },
+    ]);
+    mockFetchAllFacilities.mockResolvedValue([
+      {
+        id: 31,
+        name: "Sportpark 'Het Loopveld' (VVV)",
+        address: { city: "Amstelveen" },
+      },
+      { id: 8, name: "Sportpark Groenewoud", address: { city: "Spijkenisse" } },
+    ]);
+    mockFetchFacilityMatches.mockResolvedValue([
+      makeMatch({
+        id: 3,
+        home: { ...club, name: "VVV H1" },
+        date: "2099-09-27T12:30:00+02:00",
       }),
-    );
+      makeMatch({
+        id: 1,
+        home: { ...club, name: "VVV D3" },
+        date: "2099-09-27T14:00:00+02:00",
+      }),
+      makeMatch({
+        id: 9,
+        home: {
+          ...club,
+          id: 5,
+          name: "AMVJ D1",
+          federation_reference_id: "AMVJ",
+        },
+        date: "2099-09-27T14:00:00+02:00",
+      }),
+    ]);
   });
 
   it("is planner-gated", async () => {
@@ -460,16 +482,21 @@ describe("getClubDayFixtures", () => {
     const { getClubDayFixtures } = await import("@/lib/actions/hockey-import");
 
     await expect(getClubDayFixtures(DAY_INPUT)).rejects.toThrow("NOT_PLANNER");
-    expect(mockFetchClubDetail).not.toHaveBeenCalled();
+    expect(mockFetchAllClubs).not.toHaveBeenCalled();
   });
 
-  it("collects the home matches of every field team on that day only", async () => {
+  it("reads the club's venue for that day, not one poule per team", async () => {
     const { getClubDayFixtures } = await import("@/lib/actions/hockey-import");
     const fixtures = await getClubDayFixtures(DAY_INPUT);
 
-    // Indoor teams and teams without a poule are never queried.
-    expect(mockFetchTeamPoule).toHaveBeenCalledTimes(2);
-    // Soonest first, and the 4 Oct match is left out.
+    expect(mockFetchFacilityMatches).toHaveBeenCalledTimes(1);
+    expect(mockFetchFacilityMatches).toHaveBeenCalledWith(
+      expect.anything(),
+      31,
+      "2099-09-27",
+    );
+    expect(mockFetchTeamPoule).not.toHaveBeenCalled();
+    // Soonest first, and the other club's match at the venue is dropped.
     expect(fixtures.map((f) => f.matchId)).toEqual([3, 1]);
     expect(fixtures.every((f) => f.alreadyImported === false)).toBe(true);
   });
@@ -480,11 +507,20 @@ describe("getClubDayFixtures", () => {
     await expect(
       getClubDayFixtures({ clubId: "VVV", date: "tomorrow" }),
     ).rejects.toThrow("INVALID_DATE");
-    expect(mockFetchClubDetail).not.toHaveBeenCalled();
+    expect(mockFetchAllClubs).not.toHaveBeenCalled();
   });
 
-  it("fails as a whole when one team cannot be loaded", async () => {
-    mockFetchTeamPoule.mockRejectedValueOnce(new Error("HTTP 500"));
+  it("reports a club that is not in the Match Center", async () => {
+    mockFetchAllClubs.mockResolvedValue([]);
+    const { getClubDayFixtures } = await import("@/lib/actions/hockey-import");
+
+    await expect(getClubDayFixtures(DAY_INPUT)).rejects.toThrow(
+      "CLUB_NOT_FOUND",
+    );
+  });
+
+  it("fails as a whole when a venue cannot be loaded", async () => {
+    mockFetchFacilityMatches.mockRejectedValueOnce(new Error("HTTP 500"));
     const { getClubDayFixtures } = await import("@/lib/actions/hockey-import");
 
     await expect(getClubDayFixtures(DAY_INPUT)).rejects.toThrow("HTTP 500");
@@ -493,22 +529,28 @@ describe("getClubDayFixtures", () => {
 
 describe("importClubDayFixtures", () => {
   it("imports only the picked fixtures of that day", async () => {
-    mockFetchClubDetail.mockResolvedValue({
-      teams: [
-        { id: TEAM_ID, name: "VVV D3", hockey_type: "VE", recent_poule_id: 1 },
-      ],
-    });
-    mockFetchTeamPoule.mockResolvedValue({
-      team: { id: TEAM_ID, name: "VVV D3", poules: [] },
-      poule: {
-        id: 1,
-        name: "Poule",
-        matches: [
-          makeMatch({ id: 1, date: "2099-09-27T14:00:00+02:00" }),
-          makeMatch({ id: 2, date: "2099-09-27T16:00:00+02:00" }),
-        ],
+    mockFetchAllClubs.mockResolvedValue([
+      {
+        federation_reference_id: "VVV",
+        name: "VVV",
+        friendly_name: "VVV",
+        city: "Amstelveen",
+        type: "regular",
       },
-    });
+    ]);
+    mockFetchAllFacilities.mockResolvedValue([
+      { id: 31, name: "Loopveld (VVV)", address: { city: "Amstelveen" } },
+    ]);
+    const home = {
+      id: TEAM_ID,
+      name: "VVV D3",
+      hockey_type: "VE",
+      federation_reference_id: "VVV",
+    };
+    mockFetchFacilityMatches.mockResolvedValue([
+      makeMatch({ id: 1, home, date: "2099-09-27T14:00:00+02:00" }),
+      makeMatch({ id: 2, home, date: "2099-09-27T16:00:00+02:00" }),
+    ]);
 
     const { importClubDayFixtures } =
       await import("@/lib/actions/hockey-import");
