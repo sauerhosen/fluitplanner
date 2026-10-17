@@ -418,3 +418,107 @@ describe("importTeamFixtures", () => {
     ).rejects.toThrow("NOT_PLANNER");
   });
 });
+
+describe("getClubDayFixtures", () => {
+  const DAY_INPUT = { clubId: "VVV", date: "2099-09-27" };
+
+  beforeEach(() => {
+    mockFetchClubDetail.mockResolvedValue({
+      teams: [
+        { id: TEAM_ID, name: "VVV D3", hockey_type: "VE", recent_poule_id: 1 },
+        { id: 775, name: "VVV H1", hockey_type: "VE", recent_poule_id: 2 },
+        { id: 776, name: "VVV Zaal", hockey_type: "ZA", recent_poule_id: 3 },
+        { id: 777, name: "VVV D9", hockey_type: "VE", recent_poule_id: null },
+      ],
+    });
+    mockFetchTeamPoule.mockImplementation(
+      async (_deps: unknown, _pouleId: number, teamId: number) => ({
+        team: { id: teamId, name: "x", poules: [] },
+        poule: {
+          id: 1,
+          name: "Poule",
+          matches:
+            teamId === TEAM_ID
+              ? [
+                  makeMatch({ id: 1, date: "2099-09-27T14:00:00+02:00" }),
+                  makeMatch({ id: 2, date: "2099-10-04T14:00:00+02:00" }),
+                ]
+              : [
+                  makeMatch({
+                    id: 3,
+                    date: "2099-09-27T12:30:00+02:00",
+                    home: { id: 775, name: "VVV H1" },
+                  }),
+                ],
+        },
+      }),
+    );
+  });
+
+  it("is planner-gated", async () => {
+    mockRequirePlanner.mockRejectedValue(new Error("NOT_PLANNER"));
+    const { getClubDayFixtures } = await import("@/lib/actions/hockey-import");
+
+    await expect(getClubDayFixtures(DAY_INPUT)).rejects.toThrow("NOT_PLANNER");
+    expect(mockFetchClubDetail).not.toHaveBeenCalled();
+  });
+
+  it("collects the home matches of every field team on that day only", async () => {
+    const { getClubDayFixtures } = await import("@/lib/actions/hockey-import");
+    const fixtures = await getClubDayFixtures(DAY_INPUT);
+
+    // Indoor teams and teams without a poule are never queried.
+    expect(mockFetchTeamPoule).toHaveBeenCalledTimes(2);
+    // Soonest first, and the 4 Oct match is left out.
+    expect(fixtures.map((f) => f.matchId)).toEqual([3, 1]);
+    expect(fixtures.every((f) => f.alreadyImported === false)).toBe(true);
+  });
+
+  it("rejects a malformed date before touching upstream", async () => {
+    const { getClubDayFixtures } = await import("@/lib/actions/hockey-import");
+
+    await expect(
+      getClubDayFixtures({ clubId: "VVV", date: "tomorrow" }),
+    ).rejects.toThrow("INVALID_DATE");
+    expect(mockFetchClubDetail).not.toHaveBeenCalled();
+  });
+
+  it("fails as a whole when one team cannot be loaded", async () => {
+    mockFetchTeamPoule.mockRejectedValueOnce(new Error("HTTP 500"));
+    const { getClubDayFixtures } = await import("@/lib/actions/hockey-import");
+
+    await expect(getClubDayFixtures(DAY_INPUT)).rejects.toThrow("HTTP 500");
+  });
+});
+
+describe("importClubDayFixtures", () => {
+  it("imports only the picked fixtures of that day", async () => {
+    mockFetchClubDetail.mockResolvedValue({
+      teams: [
+        { id: TEAM_ID, name: "VVV D3", hockey_type: "VE", recent_poule_id: 1 },
+      ],
+    });
+    mockFetchTeamPoule.mockResolvedValue({
+      team: { id: TEAM_ID, name: "VVV D3", poules: [] },
+      poule: {
+        id: 1,
+        name: "Poule",
+        matches: [
+          makeMatch({ id: 1, date: "2099-09-27T14:00:00+02:00" }),
+          makeMatch({ id: 2, date: "2099-09-27T16:00:00+02:00" }),
+        ],
+      },
+    });
+
+    const { importClubDayFixtures } =
+      await import("@/lib/actions/hockey-import");
+    const result = await importClubDayFixtures({
+      clubId: "VVV",
+      date: "2099-09-27",
+      matchIds: [2],
+    });
+
+    expect(result).toMatchObject({ imported: 1 });
+    expect(insertedRows().map((row) => row.external_id)).toEqual([2]);
+  });
+});

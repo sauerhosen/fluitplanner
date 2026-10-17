@@ -11,6 +11,8 @@ vi.mock("@/lib/actions/hockey-teams", () => ({
 vi.mock("@/lib/actions/hockey-import", () => ({
   getTeamFixtures: vi.fn(),
   importTeamFixtures: vi.fn(),
+  getClubDayFixtures: vi.fn(),
+  importClubDayFixtures: vi.fn(),
 }));
 
 vi.mock("sonner", () => ({
@@ -21,6 +23,8 @@ import { searchClubs, getClubTeams } from "@/lib/actions/hockey-teams";
 import {
   getTeamFixtures,
   importTeamFixtures,
+  getClubDayFixtures,
+  importClubDayFixtures,
 } from "@/lib/actions/hockey-import";
 import { toast } from "sonner";
 
@@ -28,6 +32,8 @@ const mockSearchClubs = vi.mocked(searchClubs);
 const mockGetClubTeams = vi.mocked(getClubTeams);
 const mockGetTeamFixtures = vi.mocked(getTeamFixtures);
 const mockImportTeamFixtures = vi.mocked(importTeamFixtures);
+const mockGetClubDayFixtures = vi.mocked(getClubDayFixtures);
+const mockImportClubDayFixtures = vi.mocked(importClubDayFixtures);
 
 const FIXTURE = {
   matchId: 2079156,
@@ -195,6 +201,79 @@ describe("MatchCenterImportDialog", () => {
 
     expect(
       await screen.findByText(/no upcoming home matches/i),
+    ).toBeInTheDocument();
+  });
+});
+
+describe("MatchCenterImportDialog — by day", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockSearchClubs.mockResolvedValue([
+      { id: "VVV", name: "VVV", city: "Amstelveen" },
+    ]);
+    mockGetClubTeams.mockResolvedValue([]);
+    mockGetClubDayFixtures.mockResolvedValue([FIXTURE]);
+    mockImportClubDayFixtures.mockResolvedValue({
+      imported: 1,
+      updated: 0,
+      skipped: 0,
+      errors: [],
+    });
+  });
+
+  async function openDayView() {
+    render(
+      <MatchCenterImportDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        onImported={vi.fn()}
+      />,
+    );
+    fireEvent.change(screen.getByPlaceholderText(/search clubs/i), {
+      target: { value: "vvv" },
+    });
+    await screen.findByText("Amstelveen");
+    fireEvent.click(screen.getByRole("button", { name: /VVV/ }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: /all home matches on a day/i }),
+    );
+  }
+
+  it("lists the club's home matches once a date is picked, and imports the ticked ones", async () => {
+    await openDayView();
+    expect(mockGetClubDayFixtures).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByLabelText(/date/i), {
+      target: { value: "2099-09-27" },
+    });
+    expect(await screen.findByText("VVV D3 – AMVJ D3")).toBeInTheDocument();
+    expect(mockGetClubDayFixtures).toHaveBeenCalledWith({
+      clubId: "VVV",
+      date: "2099-09-27",
+    });
+
+    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.click(screen.getByRole("button", { name: /import 1 match/i }));
+
+    await waitFor(() => {
+      expect(mockImportClubDayFixtures).toHaveBeenCalledWith({
+        clubId: "VVV",
+        date: "2099-09-27",
+        matchIds: [2079156],
+      });
+    });
+    expect(mockImportTeamFixtures).not.toHaveBeenCalled();
+  });
+
+  it("says so when the club plays no home match that day", async () => {
+    mockGetClubDayFixtures.mockResolvedValue([]);
+    await openDayView();
+
+    fireEvent.change(screen.getByLabelText(/date/i), {
+      target: { value: "2099-09-28" },
+    });
+    expect(
+      await screen.findByText(/no home matches for this club on that day/i),
     ).toBeInTheDocument();
   });
 });

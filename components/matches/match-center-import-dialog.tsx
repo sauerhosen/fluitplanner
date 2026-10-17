@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { useFormatter, useTranslations } from "next-intl";
 import { toast } from "sonner";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft, CalendarDays, Loader2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -14,9 +14,12 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import { ClubTeamBrowser } from "@/components/hockey/club-team-browser";
 import {
+  getClubDayFixtures,
   getTeamFixtures,
+  importClubDayFixtures,
   importTeamFixtures,
   type TeamFixture,
 } from "@/lib/actions/hockey-import";
@@ -27,6 +30,14 @@ type Props = {
   onOpenChange: (open: boolean) => void;
   onImported: () => void;
 };
+
+/** Today as the `YYYY-MM-DD` an `<input type="date">` takes, in the viewer's zone. */
+function todayInputValue(): string {
+  const now = new Date();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${now.getFullYear()}-${month}-${day}`;
+}
 
 /**
  * Import single fixtures straight from the Match Center, for a team the club
@@ -40,11 +51,14 @@ export function MatchCenterImportDialog({
 }: Props) {
   const t = useTranslations("matches");
   const format = useFormatter();
-  const [team, setTeam] = useState<{
-    club: ClubSearchResult;
-    teamId: number;
-    name: string;
-  } | null>(null);
+  // What the fixture list shows: one team's upcoming home matches, or every
+  // home match of a club on one day.
+  const [view, setView] = useState<
+    | { kind: "team"; club: ClubSearchResult; teamId: number; name: string }
+    | { kind: "day"; club: ClubSearchResult }
+    | null
+  >(null);
+  const [date, setDate] = useState("");
   const [fixtures, setFixtures] = useState<TeamFixture[]>([]);
   const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState<number[]>([]);
@@ -59,7 +73,7 @@ export function MatchCenterImportDialog({
     // Going back and picking another team must not let the first team's
     // fixtures — or its failure — land on the second one.
     const seq = ++teamSeqRef.current;
-    setTeam({ club, teamId, name });
+    setView({ kind: "team", club, teamId, name });
     setFixtures([]);
     setSelected([]);
     setLoading(true);
@@ -72,7 +86,38 @@ export function MatchCenterImportDialog({
       // Server-action error messages are a generic digest in production, so
       // every upstream failure reads the same here.
       toast.error(t("matchCenterLoadError"));
-      setTeam(null);
+      setView(null);
+    } finally {
+      if (seq === teamSeqRef.current) setLoading(false);
+    }
+  }
+
+  function handleSelectDay(club: ClubSearchResult) {
+    teamSeqRef.current++;
+    setView({ kind: "day", club });
+    setDate("");
+    setFixtures([]);
+    setSelected([]);
+    setLoading(false);
+  }
+
+  async function handleDateChange(value: string, club: ClubSearchResult) {
+    const seq = ++teamSeqRef.current;
+    setDate(value);
+    setFixtures([]);
+    setSelected([]);
+    if (!value) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    try {
+      const result = await getClubDayFixtures({ clubId: club.id, date: value });
+      if (seq !== teamSeqRef.current) return;
+      setFixtures(result);
+    } catch {
+      if (seq !== teamSeqRef.current) return;
+      toast.error(t("matchCenterLoadError"));
     } finally {
       if (seq === teamSeqRef.current) setLoading(false);
     }
@@ -87,14 +132,21 @@ export function MatchCenterImportDialog({
   }
 
   async function handleImport() {
-    if (!team || selected.length === 0) return;
+    if (!view || selected.length === 0) return;
     setImporting(true);
     try {
-      const result = await importTeamFixtures({
-        clubId: team.club.id,
-        teamId: team.teamId,
-        matchIds: selected,
-      });
+      const result =
+        view.kind === "team"
+          ? await importTeamFixtures({
+              clubId: view.club.id,
+              teamId: view.teamId,
+              matchIds: selected,
+            })
+          : await importClubDayFixtures({
+              clubId: view.club.id,
+              date,
+              matchIds: selected,
+            });
 
       const parts = [
         result.imported > 0 &&
@@ -153,8 +205,20 @@ export function MatchCenterImportDialog({
 
         {/* The browser stays mounted behind the fixture list so going back
             returns to the club's teams, not to an empty search. */}
-        <div hidden={team !== null}>
+        <div hidden={view !== null}>
           <ClubTeamBrowser
+            renderClubAction={(club) => (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="w-full justify-start"
+                onClick={() => handleSelectDay(club)}
+              >
+                <CalendarDays className="mr-2 h-4 w-4" />
+                {t("matchCenterByDay")}
+              </Button>
+            )}
             renderTeam={(option, club) => (
               <button
                 type="button"
@@ -169,7 +233,7 @@ export function MatchCenterImportDialog({
           />
         </div>
 
-        {team && (
+        {view && (
           <div className="space-y-3">
             <Button
               variant="ghost"
@@ -177,20 +241,44 @@ export function MatchCenterImportDialog({
               onClick={() => {
                 teamSeqRef.current++;
                 setLoading(false);
-                setTeam(null);
+                setView(null);
               }}
             >
               <ArrowLeft className="mr-1 h-4 w-4" />
-              {team.name}
+              {view.kind === "team"
+                ? view.name
+                : `${view.club.name} · ${t("matchCenterByDayTitle")}`}
             </Button>
-            {loading ? (
+            {view.kind === "day" && (
+              <label className="flex items-center gap-2 text-sm">
+                <span className="text-muted-foreground">
+                  {t("matchCenterDateLabel")}
+                </span>
+                <Input
+                  type="date"
+                  value={date}
+                  min={todayInputValue()}
+                  onChange={(event) =>
+                    handleDateChange(event.target.value, view.club)
+                  }
+                  className="w-auto"
+                />
+              </label>
+            )}
+            {view.kind === "day" && !date ? (
+              <p className="text-muted-foreground py-4 text-sm">
+                {t("matchCenterPickDate")}
+              </p>
+            ) : loading ? (
               <div className="text-muted-foreground flex items-center gap-2 py-4 text-sm">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 {t("matchCenterLoadingFixtures")}
               </div>
             ) : fixtures.length === 0 ? (
               <p className="text-muted-foreground py-4 text-sm">
-                {t("matchCenterNoFixtures")}
+                {view.kind === "day"
+                  ? t("matchCenterNoDayFixtures")
+                  : t("matchCenterNoFixtures")}
               </p>
             ) : (
               <ul className="max-h-72 space-y-1 overflow-y-auto">
@@ -228,7 +316,7 @@ export function MatchCenterImportDialog({
           </div>
         )}
 
-        {team && fixtures.length > 0 && (
+        {view && fixtures.length > 0 && (
           <DialogFooter>
             <Button
               onClick={handleImport}

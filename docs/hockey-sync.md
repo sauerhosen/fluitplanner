@@ -35,7 +35,11 @@ cancelled styling until the planner deletes it.
 **Matches page → "…" → Import from Match Center.** A one-off import for a team the club
 does _not_ track — the odd fixture the nightly sync will never see
 (`components/matches/match-center-import-dialog.tsx`). The planner searches a club, picks a
-team, and ticks individual fixtures; nothing is subscribed. Details below.
+team, and ticks individual fixtures; nothing is subscribed. After picking a club, "All home
+matches on a day…" lists every field team's home match on one chosen date instead
+(`getClubDayFixtures` / `importClubDayFixtures`): the Match Center has no per-club or per-day
+listing, so it reads each team's cached poule, four at a time, and fails as a whole if one
+team cannot be loaded. Details below.
 
 **On demand.** `syncNow()` (`lib/actions/hockey-sync.ts`) runs the same engine for the
 current club, behind a **15-minute cooldown**. The cooldown is a returned status rather than
