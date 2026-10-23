@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type {
@@ -72,6 +72,10 @@ type Props = {
   clubName?: string | null;
 };
 
+// A stable fallback, so an omitted roster does not change the identity of every
+// callback that depends on it on each render.
+const NO_UMPIRES: RosteredUmpire[] = [];
+
 /**
  * Render a client-side poll detail editor and viewer with tabs for matches, responses, and assignments.
  *
@@ -87,7 +91,7 @@ export function PollDetailClient({
   initialPoll,
   availableMatches,
   umpires: initialUmpires,
-  roster = [],
+  roster = NO_UMPIRES,
   clubName,
 }: Props) {
   const router = useRouter();
@@ -312,16 +316,26 @@ export function PollDetailClient({
   // list — so fetch that list again once the umpire's first answer lands.
   // Only the list: the answers themselves are already in `liveResponses`, and
   // refetching the poll could overwrite edits made while it was in flight.
+  // Several quick clicks on a new umpire's row all land before the refetch
+  // does, so remember who already triggered one rather than refetching per save.
+  const refreshedFor = useRef(new Set<string>());
   const handleResponseSaved = useCallback(
     (umpireId: string) => {
       if (umpires.some((u) => u.id === umpireId)) return;
-      void refreshUmpires();
+      if (refreshedFor.current.has(umpireId)) return;
+      refreshedFor.current.add(umpireId);
+      refreshUmpires().catch(() => {
+        // The answer is saved; only the grid row is missing until the next
+        // load, so let a later save try again.
+        refreshedFor.current.delete(umpireId);
+      });
     },
     [umpires, refreshUmpires],
   );
 
+  // Count umpires, not names: two umpires can share a name.
   const uniqueRespondentCount = [
-    ...new Set(liveResponses.map((r) => r.participant_name)),
+    ...new Set(liveResponses.map((r) => r.umpire_id ?? r.participant_name)),
   ].length;
 
   return (

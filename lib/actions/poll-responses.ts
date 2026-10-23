@@ -43,23 +43,31 @@ export async function updatePollResponse(
   } else {
     // A planner may answer for an umpire who never opened the poll, so the
     // umpire is not vouched for by an existing response: check the roster.
-    const { data: rosterRow, error: rosterError } = await supabase
-      .from("organization_umpires")
-      .select("umpire_id")
-      .eq("organization_id", tenantId)
-      .eq("umpire_id", umpireId)
-      .single();
+    // The slot must belong to this poll too, or the answer lands on a slot the
+    // poll page never shows.
+    const [slotResult, rosterResult, umpireResult] = await Promise.all([
+      supabase
+        .from("poll_slots")
+        .select("id")
+        .eq("id", slotId)
+        .eq("poll_id", pollId)
+        .single(),
+      supabase
+        .from("organization_umpires")
+        .select("umpire_id")
+        .eq("organization_id", tenantId)
+        .eq("umpire_id", umpireId)
+        .single(),
+      // Look up umpire name for participant_name field
+      supabase.from("umpires").select("id, name").eq("id", umpireId).single(),
+    ]);
 
-    if (rosterError || !rosterRow) return { error: "Umpire not found" };
-
-    // Look up umpire name for participant_name field
-    const { data: umpire, error: umpireError } = await supabase
-      .from("umpires")
-      .select("id, name")
-      .eq("id", umpireId)
-      .single();
-
-    if (umpireError || !umpire) return { error: "Umpire not found" };
+    if (slotResult.error || !slotResult.data)
+      return { error: "Slot not found" };
+    if (rosterResult.error || !rosterResult.data)
+      return { error: "Umpire not found" };
+    const umpire = umpireResult.data;
+    if (umpireResult.error || !umpire) return { error: "Umpire not found" };
 
     const { error: upsertError } = await supabase
       .from("availability_responses")
