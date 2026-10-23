@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.31.1](https://github.com/sauerhosen/fluitplanner/compare/v2.31.0...v2.31.1) (2026-10-23)
+
+
+### Bug Fixes
+
+* **deps:** patch Dependabot security alerts ([3e79bfd](https://github.com/sauerhosen/fluitplanner/commit/3e79bfd836c5af8f313d67830c2946896454102e))
+* **deps:** patch Dependabot security alerts ([9dd68ee](https://github.com/sauerhosen/fluitplanner/commit/9dd68ee81c102cc79e015ab3bdfee188f82bcc00))
+
 ## [2.31.0](https://github.com/sauerhosen/fluitplanner/compare/v2.30.0...v2.31.0) (2026-10-23)
 
 
