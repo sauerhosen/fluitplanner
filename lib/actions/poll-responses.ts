@@ -4,7 +4,7 @@ import { requirePlanner } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 
 /**
- * Create, update, or remove an umpire's availability response for a poll slot, verify that the caller owns the poll, and revalidate the poll page.
+ * Create, update, or remove an umpire's availability response for a poll slot, verify that the caller owns the poll and that the umpire is on the club's roster, and revalidate the poll page. The umpire need not have answered the poll themselves.
  *
  * @param pollId - The ID of the poll to modify
  * @param slotId - The ID of the poll slot being updated
@@ -41,14 +41,33 @@ export async function updatePollResponse(
 
     if (deleteError) return { error: deleteError.message };
   } else {
-    // Look up umpire name for participant_name field
-    const { data: umpire, error: umpireError } = await supabase
-      .from("umpires")
-      .select("id, name")
-      .eq("id", umpireId)
-      .single();
+    // A planner may answer for an umpire who never opened the poll, so the
+    // umpire is not vouched for by an existing response: check the roster.
+    // The slot must belong to this poll too, or the answer lands on a slot the
+    // poll page never shows.
+    const [slotResult, rosterResult, umpireResult] = await Promise.all([
+      supabase
+        .from("poll_slots")
+        .select("id")
+        .eq("id", slotId)
+        .eq("poll_id", pollId)
+        .single(),
+      supabase
+        .from("organization_umpires")
+        .select("umpire_id")
+        .eq("organization_id", tenantId)
+        .eq("umpire_id", umpireId)
+        .single(),
+      // Look up umpire name for participant_name field
+      supabase.from("umpires").select("id, name").eq("id", umpireId).single(),
+    ]);
 
-    if (umpireError || !umpire) return { error: "Umpire not found" };
+    if (slotResult.error || !slotResult.data)
+      return { error: "Slot not found" };
+    if (rosterResult.error || !rosterResult.data)
+      return { error: "Umpire not found" };
+    const umpire = umpireResult.data;
+    if (umpireResult.error || !umpire) return { error: "Umpire not found" };
 
     const { error: upsertError } = await supabase
       .from("availability_responses")

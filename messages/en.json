@@ -307,6 +307,8 @@
     "responsesTabShort": "Responses",
     "assignmentsTab": "Assignments",
     "swapAxes": "Swap axes",
+    "addRespondent": "Add umpire",
+    "addRespondentHint": "Fill in availability for an umpire who hasn't answered the poll",
     "focusUmpire": "One umpire",
     "focusUmpireHint": "Show only one umpire's row, so a screenshot is about one person",
     "allUmpires": "All umpires",

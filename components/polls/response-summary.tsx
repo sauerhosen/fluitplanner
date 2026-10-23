@@ -1,12 +1,19 @@
 "use client";
 
 import { useState } from "react";
-import { Check, X, HelpCircle } from "lucide-react";
+import { Check, X, HelpCircle, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { updatePollResponse } from "@/lib/actions/poll-responses";
 import type { PollSlot, AvailabilityResponse } from "@/lib/types/domain";
 import { useTranslations, useFormatter } from "next-intl";
 import { useIsPlanner } from "@/components/shared/role-provider";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 type ResponseValue = "yes" | "if_need_be" | "no";
 
@@ -49,11 +56,18 @@ type Props = {
   pollId: string;
   slots: PollSlot[];
   responses: AvailabilityResponse[];
+  /**
+   * The club's whole roster. A planner picks from it to answer for an umpire
+   * who replied outside the poll ("I can do Saturday") and so has no row yet.
+   */
+  roster?: { id: string; name: string }[];
   onResponseChange?: (
     slotId: string,
     umpireId: string,
     response: ResponseValue | null,
   ) => void;
+  /** Called once the server has stored a change. */
+  onResponseSaved?: (umpireId: string) => void;
 };
 
 /**
@@ -71,7 +85,9 @@ export function ResponseSummary({
   pollId,
   slots,
   responses,
+  roster = [],
   onResponseChange,
+  onResponseSaved,
 }: Props) {
   const t = useTranslations("polls");
   const format = useFormatter();
@@ -142,6 +158,19 @@ export function ResponseSummary({
     return map;
   });
 
+  // Rows that stay put for this editing session, whatever their answers do:
+  // umpires pulled in from the roster (empty until a cell is clicked) and
+  // anyone whose cell was clicked. Without this, cycling an umpire's last
+  // answer to "no response" would drop their row mid-cycle, since the parent
+  // feeds every optimistic edit back as `responses`.
+  const [pinned, setPinned] = useState<Map<string, string>>(() => new Map());
+
+  function pin(umpireId: string, name: string) {
+    setPinned((prev) =>
+      prev.has(umpireId) ? prev : new Map(prev).set(umpireId, name),
+    );
+  }
+
   // Extract unique participants (umpires with at least one response)
   const participants: Participant[] = [];
   const seen = new Set<string>();
@@ -151,19 +180,59 @@ export function ResponseSummary({
       participants.push({ umpireId: r.umpire_id, name: r.participant_name });
     }
   }
+  for (const [id, name] of pinned) {
+    if (!seen.has(id)) {
+      seen.add(id);
+      participants.push({ umpireId: id, name });
+    }
+  }
   participants.sort((a, b) => a.name.localeCompare(b.name));
+
+  const addable = roster
+    .filter((u) => !seen.has(u.id))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  const addMenu =
+    canEdit && addable.length > 0 ? (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="outline"
+            size="sm"
+            title={t("addRespondentHint")}
+            data-testid="add-respondent-menu"
+          >
+            <UserPlus className="mr-2 h-4 w-4" />
+            {t("addRespondent")}
+          </Button>
+        </DropdownMenuTrigger>
+        {/* A roster outgrows the viewport, so the list scrolls. */}
+        <DropdownMenuContent
+          align="start"
+          className="max-h-[60vh] overflow-y-auto"
+        >
+          {addable.map((u) => (
+            <DropdownMenuItem key={u.id} onSelect={() => pin(u.id, u.name)}>
+              {u.name}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    ) : null;
 
   if (participants.length === 0) {
     return (
-      <p className="text-sm text-muted-foreground py-4">
-        {t("noResponsesYet")}
-      </p>
+      <div className="flex flex-col items-start gap-3 py-4">
+        <p className="text-sm text-muted-foreground">{t("noResponsesYet")}</p>
+        {addMenu}
+      </div>
     );
   }
 
   const dateGroups = groupSlotsByDate(slots);
 
-  function handleClick(slotId: string, umpireId: string) {
+  function handleClick(slotId: string, umpireId: string, name: string) {
+    pin(umpireId, name);
     const key = cellKey(slotId, umpireId);
     const current = responseMap.get(key) ?? null;
     const next = nextResponse(current);
@@ -198,6 +267,8 @@ export function ResponseSummary({
         if (result.error) {
           revert();
           toast.error(t("failedToUpdateResponse", { error: result.error }));
+        } else {
+          onResponseSaved?.(umpireId);
         }
       })
       .catch(() => {
@@ -207,98 +278,101 @@ export function ResponseSummary({
   }
 
   return (
-    <div className="scrollbar-visible overflow-x-auto pb-2">
-      <table className="min-w-full text-sm border-collapse">
-        <thead>
-          {/* Date header row */}
-          <tr>
-            <th
-              rowSpan={2}
-              className="text-left p-2 font-medium sticky left-0 z-10 bg-background align-bottom"
-            />
-            {dateGroups.map((group, i) => (
+    <div className="flex flex-col gap-3">
+      {addMenu && <div>{addMenu}</div>}
+      <div className="scrollbar-visible overflow-x-auto pb-2">
+        <table className="min-w-full text-sm border-collapse">
+          <thead>
+            {/* Date header row */}
+            <tr>
               <th
-                key={i}
-                colSpan={group.slots.length}
-                className={`text-center px-1 pt-3 pb-1 align-bottom whitespace-nowrap ${i > 0 ? "border-l-2 border-border" : ""}`}
-              >
-                <div className="text-muted-foreground text-[10px] uppercase tracking-wider">
-                  {group.weekday}
-                </div>
-                <div className="text-base font-bold leading-tight">
-                  {group.day}
-                </div>
-              </th>
-            ))}
-          </tr>
-          {/* Time header row */}
-          <tr>
-            {dateGroups.flatMap((group, gi) =>
-              group.slots.map((slot, si) => (
+                rowSpan={2}
+                className="text-left p-2 font-medium sticky left-0 z-10 bg-background align-bottom"
+              />
+              {dateGroups.map((group, i) => (
                 <th
-                  key={slot.id}
-                  className={`text-center px-1 pt-1 pb-2 border-b font-normal whitespace-nowrap text-[11px] text-muted-foreground min-w-16 ${gi > 0 && si === 0 ? "border-l-2 border-border" : ""}`}
+                  key={i}
+                  colSpan={group.slots.length}
+                  className={`text-center px-1 pt-3 pb-1 align-bottom whitespace-nowrap ${i > 0 ? "border-l-2 border-border" : ""}`}
                 >
-                  {formatTime(slot.start_time)}
-                  <br />
-                  {formatTime(slot.end_time)}
+                  <div className="text-muted-foreground text-[10px] uppercase tracking-wider">
+                    {group.weekday}
+                  </div>
+                  <div className="text-base font-bold leading-tight">
+                    {group.day}
+                  </div>
                 </th>
-              )),
-            )}
-          </tr>
-        </thead>
-        <tbody>
-          {participants.map(({ umpireId, name }) => (
-            <tr key={umpireId}>
-              <td className="p-2 border-b font-medium sticky left-0 z-10 bg-background whitespace-nowrap">
-                {name}
-              </td>
+              ))}
+            </tr>
+            {/* Time header row */}
+            <tr>
               {dateGroups.flatMap((group, gi) =>
-                group.slots.map((slot, si) => {
-                  const key = cellKey(slot.id, umpireId);
-                  const response = responseMap.get(key) ?? null;
-                  const config = response ? RESPONSE_ICONS[response] : null;
-                  const label = `${name} – ${formatTime(slot.start_time)}: ${config?.label ?? t("noResponseLabel")}`;
-                  const content = config ? (
-                    <config.icon
-                      className={`mx-auto h-5 w-5 ${config.className}`}
-                    />
-                  ) : (
-                    <span className="text-muted-foreground text-xs">
-                      {"\u2014"}
-                    </span>
-                  );
-                  return (
-                    <td
-                      key={slot.id}
-                      className={`border-b text-center p-0 ${gi > 0 && si === 0 ? "border-l-2 border-border" : ""}`}
-                    >
-                      {canEdit ? (
-                        <button
-                          type="button"
-                          onClick={() => handleClick(slot.id, umpireId)}
-                          className="w-full h-full p-1 cursor-pointer hover:bg-muted/50 transition-colors rounded-sm"
-                          aria-label={label}
-                        >
-                          {content}
-                        </button>
-                      ) : (
-                        <span
-                          role="img"
-                          aria-label={label}
-                          className="block w-full h-full p-1 rounded-sm"
-                        >
-                          {content}
-                        </span>
-                      )}
-                    </td>
-                  );
-                }),
+                group.slots.map((slot, si) => (
+                  <th
+                    key={slot.id}
+                    className={`text-center px-1 pt-1 pb-2 border-b font-normal whitespace-nowrap text-[11px] text-muted-foreground min-w-16 ${gi > 0 && si === 0 ? "border-l-2 border-border" : ""}`}
+                  >
+                    {formatTime(slot.start_time)}
+                    <br />
+                    {formatTime(slot.end_time)}
+                  </th>
+                )),
               )}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {participants.map(({ umpireId, name }) => (
+              <tr key={umpireId}>
+                <td className="p-2 border-b font-medium sticky left-0 z-10 bg-background whitespace-nowrap">
+                  {name}
+                </td>
+                {dateGroups.flatMap((group, gi) =>
+                  group.slots.map((slot, si) => {
+                    const key = cellKey(slot.id, umpireId);
+                    const response = responseMap.get(key) ?? null;
+                    const config = response ? RESPONSE_ICONS[response] : null;
+                    const label = `${name} – ${formatTime(slot.start_time)}: ${config?.label ?? t("noResponseLabel")}`;
+                    const content = config ? (
+                      <config.icon
+                        className={`mx-auto h-5 w-5 ${config.className}`}
+                      />
+                    ) : (
+                      <span className="text-muted-foreground text-xs">
+                        {"\u2014"}
+                      </span>
+                    );
+                    return (
+                      <td
+                        key={slot.id}
+                        className={`border-b text-center p-0 ${gi > 0 && si === 0 ? "border-l-2 border-border" : ""}`}
+                      >
+                        {canEdit ? (
+                          <button
+                            type="button"
+                            onClick={() => handleClick(slot.id, umpireId, name)}
+                            className="w-full h-full p-1 cursor-pointer hover:bg-muted/50 transition-colors rounded-sm"
+                            aria-label={label}
+                          >
+                            {content}
+                          </button>
+                        ) : (
+                          <span
+                            role="img"
+                            aria-label={label}
+                            className="block w-full h-full p-1 rounded-sm"
+                          >
+                            {content}
+                          </span>
+                        )}
+                      </td>
+                    );
+                  }),
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

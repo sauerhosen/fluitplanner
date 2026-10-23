@@ -115,6 +115,8 @@ describe("updatePollResponse", () => {
         data: { id: "poll-1", created_by: "user-1" },
         error: null,
       })
+      .mockResolvedValueOnce({ data: { id: "slot-1" }, error: null })
+      .mockResolvedValueOnce({ data: { umpire_id: "umpire-1" }, error: null })
       .mockResolvedValueOnce({
         data: { id: "umpire-1", name: "Test Umpire" },
         error: null,
@@ -138,6 +140,56 @@ describe("updatePollResponse", () => {
       }),
       { onConflict: "poll_id,slot_id,umpire_id" },
     );
+  });
+
+  it("refuses an umpire who is not on this club's roster", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } });
+    mockSingle
+      .mockResolvedValueOnce({
+        data: { id: "poll-1", organization_id: "test-org-id" },
+        error: null,
+      })
+      .mockResolvedValueOnce({ data: { id: "slot-1" }, error: null })
+      .mockResolvedValueOnce({ data: null, error: { message: "no rows" } });
+
+    const result = await updatePollResponse(
+      "poll-1",
+      "slot-1",
+      "other-club-umpire",
+      "yes",
+    );
+
+    expect(result).toEqual({ error: "Umpire not found" });
+    expect(mockFrom).toHaveBeenCalledWith("organization_umpires");
+    expect(mockEq).toHaveBeenCalledWith("organization_id", "test-org-id");
+    expect(mockUpsert).not.toHaveBeenCalled();
+  });
+
+  it("refuses a slot that does not belong to the poll", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } });
+    mockSingle
+      .mockResolvedValueOnce({
+        data: { id: "poll-1", organization_id: "test-org-id" },
+        error: null,
+      })
+      .mockResolvedValueOnce({ data: null, error: { message: "no rows" } })
+      .mockResolvedValueOnce({ data: { umpire_id: "umpire-1" }, error: null })
+      .mockResolvedValueOnce({
+        data: { id: "umpire-1", name: "Test Umpire" },
+        error: null,
+      });
+
+    const result = await updatePollResponse(
+      "poll-1",
+      "other-poll-slot",
+      "umpire-1",
+      "yes",
+    );
+
+    expect(result).toEqual({ error: "Slot not found" });
+    expect(mockFrom).toHaveBeenCalledWith("poll_slots");
+    expect(mockEq).toHaveBeenCalledWith("poll_id", "poll-1");
+    expect(mockUpsert).not.toHaveBeenCalled();
   });
 
   it("deletes response when value is null", async () => {

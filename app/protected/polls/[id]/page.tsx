@@ -3,6 +3,7 @@ import { PollDetailSkeleton } from "@/components/skeletons";
 import { notFound } from "next/navigation";
 import { getPoll, getAvailableMatches } from "@/lib/actions/polls";
 import { getUmpiresForPoll } from "@/lib/actions/assignments";
+import { getUmpires } from "@/lib/actions/umpires";
 import { PollDetailClient } from "@/components/polls/poll-detail-client";
 import { getCurrentOrganizationName } from "@/lib/actions/tenant-actions";
 
@@ -13,12 +14,15 @@ async function PollDetailLoader({
 }) {
   const { id } = await params;
 
-  const [poll, availableMatches, umpires, clubName] = await Promise.all([
-    getPoll(id).catch(() => null),
-    getAvailableMatches(id).catch(() => []),
-    getUmpiresForPoll(id).catch(() => []),
-    getCurrentOrganizationName().catch(() => null),
-  ]);
+  const [poll, availableMatches, umpires, roster, clubName] = await Promise.all(
+    [
+      getPoll(id).catch(() => null),
+      getAvailableMatches(id).catch(() => []),
+      getUmpiresForPoll(id).catch(() => []),
+      getUmpires().catch(() => []),
+      getCurrentOrganizationName().catch(() => null),
+    ],
+  );
 
   if (!poll) {
     notFound();
@@ -29,6 +33,7 @@ async function PollDetailLoader({
       initialPoll={poll}
       availableMatches={availableMatches}
       umpires={umpires}
+      roster={roster}
       clubName={clubName}
     />
   );

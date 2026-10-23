@@ -307,6 +307,8 @@
     "responsesTabShort": "Reacties",
     "assignmentsTab": "Indelingen",
     "swapAxes": "Assen wisselen",
+    "addRespondent": "Scheidsrechter toevoegen",
+    "addRespondentHint": "Vul beschikbaarheid in voor een scheidsrechter die de peiling niet heeft ingevuld",
     "focusUmpire": "Eén scheidsrechter",
     "focusUmpireHint": "Toon alleen de rij van één scheidsrechter, zodat een screenshot over één persoon gaat",
     "allUmpires": "Alle scheidsrechters",
