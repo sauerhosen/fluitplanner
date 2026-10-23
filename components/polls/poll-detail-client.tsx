@@ -66,6 +66,8 @@ type Props = {
   initialPoll: PollDetail;
   availableMatches: Match[];
   umpires: RosteredUmpire[];
+  /** The whole club roster, including umpires who have not answered this poll. */
+  roster?: RosteredUmpire[];
   /** Own club name, stripped from home team labels in the assignment grid. */
   clubName?: string | null;
 };
@@ -85,6 +87,7 @@ export function PollDetailClient({
   initialPoll,
   availableMatches,
   umpires: initialUmpires,
+  roster = [],
   clubName,
 }: Props) {
   const router = useRouter();
@@ -284,6 +287,7 @@ export function PollDetailClient({
         const name =
           prev.find((r) => r.umpire_id === umpireId)?.participant_name ??
           umpires.find((u) => u.id === umpireId)?.name ??
+          roster.find((u) => u.id === umpireId)?.name ??
           "";
         return [
           ...prev,
@@ -300,7 +304,18 @@ export function PollDetailClient({
         ];
       });
     },
-    [poll.id, umpires],
+    [poll.id, umpires, roster],
+  );
+
+  // A planner answering for an umpire who never opened the poll brings a new
+  // row to the assignment grid, which reads the server's respondents — so
+  // fetch those again the first time that umpire's answer lands.
+  const handleResponseSaved = useCallback(
+    (umpireId: string) => {
+      if (umpires.some((u) => u.id === umpireId)) return;
+      void Promise.all([refreshPoll(), refreshUmpires()]);
+    },
+    [umpires, refreshPoll, refreshUmpires],
   );
 
   const uniqueRespondentCount = [
@@ -690,8 +705,10 @@ export function PollDetailClient({
           <ResponseSummary
             pollId={poll.id}
             slots={filteredSlots}
-            responses={poll.responses}
+            responses={liveResponses}
+            roster={roster}
             onResponseChange={handleResponseChange}
+            onResponseSaved={handleResponseSaved}
           />
         </TabsContent>
         <TabsContent value="assignments">

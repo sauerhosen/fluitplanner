@@ -4,7 +4,7 @@ import { requirePlanner } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 
 /**
- * Create, update, or remove an umpire's availability response for a poll slot, verify that the caller owns the poll, and revalidate the poll page.
+ * Create, update, or remove an umpire's availability response for a poll slot, verify that the caller owns the poll and that the umpire is on the club's roster, and revalidate the poll page. The umpire need not have answered the poll themselves.
  *
  * @param pollId - The ID of the poll to modify
  * @param slotId - The ID of the poll slot being updated
@@ -41,6 +41,17 @@ export async function updatePollResponse(
 
     if (deleteError) return { error: deleteError.message };
   } else {
+    // A planner may answer for an umpire who never opened the poll, so the
+    // umpire is not vouched for by an existing response: check the roster.
+    const { data: rosterRow, error: rosterError } = await supabase
+      .from("organization_umpires")
+      .select("umpire_id")
+      .eq("organization_id", tenantId)
+      .eq("umpire_id", umpireId)
+      .single();
+
+    if (rosterError || !rosterRow) return { error: "Umpire not found" };
+
     // Look up umpire name for participant_name field
     const { data: umpire, error: umpireError } = await supabase
       .from("umpires")
