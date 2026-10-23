@@ -307,19 +307,21 @@ export function PollDetailClient({
     [poll.id, umpires, roster],
   );
 
-  // A planner answering for an umpire who never opened the poll brings a new
-  // row to the assignment grid, which reads the server's respondents — so
-  // fetch those again the first time that umpire's answer lands.
+  // A planner answering for an umpire who never opened the poll gives the
+  // assignment grid a new row, and its rows come from the server's respondent
+  // list — so fetch that list again once the umpire's first answer lands.
+  // Only the list: the answers themselves are already in `liveResponses`, and
+  // refetching the poll could overwrite edits made while it was in flight.
   const handleResponseSaved = useCallback(
     (umpireId: string) => {
       if (umpires.some((u) => u.id === umpireId)) return;
-      void Promise.all([refreshPoll(), refreshUmpires()]);
+      void refreshUmpires();
     },
-    [umpires, refreshPoll, refreshUmpires],
+    [umpires, refreshUmpires],
   );
 
   const uniqueRespondentCount = [
-    ...new Set(poll.responses.map((r) => r.participant_name)),
+    ...new Set(liveResponses.map((r) => r.participant_name)),
   ].length;
 
   return (
@@ -716,7 +718,7 @@ export function PollDetailClient({
             pollId={poll.id}
             matches={filteredMatches}
             slots={filteredSlots}
-            responses={poll.responses}
+            responses={liveResponses}
             assignments={poll.assignments}
             umpires={gridUmpires}
             transposed={transposed}

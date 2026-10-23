@@ -158,9 +158,18 @@ export function ResponseSummary({
     return map;
   });
 
-  // Umpires the planner pulled in from the roster. Their row starts empty and
-  // only reaches the database once a cell is clicked.
-  const [addedIds, setAddedIds] = useState<string[]>([]);
+  // Rows that stay put for this editing session, whatever their answers do:
+  // umpires pulled in from the roster (empty until a cell is clicked) and
+  // anyone whose cell was clicked. Without this, cycling an umpire's last
+  // answer to "no response" would drop their row mid-cycle, since the parent
+  // feeds every optimistic edit back as `responses`.
+  const [pinned, setPinned] = useState<Map<string, string>>(() => new Map());
+
+  function pin(umpireId: string, name: string) {
+    setPinned((prev) =>
+      prev.has(umpireId) ? prev : new Map(prev).set(umpireId, name),
+    );
+  }
 
   // Extract unique participants (umpires with at least one response)
   const participants: Participant[] = [];
@@ -171,11 +180,10 @@ export function ResponseSummary({
       participants.push({ umpireId: r.umpire_id, name: r.participant_name });
     }
   }
-  for (const id of addedIds) {
-    const umpire = roster.find((u) => u.id === id);
-    if (umpire && !seen.has(id)) {
+  for (const [id, name] of pinned) {
+    if (!seen.has(id)) {
       seen.add(id);
-      participants.push({ umpireId: id, name: umpire.name });
+      participants.push({ umpireId: id, name });
     }
   }
   participants.sort((a, b) => a.name.localeCompare(b.name));
@@ -204,10 +212,7 @@ export function ResponseSummary({
           className="max-h-[60vh] overflow-y-auto"
         >
           {addable.map((u) => (
-            <DropdownMenuItem
-              key={u.id}
-              onSelect={() => setAddedIds((prev) => [...prev, u.id])}
-            >
+            <DropdownMenuItem key={u.id} onSelect={() => pin(u.id, u.name)}>
               {u.name}
             </DropdownMenuItem>
           ))}
@@ -226,7 +231,8 @@ export function ResponseSummary({
 
   const dateGroups = groupSlotsByDate(slots);
 
-  function handleClick(slotId: string, umpireId: string) {
+  function handleClick(slotId: string, umpireId: string, name: string) {
+    pin(umpireId, name);
     const key = cellKey(slotId, umpireId);
     const current = responseMap.get(key) ?? null;
     const next = nextResponse(current);
@@ -343,7 +349,7 @@ export function ResponseSummary({
                         {canEdit ? (
                           <button
                             type="button"
-                            onClick={() => handleClick(slot.id, umpireId)}
+                            onClick={() => handleClick(slot.id, umpireId, name)}
                             className="w-full h-full p-1 cursor-pointer hover:bg-muted/50 transition-colors rounded-sm"
                             aria-label={label}
                           >

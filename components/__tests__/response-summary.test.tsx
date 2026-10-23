@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { useState } from "react";
 import { screen, fireEvent, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { render } from "@/__tests__/helpers/render";
@@ -193,6 +194,52 @@ describe("ResponseSummary adding an umpire who has not answered", () => {
     expect(
       screen.getByRole("button", { name: /carol.*no response/i }),
     ).toBeInTheDocument();
+  });
+});
+
+describe("ResponseSummary fed live responses by its parent", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  // The poll page passes back every optimistic edit as the `responses` prop,
+  // the way PollDetailClient's handleResponseChange does.
+  function LiveHarness({ initial }: { initial: AvailabilityResponse[] }) {
+    const [responses, setResponses] = useState(initial);
+    return (
+      <ResponseSummary
+        slots={SLOTS}
+        responses={responses}
+        pollId="poll-1"
+        onResponseChange={(slotId, umpireId, response) =>
+          setResponses((prev) => {
+            const rest = prev.filter(
+              (r) => !(r.slot_id === slotId && r.umpire_id === umpireId),
+            );
+            if (response === null) return rest;
+            return [...rest, { ...initial[0], slot_id: slotId, response }];
+          })
+        }
+      />
+    );
+  }
+
+  it("keeps a respondent's row when their last answer is cleared", async () => {
+    const user = userEvent.setup();
+    render(<LiveHarness initial={[{ ...RESPONSES[0], response: "no" }]} />);
+
+    await user.click(screen.getByRole("button", { name: /alice/i }));
+
+    const cell = screen.getByRole("button", { name: /alice.*no response/i });
+    await user.click(cell);
+    await waitFor(() => {
+      expect(updatePollResponse).toHaveBeenLastCalledWith(
+        "poll-1",
+        "slot-1",
+        "umpire-1",
+        "yes",
+      );
+    });
   });
 });
 
