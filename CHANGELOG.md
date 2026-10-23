@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.31.0](https://github.com/sauerhosen/fluitplanner/compare/v2.30.0...v2.31.0) (2026-10-23)
+
+
+### Features
+
+* let planners add poll answers for umpires who haven't responded ([151fbdb](https://github.com/sauerhosen/fluitplanner/commit/151fbdbe6ca389db1909844182b6f2acb25259bd))
+* let planners add poll answers for umpires who haven't responded ([ac41447](https://github.com/sauerhosen/fluitplanner/commit/ac414471d24b25f5e03a8371b699272645508673))
+
+
+### Bug Fixes
+
+* harden planner poll-response writes from code review ([aeec60b](https://github.com/sauerhosen/fluitplanner/commit/aeec60bff7ad534d7f694172a7d0a7443b399350))
+* keep poll response edits stable while adding respondents ([9550aaa](https://github.com/sauerhosen/fluitplanner/commit/9550aaae171a4d49dc50da8515cde3ac40ff71f8))
+
 ## [2.30.0](https://github.com/sauerhosen/fluitplanner/compare/v2.29.1...v2.30.0) (2026-10-17)
 
 
