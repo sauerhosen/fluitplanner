@@ -90,6 +90,15 @@ describe("layoutDaySheetImage", () => {
     expect(layout.width).toBeGreaterThanOrEqual(2000 + layout.margin * 2);
   });
 
+  it("measures the title in the title style, since it is drawn larger", () => {
+    const layout = layoutDaySheetImage(
+      { ...data, date: "x".repeat(200) },
+      columnLabels,
+      (text, style) => text.length * (style === "title" ? 20 : 10),
+    );
+    expect(layout.width).toBe(4000 + layout.margin * 2);
+  });
+
   it("shows the no-data message as a single row when there are no matches", () => {
     const layout = layoutDaySheetImage(
       { ...data, rows: [] },

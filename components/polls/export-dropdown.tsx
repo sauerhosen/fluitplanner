@@ -265,27 +265,29 @@ export function ExportDropdown({
     exportFormat: "xlsx" | "html" | "markdown" | "copy" | "png" | "copyImage",
     filterDate: string,
   ) {
+    const daySheetFile = (ext: string) =>
+      `${fileBase}-daysheet-${filterDate}.${ext}`;
     try {
       const data = getDaySheetData(filterDate);
       if (exportFormat === "copyImage") {
         // No await before the clipboard write: it must stay in the click's gesture.
-        const ok = await copyImageToClipboard(
+        const ok = await copyImageToClipboard(() =>
           generateDaySheetPng(data, daySheetColumnLabels),
         );
         if (ok) toast.success(t("copiedImage"));
         else toast.error(t("copyFailed"));
       } else if (exportFormat === "png") {
         const blob = await generateDaySheetPng(data, daySheetColumnLabels);
-        downloadBlob(blob, `${fileBase}-daysheet-${filterDate}.png`);
+        downloadBlob(blob, daySheetFile("png"));
       } else if (exportFormat === "xlsx") {
         const { generateDaySheetXlsx } =
           await import("@/lib/export/generators/xlsx");
         const blob = await generateDaySheetXlsx(data, daySheetColumnLabels);
-        downloadBlob(blob, `${fileBase}-daysheet-${filterDate}.xlsx`);
+        downloadBlob(blob, daySheetFile("xlsx"));
       } else if (exportFormat === "html") {
         const html = generateDaySheetHtml(data, daySheetColumnLabels, locale);
         const blob = new Blob([html], { type: "text/html;charset=utf-8" });
-        downloadBlob(blob, `${fileBase}-daysheet-${filterDate}.html`);
+        downloadBlob(blob, daySheetFile("html"));
       } else {
         const md = generateDaySheetMarkdown(data, daySheetColumnLabels);
         if (exportFormat === "copy") {
@@ -301,7 +303,7 @@ export function ExportDropdown({
           const blob = new Blob([md], {
             type: "text/markdown;charset=utf-8",
           });
-          downloadBlob(blob, `${fileBase}-daysheet-${filterDate}.md`);
+          downloadBlob(blob, daySheetFile("md"));
         }
       }
     } catch {

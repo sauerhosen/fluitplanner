@@ -7,7 +7,8 @@ import type {
 /*  Layout (pure — text measurement is injected)                       */
 /* ------------------------------------------------------------------ */
 
-export type MeasureText = (text: string, bold: boolean) => number;
+export type TextStyle = "title" | "header" | "body";
+export type MeasureText = (text: string, style: TextStyle) => number;
 
 export type DaySheetImageLayout = {
   width: number;
@@ -60,7 +61,9 @@ export function layoutDaySheetImage(
   let x = MARGIN;
   for (let i = 0; i < columnCount; i++) {
     const widest = Math.max(
-      ...table.map((row) => measure(row.cells[i], row.header)),
+      ...table.map((row) =>
+        measure(row.cells[i], row.header ? "header" : "body"),
+      ),
     );
     const width = Math.ceil(widest) + CELL_PADDING_X * 2;
     columns.push({ x, width });
@@ -73,7 +76,7 @@ export function layoutDaySheetImage(
     y: tableTop + i * ROW_HEIGHT,
   }));
 
-  const titleWidth = Math.ceil(measure(data.date, true));
+  const titleWidth = Math.ceil(measure(data.date, "title"));
   const width = Math.max(x, MARGIN + titleWidth) + MARGIN;
   const height = tableTop + rows.length * ROW_HEIGHT + MARGIN;
 
@@ -83,7 +86,8 @@ export function layoutDaySheetImage(
     margin: MARGIN,
     rowHeight: ROW_HEIGHT,
     cellPaddingX: CELL_PADDING_X,
-    title: { text: data.date, x: MARGIN, y: MARGIN },
+    // y is the title's vertical centre (drawn with a "middle" baseline).
+    title: { text: data.date, x: MARGIN, y: MARGIN + TITLE_HEIGHT / 2 },
     columns,
     rows,
   };
@@ -100,8 +104,10 @@ const TITLE_FONT_SIZE = 17;
 // Render at 2x so the pasted image stays sharp on high-density screens.
 const SCALE = 2;
 
-function font(bold: boolean, size = FONT_SIZE): string {
-  return `${bold ? "bold " : ""}${size}px ${FONT_FAMILY}`;
+function font(style: TextStyle): string {
+  const bold = style === "body" ? "" : "bold ";
+  const size = style === "title" ? TITLE_FONT_SIZE : FONT_SIZE;
+  return `${bold}${size}px ${FONT_FAMILY}`;
 }
 
 /**
@@ -116,8 +122,12 @@ export async function generateDaySheetPng(
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Canvas 2D context unavailable");
 
-  const layout = layoutDaySheetImage(data, columnLabels, (text, bold) => {
-    ctx.font = font(bold);
+  let measureStyle: TextStyle | null = null;
+  const layout = layoutDaySheetImage(data, columnLabels, (text, style) => {
+    if (style !== measureStyle) {
+      ctx.font = font(style);
+      measureStyle = style;
+    }
     return ctx.measureText(text).width;
   });
 
@@ -130,12 +140,8 @@ export async function generateDaySheetPng(
 
   ctx.fillStyle = "#111827";
   ctx.textBaseline = "middle";
-  ctx.font = font(true, TITLE_FONT_SIZE);
-  ctx.fillText(
-    layout.title.text,
-    layout.title.x,
-    layout.title.y + (layout.rows[0].y - layout.title.y) / 2,
-  );
+  ctx.font = font("title");
+  ctx.fillText(layout.title.text, layout.title.x, layout.title.y);
 
   const tableLeft = layout.columns[0].x;
   const lastColumn = layout.columns[layout.columns.length - 1];
@@ -147,7 +153,7 @@ export async function generateDaySheetPng(
       ctx.fillRect(tableLeft, row.y, tableRight - tableLeft, layout.rowHeight);
     }
     ctx.fillStyle = "#111827";
-    ctx.font = font(row.header);
+    ctx.font = font(row.header ? "header" : "body");
     row.cells.forEach((text, i) => {
       ctx.fillText(
         text,
@@ -157,7 +163,8 @@ export async function generateDaySheetPng(
     });
   }
 
-  // Grid lines, offset by half a pixel so 1px strokes land on whole pixels.
+  // Grid lines, offset by half a pixel so 1px strokes land on whole pixels,
+  // and run one pixel past the far edge so the bottom-right corner closes.
   const tableTop = layout.rows[0].y;
   const tableBottom = tableTop + layout.rows.length * layout.rowHeight;
   ctx.strokeStyle = "#d1d5db";
@@ -166,11 +173,11 @@ export async function generateDaySheetPng(
   for (let i = 0; i <= layout.rows.length; i++) {
     const y = tableTop + i * layout.rowHeight + 0.5;
     ctx.moveTo(tableLeft, y);
-    ctx.lineTo(tableRight, y);
+    ctx.lineTo(tableRight + 1, y);
   }
   for (const col of [...layout.columns.map((c) => c.x), tableRight]) {
     ctx.moveTo(col + 0.5, tableTop);
-    ctx.lineTo(col + 0.5, tableBottom);
+    ctx.lineTo(col + 0.5, tableBottom + 1);
   }
   ctx.stroke();
 
