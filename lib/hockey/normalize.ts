@@ -49,6 +49,7 @@ export function normalizeMatch(m: ApiMatchSummary): NormalizedFixture {
     competition: m.competition_name ?? null,
     venue: m.location?.facility?.name ?? null,
     field: m.location?.field?.name ?? null,
+    fieldKnown: m.location?.field != null,
   };
 }
 

@@ -141,16 +141,39 @@ right on its own.
 
 ## The sync engine
 
-`syncOrganizationMatches()` walks one club's tracked teams (capped at **50**; beyond that it
-reports truncation rather than silently dropping teams), **least recently fetched first** —
-ordered by the `fetched_at` of each team's cached poule, never-fetched teams first, ties in
-tracking order. A club's detail is loaded once, on its first team; a club that fails is
-reported once and its teams are skipped. Per team, it:
+`syncOrganizationMatches()` syncs one club's tracked teams (capped at **50**; beyond that it
+reports truncation rather than silently dropping teams) from two sources, then merges them.
 
-- Follows the upstream `recent_poule_id`, updating the stored one — this is how a season rollover is picked up automatically
-- Reads the poule's matches and keeps only **home** matches of the tracked team
-- Skips matches that are `final`, `result`, `live`, `expired` or `unknown` — already played or unusable
-- Skips past matches, **except** cancellations (`cancelled` or `discontinued`), which must still flag an imported row even when observed after match day
+**1. Venue sweep** (`lib/hockey/venues.ts`) — the primary source. A facility's match list
+covers every team playing there, so the sync reads the club's **home venues four weeks
+ahead** in two 14-day windows (the upstream rejects wider ones): a request per venue window,
+however many teams are tracked. For VVV HC that is 4 requests where one poule per team was 12. Four weeks reaches past the ~3 weeks ahead the federation publishes kick-off times. The
+venues (at most **4**) are learned from the club's synced home matches of the last 180 days —
+a venue needs at least two, most-used first — so a club playing at a neighbour's park is
+swept where it actually plays; a tracked club with nothing synced yet falls back to guessing
+from its name and city (`pickClubFacilities`, two at most). Swept with a **2h** TTL. The
+sweep is _complete_ when every venue window loaded.
+
+**2. Poule top-up** — one poule per team, **least recently fetched first** (by the
+`fetched_at` of each team's cached poule; never-fetched first, ties in tracking order). It
+supplies what the sweep cannot: the **field** (facility lists omit the location), home
+matches played away from the club's venues, and changes beyond four weeks. With a complete
+sweep it is a top-up, read with a **20h** TTL — the nightly run still refreshes every team —
+and a throttled top-up is deferred, not reported. Without one it is the only source, read
+with the 2h TTL, and throttling is an error. A team whose cached poule is still fresh skips
+its club detail entirely; otherwise the detail (20h TTL) is loaded once per club, to follow
+the upstream `recent_poule_id` (season rollovers), and a club whose detail fails falls back
+to its teams' stored poule ids.
+
+**3. Merge** — per match id, the swept fixture wins (fresher: 2h against up to 20h), but
+keeps the poule's field while both sources put the match at the same venue. A fixture with
+no known field never compares or overwrites the stored `field` — it would flag every match —
+except that a venue change clears it, since it named a pitch at the old park.
+
+From both sources the sync keeps only **home** matches of tracked teams, skips matches that
+are `final`, `result`, `live`, `expired` or `unknown` (already played or unusable), and skips
+past matches **except** cancellations (`cancelled` or `discontinued`), which must still flag
+an imported row even when observed after match day.
 
 Then, per fixture:
 
@@ -173,7 +196,7 @@ A run never deletes anything. The result (`inserted` / `updated` / `flagged` / `
 `awaitingTime` / `errors`) is returned in full but only partly persisted to
 `hockey_sync_state`: `cancelled` is folded into `last_flagged`, and only the _first_ error is
 kept, as `last_sync_error`. Status is `success` with no errors, `error` when **no tracked
-team** yielded fixtures (a failed club detail, a team missing upstream, no current poule, or a
+team** yielded fixtures — with a complete sweep, every team counts as covered — (a failed club detail, a team missing upstream, no current poule, or a
 failed poule fetch each count every team they cost), and `partial` otherwise — including a run
 where every team was read but a single match write failed. Errors themselves are one flat
 list: a truncation warning, a club fetch failure and a match's update error all land in it,
@@ -190,14 +213,15 @@ above describes.
 - `lib/hockey/client.ts` — registers an anonymous device on first use, signs every request, re-registers once on a 401. Concurrent requests share one registration (cold start or a parallel batch of 401s), so a parallel batch never registers several devices. **Never log the device uuid or token** — the pair is an access credential.
 - `lib/hockey/signature.ts` — the request-signing algorithm (API doc §5.3), kept pure and unit-tested.
 - `lib/hockey/credential-store.ts` — the single global device credential in `hockey_device_credentials` (one row, service-role only).
-- `lib/hockey/cache.ts` + `discovery.ts` — a read-through cache in `hockey_api_cache`, shared across clubs and surviving function invocations. TTLs: clubs 24h, facilities 24h, club detail 6h, poule+team 15 min (**2h** when read by the sync), a facility's matches for a day 15 min.
+- `lib/hockey/cache.ts` + `discovery.ts` — a read-through cache in `hockey_api_cache`, shared across clubs and surviving function invocations. TTLs: clubs 24h, facilities 24h, club detail 6h (**20h** for the sync), poule+team 15 min (**2h** or **20h** for the sync, see above), a facility's matches 15 min (**2h** for the sync's 14-day windows, keyed `facility-matches:{id}:{start}:14d`).
 
 ### Rate limiting
 
 The Match Center allows about **five requests a minute** (`x-ratelimit-limit: 5`; device
 registration counts too) and answers the rest with `429 "Too Many Attempts."` plus
-`Retry-After`. A sync costs one request per club detail and one per tracked team, so a club
-with a dozen teams cannot be synced inside one window. Three things keep it working:
+`Retry-After`. Reading one poule per team, a club with a dozen teams cannot be synced inside
+one window; the venue sweep (above) brings that down to a request per venue window. What else
+keeps it working:
 
 - **Waiting** — `createHockeyClient({ rateLimitDeadline })` waits out a 429 (`Retry-After`,
   else `X-RateLimit-Reset`, else 60 s) and retries — device registration included — as long
@@ -209,10 +233,15 @@ with a dozen teams cannot be synced inside one window. Three things keep it work
   (and a `not sent` log line) instead of spending a call upstream is certain to refuse.
 - **Stalest first** — a throttled run's missed teams sort to the front of the next one, so
   repeated manual syncs work through the whole list instead of refetching the same leaders.
-- **A 2-hour poule TTL for the sync** — longer than the 15-minute manual cooldown, so a
-  repeated "sync now" spends its budget on teams it has not reached yet. The trade-off: an
-  upstream change to a team fetched under two hours ago is picked up by a later sync, not the
-  next one. The import dialog keeps the 15-minute TTL.
+- **Sync TTLs longer than the 15-minute manual cooldown** — 2h for the sweep (and for
+  poules without one), 20h for top-up poules and club details — so a repeated "sync now"
+  spends its budget on what it has not reached yet. The trade-off: an upstream change read
+  under two hours ago is picked up by a later sync, not the next one. The import dialog keeps
+  the 15-minute TTL.
+- **Throttling is typed** — the client throws `HockeyRateLimitError`, so the sync can tell
+  "later" (a top-up the sweep covered) from a failure.
+- **Not tried: conditional requests.** Responses carry an `ETag` and `If-None-Match` does
+  get a `304`, but the 304 still counts against the limit (verified 2026-10-24).
 
 Everything upstream-facing runs on the **service-role client** (`lib/hockey/deps.ts`), since
 the sync also runs outside any request context. Org-scoped queries still filter on
@@ -243,4 +272,5 @@ cover the one-off import (what is on offer, and the insert/adopt/skip branches);
 transport and its re-registration on 401 (`client.test.ts`), normalisation including the
 midnight/"awaiting time" rule (`normalize.test.ts`), and the claim/release lease protocol
 plus the sync engine's insert/update/flag/cancel branches against a fake client
-(`sync.test.ts`). `__tests__/app/api/cron/hockey-sync.test.ts` covers the cron route.
+(`sync.test.ts`, including the venue sweep merge), and venue learning and the sweep windows
+(`venues.test.ts`). `__tests__/app/api/cron/hockey-sync.test.ts` covers the cron route.

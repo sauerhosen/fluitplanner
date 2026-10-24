@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { ApiMatchSummary } from "@/lib/hockey/types";
+import { HockeyRateLimitError } from "@/lib/hockey/client";
 
 const mockFetchClubDetail = vi.fn();
 const mockFetchTeamPoule = vi.fn();
@@ -9,6 +10,12 @@ vi.mock("@/lib/hockey/discovery", () => ({
   fetchClubDetail: mockFetchClubDetail,
   fetchTeamPoule: mockFetchTeamPoule,
   fetchTeamPouleFetchedAt: mockFetchTeamPouleFetchedAt,
+}));
+
+const mockSweepHomeVenues = vi.fn();
+
+vi.mock("@/lib/hockey/venues", () => ({
+  sweepHomeVenues: mockSweepHomeVenues,
 }));
 
 /** Records every query issued against the fake supabase client. */
@@ -207,6 +214,12 @@ async function runSync(handler: QueryHandler) {
 beforeEach(() => {
   vi.resetAllMocks();
   mockFetchTeamPouleFetchedAt.mockResolvedValue(new Map());
+  // No known venues: the poules are the only source, as before the sweep
+  mockSweepHomeVenues.mockResolvedValue({
+    matches: [],
+    complete: false,
+    errors: [],
+  });
   mockFetchClubDetail.mockResolvedValue(
     clubDetail([
       { id: 774, name: "VVV D1", hockey_type: "VE", recent_poule_id: 500 },
@@ -550,7 +563,7 @@ describe("syncOrganizationMatches", () => {
     expect(result.errors).toEqual([]);
   });
 
-  it("reports a failed club once and skips only that club's teams", async () => {
+  it("reports a failed club once and falls back to its teams' stored poules", async () => {
     const teams = [
       { ...trackedTeam, id: "tt-1", hockey_team_id: 774 },
       {
@@ -572,7 +585,14 @@ describe("syncOrganizationMatches", () => {
 
     expect(mockFetchClubDetail).toHaveBeenCalledTimes(2);
     expect(result.errors).toEqual(["Club VVV: Too Many Attempts."]);
-    expect(mockFetchTeamPoule).toHaveBeenCalledTimes(1);
+    // A1's teams still read their stored poule (500); B2's comes from detail
+    expect(
+      mockFetchTeamPoule.mock.calls.map(([, poule, teamId]) => [poule, teamId]),
+    ).toEqual([
+      [500, 774],
+      [600, 900],
+      [500, 776],
+    ]);
   });
 
   it("reports error, not partial, when a throttled club leaves no team synced", async () => {
@@ -582,6 +602,7 @@ describe("syncOrganizationMatches", () => {
       hockey_team_id: id,
     }));
     mockFetchClubDetail.mockRejectedValue(new Error("Too Many Attempts."));
+    mockFetchTeamPoule.mockRejectedValue(new Error("Too Many Attempts."));
 
     const { queries } = await runSync(defaultHandler({ trackedTeams: teams }));
 
@@ -1140,5 +1161,255 @@ describe("releaseSyncSlot", () => {
     expect(update?.filters).toContainEqual(["eq", "organization_id", ORG]);
     // fencing: an over-deadline run cannot clear a newer claimant's lease
     expect(update?.filters).toContainEqual(["eq", "sync_claimed_until", token]);
+  });
+});
+
+describe("syncOrganizationMatches — venue sweep", () => {
+  /** A facility-list match: no location of its own, venue filled in. */
+  function venueMatch(overrides: Partial<ApiMatchSummary> = {}) {
+    return apiMatch({
+      location: { facility: { name: "Sportpark X" } },
+      ...overrides,
+    });
+  }
+
+  function sweep(matches: ApiMatchSummary[], complete = true) {
+    mockSweepHomeVenues.mockResolvedValue({ matches, complete, errors: [] });
+  }
+
+  it("imports a swept fixture even when every poule top-up is throttled", async () => {
+    sweep([venueMatch()]);
+    mockFetchTeamPoule.mockRejectedValue(new HockeyRateLimitError());
+
+    const { result, queries } = await runSync(defaultHandler({}));
+
+    const insert = queries.find(
+      (q) => q.table === "matches" && q.op === "insert",
+    );
+    expect(insert?.payload).toEqual([
+      expect.objectContaining({
+        external_id: 9001,
+        venue: "Sportpark X",
+        field: null,
+      }),
+    ]);
+    // the sweep covered the team: a throttled top-up is "later", not an error
+    expect(result.errors).toEqual([]);
+    const state = queries.find(
+      (q) => q.table === "hockey_sync_state" && q.op === "upsert",
+    );
+    expect(state?.payload).toMatchObject({ last_sync_status: "success" });
+  });
+
+  it("ignores swept matches of teams the club does not track", async () => {
+    sweep([
+      venueMatch({ id: 9100, home: { id: 4242, name: "VVV D9" } }),
+      venueMatch({ id: 9101, status: "final" }),
+    ]);
+    mockFetchTeamPoule.mockResolvedValue({ poule: { id: 500, matches: [] } });
+
+    const { queries } = await runSync(defaultHandler({}));
+
+    expect(
+      queries.filter((q) => q.table === "matches" && q.op === "insert"),
+    ).toHaveLength(0);
+  });
+
+  it("never compares or overwrites a field the venue list does not report", async () => {
+    sweep([venueMatch({ date: "2026-09-27T14:00:00+02:00" })]);
+    mockFetchTeamPoule.mockRejectedValue(new HockeyRateLimitError());
+    const existing = {
+      id: "m-1",
+      date: "2026-09-27",
+      start_time: "2026-09-27T10:45:00+00:00",
+      home_team: "VVV D1",
+      away_team: "AMVJ D1",
+      venue: "Sportpark X",
+      field: "Veld 2",
+      competition: "Hoofdklasse",
+      external_id: 9001,
+      cancelled_upstream: false,
+      review_reasons: [],
+    };
+
+    const { queries } = await runSync(
+      defaultHandler({ matchesByExternal: [existing] }),
+    );
+
+    const update = queries.find(
+      (q) => q.table === "matches" && q.op === "update",
+    );
+    expect(update?.payload).not.toHaveProperty("field");
+    expect(update?.payload).toMatchObject({
+      start_time: "2026-09-27T14:00:00+02:00",
+      review_reasons: ["time_changed"],
+    });
+  });
+
+  it("clears a stored field when the swept fixture moved to another venue", async () => {
+    sweep([venueMatch({ location: { facility: { name: "Sportpark Y" } } })]);
+    mockFetchTeamPoule.mockRejectedValue(new HockeyRateLimitError());
+    const existing = {
+      id: "m-1",
+      date: "2026-09-27",
+      start_time: "2026-09-27T10:45:00+00:00",
+      home_team: "VVV D1",
+      away_team: "AMVJ D1",
+      venue: "Sportpark X",
+      field: "Veld 2",
+      competition: "Hoofdklasse",
+      external_id: 9001,
+      cancelled_upstream: false,
+      review_reasons: [],
+    };
+
+    const { queries } = await runSync(
+      defaultHandler({ matchesByExternal: [existing] }),
+    );
+
+    const update = queries.find(
+      (q) => q.table === "matches" && q.op === "update",
+    );
+    expect(update?.payload).toMatchObject({
+      venue: "Sportpark Y",
+      field: null,
+      review_reasons: ["venue_changed"],
+    });
+  });
+
+  it("prefers the fresher swept fixture but keeps the poule's field at the same venue", async () => {
+    sweep([venueMatch({ date: "2026-09-27T14:00:00+02:00" })]);
+    mockFetchTeamPoule.mockResolvedValue({
+      poule: {
+        id: 500,
+        matches: [
+          apiMatch({
+            location: {
+              facility: { name: "Sportpark X" },
+              field: { name: "Veld 3" },
+            },
+          }),
+        ],
+      },
+    });
+
+    const { queries } = await runSync(defaultHandler({}));
+
+    const insert = queries.find(
+      (q) => q.table === "matches" && q.op === "insert",
+    );
+    expect(insert?.payload).toEqual([
+      expect.objectContaining({
+        start_time: "2026-09-27T14:00:00+02:00",
+        field: "Veld 3",
+      }),
+    ]);
+  });
+
+  it("drops the poule's field when the swept fixture moved to another venue", async () => {
+    sweep([venueMatch({ location: { facility: { name: "Sportpark Y" } } })]);
+    mockFetchTeamPoule.mockResolvedValue({
+      poule: { id: 500, matches: [apiMatch()] }, // Sportpark X, Veld 2
+    });
+
+    const { queries } = await runSync(defaultHandler({}));
+
+    const insert = queries.find(
+      (q) => q.table === "matches" && q.op === "insert",
+    );
+    expect(insert?.payload).toEqual([
+      expect.objectContaining({ venue: "Sportpark Y", field: null }),
+    ]);
+  });
+
+  it("keeps poule-only fixtures — home matches elsewhere or beyond the sweep", async () => {
+    sweep([]);
+    mockFetchTeamPoule.mockResolvedValue({
+      poule: { id: 500, matches: [apiMatch()] },
+    });
+
+    const { result } = await runSync(defaultHandler({}));
+
+    expect(result.inserted).toBe(1);
+  });
+
+  it("reads poules as a day-long top-up once the sweep covers the near term", async () => {
+    sweep([]);
+    mockFetchTeamPoule.mockResolvedValue({ poule: { id: 500, matches: [] } });
+
+    await runSync(defaultHandler({}));
+
+    const [, , , ttlMs] = mockFetchTeamPoule.mock.calls[0];
+    expect(ttlMs).toBeGreaterThan(12 * 60 * 60 * 1000);
+    // under a day, so the nightly run still refreshes every team
+    expect(ttlMs).toBeLessThan(24 * 60 * 60 * 1000);
+  });
+
+  it("skips the club detail while the team's poule is still fresh", async () => {
+    sweep([]);
+    mockFetchTeamPouleFetchedAt.mockResolvedValue(
+      new Map([[774, NOW.getTime() - 10 * 60 * 1000]]),
+    );
+    mockFetchTeamPoule.mockResolvedValue({ poule: { id: 500, matches: [] } });
+
+    await runSync(defaultHandler({}));
+
+    expect(mockFetchClubDetail).not.toHaveBeenCalled();
+    expect(mockFetchTeamPoule).toHaveBeenCalledWith(
+      expect.anything(),
+      500,
+      774,
+      expect.any(Number),
+    );
+  });
+
+  it("does not report a throttled club detail the sweep already covered", async () => {
+    sweep([]);
+    mockFetchClubDetail.mockRejectedValue(new HockeyRateLimitError());
+    mockFetchTeamPoule.mockRejectedValue(new HockeyRateLimitError());
+
+    const { result } = await runSync(defaultHandler({}));
+
+    expect(result.errors).toEqual([]);
+  });
+
+  it("still reports a top-up failure that is not throttling, as partial", async () => {
+    sweep([]);
+    mockFetchTeamPoule.mockRejectedValue(new Error("HTTP 500"));
+
+    const { result, queries } = await runSync(defaultHandler({}));
+
+    expect(result.errors).toEqual(["Team VVV D1: HTTP 500"]);
+    const state = queries.find(
+      (q) => q.table === "hockey_sync_state" && q.op === "upsert",
+    );
+    // the team's near term came from the sweep, so it is not a lost team
+    expect(state?.payload).toMatchObject({ last_sync_status: "partial" });
+  });
+
+  it("reports a throttled poule as an error when the sweep did not cover it", async () => {
+    sweep([], false);
+    mockFetchTeamPoule.mockRejectedValue(new HockeyRateLimitError());
+
+    const { result, queries } = await runSync(defaultHandler({}));
+
+    expect(result.errors).toEqual(["Team VVV D1: Too Many Attempts."]);
+    const state = queries.find(
+      (q) => q.table === "hockey_sync_state" && q.op === "upsert",
+    );
+    expect(state?.payload).toMatchObject({ last_sync_status: "error" });
+  });
+
+  it("passes on the sweep's own errors", async () => {
+    mockSweepHomeVenues.mockResolvedValue({
+      matches: [],
+      complete: false,
+      errors: ["Venue Sportpark X: HTTP 500"],
+    });
+    mockFetchTeamPoule.mockResolvedValue({ poule: { id: 500, matches: [] } });
+
+    const { result } = await runSync(defaultHandler({}));
+
+    expect(result.errors).toEqual(["Venue Sportpark X: HTTP 500"]);
   });
 });

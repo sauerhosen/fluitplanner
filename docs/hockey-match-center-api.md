@@ -878,7 +878,10 @@ response carries `x-ratelimit-limit: 5` and `x-ratelimit-remaining`, counting do
 request (device registration included) over a window of about a minute. The sixth request
 gets `429` with `{"message":"Too Many Attempts."}`, `retry-after` (seconds) and
 `x-ratelimit-reset` (epoch seconds). The counter appears to be per client IP rather than per
-device token. Use conservative defaults:
+device token. Requests answered `304 Not Modified` (via `If-None-Match`) still count.
+`/facilities/{id}/matches` rejects a window over 14 days with `422` and
+`{"message":"Date range must be 14 days or less."}`; its matches carry no `location` (the
+facility is the context), so no field. Use conservative defaults:
 
 - Club list: cache for 24 hours or longer.
 - Facility list: cache for 24 hours or longer.
