@@ -503,10 +503,16 @@ export async function syncOrganizationMatches(
       reasons.push("time_changed");
     }
     // An unknown field (facility lists omit it) is never compared: it
-    // would flag every match the planner already has a field for.
+    // would flag every match the planner already has a field for. A pitch
+    // assigned where none was stored — typically a match first imported from
+    // the sweep — is filled in silently: nothing moved. A changed or
+    // withdrawn pitch is flagged.
+    const fieldChanged =
+      fixture.fieldKnown && (existing.field ?? null) !== row.field;
+    const fieldAssigned = fieldChanged && (existing.field ?? null) === null;
     if (
       (existing.venue ?? null) !== row.venue ||
-      (fixture.fieldKnown && (existing.field ?? null) !== row.field)
+      (fieldChanged && !fieldAssigned)
     ) {
       reasons.push("venue_changed");
     }
@@ -514,11 +520,12 @@ export async function syncOrganizationMatches(
     // no review needed.
     const competitionChanged =
       (existing.competition ?? null) !== row.competition;
+    const silentChange = competitionChanged || fieldAssigned;
 
     // Also adopts rows whose external id changed (upstream reissued the
     // fixture under a new match id with the same natural key).
     const adopting = existing.external_id !== fixture.matchId;
-    if (reasons.length === 0 && !adopting && !competitionChanged) {
+    if (reasons.length === 0 && !adopting && !silentChange) {
       unchangedIds.push(existing.id);
       continue;
     }
@@ -553,7 +560,7 @@ export async function syncOrganizationMatches(
     } else if (reasons.length > 0) {
       result.updated++;
       result.flagged++;
-    } else if (competitionChanged) {
+    } else if (silentChange) {
       result.updated++;
     }
   }

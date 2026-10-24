@@ -100,14 +100,18 @@ describe("resolveHomeFacilities", () => {
       { home_team: "VVV HC MO16-2", venue: LOOPVELD_VVV.name },
     ]);
 
-    const facilities = await resolveHomeFacilities(deps(client), {
-      organizationId: ORG,
-      trackedTeams: [team()],
-      today: TODAY,
-    });
+    const { facilities, everyClubCovered } = await resolveHomeFacilities(
+      deps(client),
+      {
+        organizationId: ORG,
+        trackedTeams: [team()],
+        today: TODAY,
+      },
+    );
 
     // most-used first
     expect(facilities.map((f) => f.id)).toEqual([31, 73]);
+    expect(everyClubCovered).toBe(true);
     expect(filters).toContainEqual(["eq", "organization_id", ORG]);
     expect(filters).toContainEqual(["eq", "source", "hockey_sync"]);
     expect(mockFetchAllClubs).not.toHaveBeenCalled();
@@ -122,13 +126,17 @@ describe("resolveHomeFacilities", () => {
       { home_team: "VVV HC MO16-2", venue: null },
     ]);
 
-    const facilities = await resolveHomeFacilities(deps(client), {
-      organizationId: ORG,
-      trackedTeams: [team()],
-      today: TODAY,
-    });
+    const { facilities, everyClubCovered } = await resolveHomeFacilities(
+      deps(client),
+      {
+        organizationId: ORG,
+        trackedTeams: [team()],
+        today: TODAY,
+      },
+    );
 
     expect(facilities.map((f) => f.id)).toEqual([31]);
+    expect(everyClubCovered).toBe(true);
   });
 
   it("falls back to the club's name and city for a club with nothing synced yet", async () => {
@@ -147,22 +155,26 @@ describe("resolveHomeFacilities", () => {
       { home_team: "VVV HC MO16-2", venue: LOOPVELD_VVV.name },
     ]);
 
-    const facilities = await resolveHomeFacilities(deps(client), {
-      organizationId: ORG,
-      trackedTeams: [
-        team(),
-        team({
-          id: "tt-2",
-          club_federation_reference_id: "HH11AS0",
-          club_name: "AMVJ",
-          hockey_team_id: 18873,
-          team_name: "AMVJ/VVV HC JO12-1",
-        }),
-      ],
-      today: TODAY,
-    });
+    const { facilities, everyClubCovered } = await resolveHomeFacilities(
+      deps(client),
+      {
+        organizationId: ORG,
+        trackedTeams: [
+          team(),
+          team({
+            id: "tt-2",
+            club_federation_reference_id: "HH11AS0",
+            club_name: "AMVJ",
+            hockey_team_id: 18873,
+            team_name: "AMVJ/VVV HC JO12-1",
+          }),
+        ],
+        today: TODAY,
+      },
+    );
 
     expect(facilities.map((f) => f.id)).toEqual([31, 73]);
+    expect(everyClubCovered).toBe(true);
   });
 
   it("caps the venues one sync may cost", async () => {
@@ -180,13 +192,81 @@ describe("resolveHomeFacilities", () => {
       ]),
     );
 
-    const facilities = await resolveHomeFacilities(deps(client), {
+    const { facilities, everyClubCovered } = await resolveHomeFacilities(
+      deps(client),
+      {
+        organizationId: ORG,
+        trackedTeams: [team()],
+        today: TODAY,
+      },
+    );
+
+    expect(facilities.length).toBeLessThanOrEqual(4);
+    // a dropped venue may be where some team plays: no claim of coverage
+    expect(everyClubCovered).toBe(false);
+  });
+
+  it("covers every club only when each resolved a venue", async () => {
+    const { resolveHomeFacilities } = await import("@/lib/hockey/venues");
+    const { client } = fakeSupabase([
+      { home_team: "VVV HC MO16-2", venue: LOOPVELD_VVV.name },
+      { home_team: "VVV HC MO16-2", venue: LOOPVELD_VVV.name },
+    ]);
+    const trackedTeams = [
+      team(),
+      team({
+        id: "tt-2",
+        club_federation_reference_id: "HH11XX0",
+        club_name: "Unknown HC",
+        hockey_team_id: 1,
+        team_name: "Unknown HC H1",
+      }),
+    ];
+
+    const one = await resolveHomeFacilities(deps(client), {
       organizationId: ORG,
       trackedTeams: [team()],
       today: TODAY,
     });
+    const both = await resolveHomeFacilities(deps(client), {
+      organizationId: ORG,
+      trackedTeams,
+      today: TODAY,
+    });
 
-    expect(facilities.length).toBeLessThanOrEqual(4);
+    expect(one.everyClubCovered).toBe(true);
+    // the second club is in no club list, so no venue of its is swept
+    expect(both.facilities.map((f) => f.id)).toEqual([31]);
+    expect(both.everyClubCovered).toBe(false);
+  });
+
+  it("keeps the learned venues when the club list is throttled", async () => {
+    const { resolveHomeFacilities } = await import("@/lib/hockey/venues");
+    mockFetchAllClubs.mockRejectedValue(new HockeyRateLimitError());
+    const { client } = fakeSupabase([
+      { home_team: "VVV HC MO16-2", venue: LOOPVELD_VVV.name },
+      { home_team: "VVV HC MO16-2", venue: LOOPVELD_VVV.name },
+    ]);
+
+    const { facilities, everyClubCovered } = await resolveHomeFacilities(
+      deps(client),
+      {
+        organizationId: ORG,
+        trackedTeams: [
+          team(),
+          team({
+            id: "tt-2",
+            club_federation_reference_id: "HH11AS0",
+            hockey_team_id: 18873,
+            team_name: "AMVJ/VVV HC JO12-1",
+          }),
+        ],
+        today: TODAY,
+      },
+    );
+
+    expect(facilities.map((f) => f.id)).toEqual([31]);
+    expect(everyClubCovered).toBe(false);
   });
 });
 
@@ -271,6 +351,31 @@ describe("sweepHomeVenues", () => {
       `Venue ${LOOPVELD_VVV.name}: HTTP 500`,
       `Venue ${LOOPVELD_VVV.name}: HTTP 500`,
     ]);
+  });
+
+  it("is incomplete when a tracked club has no venue swept", async () => {
+    const { sweepHomeVenues } = await import("@/lib/hockey/venues");
+    mockFetchFacilityMatches.mockResolvedValue([{ id: 1 }]);
+
+    const sweep = await sweepHomeVenues(deps(fakeSupabase(venueRows).client), {
+      organizationId: ORG,
+      trackedTeams: [
+        team(),
+        team({
+          id: "tt-2",
+          club_federation_reference_id: "HH11XX0",
+          hockey_team_id: 1,
+          team_name: "Unknown HC H1",
+        }),
+      ],
+      today: TODAY,
+      ttlMs: 1,
+    });
+
+    // the swept matches still count; only the claim of coverage goes
+    expect(sweep.matches).toEqual([{ id: 1 }, { id: 1 }]);
+    expect(sweep.complete).toBe(false);
+    expect(sweep.errors).toEqual([]);
   });
 
   it("is incomplete when the venue list itself cannot be loaded", async () => {

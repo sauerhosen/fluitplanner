@@ -97,6 +97,16 @@ describe("normalizeMatch", () => {
     expect(f.fieldKnown).toBe(true);
   });
 
+  it("treats an explicit null field as reported, so a cleared pitch syncs", () => {
+    const f = normalizeMatch(
+      makeMatch({
+        location: { facility: { name: "Sportpark X" }, field: null },
+      }),
+    );
+    expect(f.field).toBeNull();
+    expect(f.fieldKnown).toBe(true);
+  });
+
   it("tolerates missing location and nullable fields", () => {
     const f = normalizeMatch(
       makeMatch({

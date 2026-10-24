@@ -152,7 +152,8 @@ venues (at most **4**) are learned from the club's synced home matches of the la
 a venue needs at least two, most-used first — so a club playing at a neighbour's park is
 swept where it actually plays; a tracked club with nothing synced yet falls back to guessing
 from its name and city (`pickClubFacilities`, two at most). Swept with a **2h** TTL. The
-sweep is _complete_ when every venue window loaded.
+sweep is _complete_ when every venue window loaded and every tracked club had a venue swept
+(none unresolved, none dropped by the cap of 4).
 
 **2. Poule top-up** — one poule per team, **least recently fetched first** (by the
 `fetched_at` of each team's cached poule; never-fetched first, ties in tracking order). It
@@ -168,7 +169,10 @@ to its teams' stored poule ids.
 **3. Merge** — per match id, the swept fixture wins (fresher: 2h against up to 20h), but
 keeps the poule's field while both sources put the match at the same venue. A fixture with
 no known field never compares or overwrites the stored `field` — it would flag every match —
-except that a venue change clears it, since it named a pitch at the old park.
+except that a venue change clears it, since it named a pitch at the old park. A pitch
+assigned where none was stored (typically on a match first imported from the sweep, once
+its poule arrives) is filled in without a review flag; a pitch that changed or was withdrawn
+upstream is flagged `venue_changed`.
 
 From both sources the sync keeps only **home** matches of tracked teams, skips matches that
 are `final`, `result`, `live`, `expired` or `unknown` (already played or unusable), and skips

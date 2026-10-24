@@ -1277,6 +1277,95 @@ describe("syncOrganizationMatches — venue sweep", () => {
     });
   });
 
+  it("fills in a pitch assigned since import without flagging it", async () => {
+    mockFetchTeamPoule.mockResolvedValue({
+      poule: { id: 500, matches: [apiMatch()] }, // Sportpark X, Veld 2
+    });
+    const existing = {
+      id: "m-1",
+      date: "2026-09-27",
+      start_time: "2026-09-27T10:45:00+00:00",
+      home_team: "VVV D1",
+      away_team: "AMVJ D1",
+      venue: "Sportpark X",
+      field: null, // imported from the sweep, before the poule supplied it
+      competition: "Hoofdklasse",
+      external_id: 9001,
+      cancelled_upstream: false,
+      review_reasons: [],
+    };
+
+    const { queries } = await runSync(
+      defaultHandler({ matchesByExternal: [existing] }),
+    );
+
+    const update = queries.find(
+      (q) => q.table === "matches" && q.op === "update",
+    );
+    expect(update?.payload).toMatchObject({ field: "Veld 2" });
+    expect(update?.payload).not.toHaveProperty("needs_review");
+  });
+
+  it("still flags a pitch that changed or was withdrawn", async () => {
+    mockFetchTeamPoule.mockResolvedValue({
+      poule: {
+        id: 500,
+        matches: [
+          apiMatch(),
+          apiMatch({
+            id: 9002,
+            away: { id: 813, name: "HIC D1" },
+            location: { facility: { name: "Sportpark X" }, field: null },
+          }),
+        ],
+      },
+    });
+    const base = {
+      date: "2026-09-27",
+      start_time: "2026-09-27T10:45:00+00:00",
+      home_team: "VVV D1",
+      venue: "Sportpark X",
+      competition: "Hoofdklasse",
+      cancelled_upstream: false,
+      review_reasons: [],
+    };
+
+    const { queries } = await runSync(
+      defaultHandler({
+        matchesByExternal: [
+          {
+            ...base,
+            id: "m-1",
+            away_team: "AMVJ D1",
+            field: "Veld 1",
+            external_id: 9001,
+          },
+          {
+            ...base,
+            id: "m-2",
+            away_team: "HIC D1",
+            field: "Veld 1",
+            external_id: 9002,
+          },
+        ],
+      }),
+    );
+
+    const updates = queries.filter(
+      (q) => q.table === "matches" && q.op === "update",
+    );
+    expect(updates.map((u) => u.payload)).toEqual([
+      expect.objectContaining({
+        field: "Veld 2",
+        review_reasons: ["venue_changed"],
+      }),
+      expect.objectContaining({
+        field: null,
+        review_reasons: ["venue_changed"],
+      }),
+    ]);
+  });
+
   it("prefers the fresher swept fixture but keeps the poule's field at the same venue", async () => {
     sweep([venueMatch({ date: "2026-09-27T14:00:00+02:00" })]);
     mockFetchTeamPoule.mockResolvedValue({

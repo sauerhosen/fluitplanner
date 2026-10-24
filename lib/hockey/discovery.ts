@@ -28,6 +28,13 @@ const FACILITY_MATCHES_TTL_MS = 15 * 60 * 1000;
 /** The widest window the facility match list accepts ("14 days or less"). */
 export const MAX_FACILITY_WINDOW_DAYS = 14;
 
+/** A YYYY-MM-DD calendar date shifted by whole days. */
+export function addDays(date: string, days: number): string {
+  const next = new Date(`${date}T00:00:00Z`);
+  next.setUTCDate(next.getUTCDate() + days);
+  return next.toISOString().slice(0, 10);
+}
+
 /** Most venues one club may cost upstream on a single day lookup. */
 const MAX_CLUB_FACILITIES = 5;
 
@@ -146,9 +153,7 @@ export async function fetchFacilityMatches(
   if (!Number.isInteger(days) || days < 1 || days > MAX_FACILITY_WINDOW_DAYS) {
     throw new Error(`Facility window must be 1–14 days, got ${days}`);
   }
-  const next = new Date(`${date}T00:00:00Z`);
-  next.setUTCDate(next.getUTCDate() + days);
-  const end = next.toISOString().slice(0, 10);
+  const end = addDays(date, days);
 
   const response = await getCachedJson<ApiFacilityMatchesResponse>(
     deps.supabase,

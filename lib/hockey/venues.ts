@@ -1,4 +1,5 @@
 import {
+  addDays,
   fetchAllClubs,
   fetchAllFacilities,
   fetchFacilityMatches,
@@ -47,15 +48,19 @@ type SweepInput = {
   today: string;
 };
 
-function addDays(date: string, days: number): string {
-  const next = new Date(`${date}T00:00:00Z`);
-  next.setUTCDate(next.getUTCDate() + days);
-  return next.toISOString().slice(0, 10);
-}
-
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
+
+export type HomeFacilities = {
+  facilities: ApiFacility[];
+  /**
+   * Every tracked club resolved at least one venue and none was dropped by
+   * the cap. Otherwise some team's home matches may sit at a venue no window
+   * reads, and the sweep must not claim to cover it.
+   */
+  everyClubCovered: boolean;
+};
 
 /**
  * The venues a club's tracked teams play their home matches at. Learned from
@@ -67,7 +72,7 @@ function errorMessage(error: unknown): string {
 export async function resolveHomeFacilities(
   deps: DiscoveryDeps,
   { organizationId, trackedTeams, today }: SweepInput,
-): Promise<ApiFacility[]> {
+): Promise<HomeFacilities> {
   const clubByTeamName = new Map(
     trackedTeams.map((team) => [
       team.team_name,
@@ -111,6 +116,7 @@ export async function resolveHomeFacilities(
 
   const clubIds = Array.from(new Set(clubByTeamName.values()));
   let clubs: Awaited<ReturnType<typeof fetchAllClubs>> | null = null;
+  let everyClubCovered = true;
   for (const clubId of clubIds) {
     const learned = Array.from(countsByClub.get(clubId) ?? [])
       .filter(([, count]) => count >= MIN_LEARNED_MATCHES)
@@ -121,17 +127,29 @@ export async function resolveHomeFacilities(
       learned.forEach(add);
       continue;
     }
-    // Only now: a club with learned venues never costs the club list.
-    clubs ??= await fetchAllClubs(deps);
-    const club = clubs.find((c) => c.federation_reference_id === clubId);
-    if (club) {
-      pickClubFacilities(facilities, club)
-        .slice(0, MAX_PICKED_PER_CLUB)
-        .forEach(add);
+    // Only now: a club with learned venues never costs the club list. A
+    // throttled list costs only the guessing clubs, not the learned ones.
+    if (clubs === null) {
+      try {
+        clubs = await fetchAllClubs(deps);
+      } catch (error) {
+        if (!(error instanceof HockeyRateLimitError)) throw error;
+        clubs = [];
+      }
     }
+    const club = clubs.find((c) => c.federation_reference_id === clubId);
+    const guessed = club
+      ? pickClubFacilities(facilities, club).slice(0, MAX_PICKED_PER_CLUB)
+      : [];
+    if (guessed.length === 0) everyClubCovered = false;
+    guessed.forEach(add);
   }
 
-  return picked.slice(0, MAX_SWEEP_FACILITIES);
+  if (picked.length > MAX_SWEEP_FACILITIES) everyClubCovered = false;
+  return {
+    facilities: picked.slice(0, MAX_SWEEP_FACILITIES),
+    everyClubCovered,
+  };
 }
 
 /**
@@ -142,8 +160,9 @@ export async function resolveHomeFacilities(
  * requests a minute.
  *
  * Sequential, so the cache layer's pause spaces the upstream calls. A
- * throttled window leaves the sweep incomplete without reporting it: the
- * sync falls back to the poules and decides whether anything was lost.
+ * throttled window — or a tracked club with no venue swept — leaves the
+ * sweep incomplete without reporting it: the sync falls back to the poules
+ * and decides whether anything was lost.
  */
 export async function sweepHomeVenues(
   deps: DiscoveryDeps,
@@ -153,7 +172,11 @@ export async function sweepHomeVenues(
 
   let facilities: ApiFacility[];
   try {
-    facilities = await resolveHomeFacilities(deps, input);
+    const resolved = await resolveHomeFacilities(deps, input);
+    facilities = resolved.facilities;
+    // An uncovered club still gets its swept matches, but no claim of
+    // completeness: its throttled poules are failures, not "later".
+    sweep.complete = resolved.everyClubCovered;
   } catch (error) {
     if (!(error instanceof HockeyRateLimitError)) {
       sweep.errors.push(`Venues: ${errorMessage(error)}`);
