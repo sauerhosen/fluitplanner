@@ -56,18 +56,42 @@ export function createHockeyClient(opts: {
   // (loadClubDayFixtures), and each must not register a device of its own.
   let credentials: Promise<HockeyCredentials> | null = null;
 
+  /**
+   * Re-sends a throttled request after its wait while the shared budget
+   * covers it. Returns the first non-429 response, or the 429 the budget
+   * cannot cover (body intact, for the error message).
+   */
+  async function waitOutRateLimit(
+    response: Response,
+    resend: () => Promise<Response>,
+  ): Promise<Response> {
+    while (response.status === 429) {
+      const waitMs = rateLimitWaitMs(response);
+      if (waitMs > waitBudgetMs) break;
+      waitBudgetMs -= waitMs;
+      // Release the connection the unread body holds before idling.
+      await response.body?.cancel().catch(() => {});
+      await sleep(waitMs);
+      response = await resend();
+    }
+    return response;
+  }
+
   async function register(): Promise<HockeyCredentials> {
     const uuid = randomUUID();
-    const response = await fetchFn(`${API_BASE}/device/register`, {
-      method: "POST",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-        "X-Requested-With": "XMLHttpRequest",
-      },
-      body: JSON.stringify({ uuid, os: "Web" }),
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-    });
+    // Registration counts against the rate limit too, so it waits like a GET.
+    const send = () =>
+      fetchFn(`${API_BASE}/device/register`, {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          "X-Requested-With": "XMLHttpRequest",
+        },
+        body: JSON.stringify({ uuid, os: "Web" }),
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
+    const response = await waitOutRateLimit(await send(), send);
     if (!response.ok) {
       throw new Error(`Device registration failed: HTTP ${response.status}`);
     }
@@ -160,13 +184,11 @@ export function createHockeyClient(opts: {
       if (response.status === 401) {
         response = await execute(endpoint, renewCredentials(used));
       }
-      while (response.status === 429) {
-        const waitMs = rateLimitWaitMs(response);
-        if (waitMs > waitBudgetMs) break;
-        waitBudgetMs -= waitMs;
-        await sleep(waitMs);
-        response = await execute(endpoint, credentials ?? used);
-      }
+      // ensureCredentials, not `used`: a parallel request may have replaced
+      // (or failed to replace) the credentials during the wait.
+      response = await waitOutRateLimit(response, () =>
+        execute(endpoint, ensureCredentials()),
+      );
       if (!response.ok) {
         // Checked before parsing: a proxy error page or empty body must not
         // throw first and skip the log. The one trace of an upstream

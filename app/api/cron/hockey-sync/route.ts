@@ -76,7 +76,7 @@ export async function GET(request: Request): Promise<NextResponse> {
   const results: Array<Record<string, unknown>> = [];
 
   // Sequential on purpose: keeps upstream request volume low, and the shared
-  // 15-minute poule cache dedupes teams tracked by multiple orgs.
+  // poule cache dedupes teams tracked by multiple orgs.
   for (const organizationId of orderedOrgIds) {
     try {
       const result = await syncWithLease(

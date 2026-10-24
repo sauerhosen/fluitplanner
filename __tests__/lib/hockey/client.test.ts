@@ -332,6 +332,29 @@ describe("createHockeyClient", () => {
       expect(fetchFn).toHaveBeenCalledTimes(1);
     });
 
+    it("waits out a throttled device registration too", async () => {
+      vi.spyOn(console, "warn").mockImplementation(() => {});
+      const sleep = vi.fn(async () => {});
+      const store = makeMemoryStore();
+      const fetchFn = vi
+        .fn()
+        .mockResolvedValueOnce(throttled({ "Retry-After": "20" }))
+        .mockResolvedValueOnce(jsonResponse(200, { token: "tok-1" }))
+        .mockResolvedValueOnce(jsonResponse(200, { data: [] }));
+
+      const client = createHockeyClient({
+        store,
+        fetchFn,
+        maxRateLimitWaitMs: 60_000,
+        sleep,
+      });
+
+      await expect(client.get("/clubs")).resolves.toEqual([]);
+      expect(sleep).toHaveBeenCalledTimes(1);
+      expect(store.saved[0].token).toBe("tok-1");
+      expect(String(fetchFn.mock.calls[1][0])).toContain("/device/register");
+    });
+
     it("shares one wait budget across requests and throws once it is spent", async () => {
       vi.spyOn(console, "warn").mockImplementation(() => {});
       const sleep = vi.fn(async () => {});
