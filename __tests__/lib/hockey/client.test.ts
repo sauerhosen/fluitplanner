@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { createHockeyClient } from "@/lib/hockey/client";
+import { createHockeyClient, HockeyRateLimitError } from "@/lib/hockey/client";
 import type { CredentialStore, HockeyCredentials } from "@/lib/hockey/types";
 
 function makeMemoryStore(
@@ -385,8 +385,13 @@ describe("createHockeyClient", () => {
         fetchFn,
       });
 
-      await expect(client.get("/a")).rejects.toThrow("Too Many Attempts.");
-      await expect(client.get("/b")).rejects.toThrow("Too Many Attempts.");
+      const first = await client.get("/a").catch((error) => error);
+      const second: unknown = await client.get("/b").catch((error) => error);
+      // Both the upstream 429 and the local refusal are typed, so callers
+      // can tell throttling apart from other failures.
+      expect(first).toBeInstanceOf(HockeyRateLimitError);
+      expect(second).toBeInstanceOf(HockeyRateLimitError);
+      expect((second as Error).message).toBe("Too Many Attempts.");
       expect(fetchFn).toHaveBeenCalledTimes(1);
     });
 

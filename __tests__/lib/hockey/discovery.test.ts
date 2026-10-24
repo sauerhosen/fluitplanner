@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   fetchFacilityMatches,
@@ -130,15 +130,73 @@ describe("pickClubFacilities — names and the cap", () => {
 });
 
 describe("fetchFacilityMatches", () => {
-  function fakeSupabase(): SupabaseClient {
+  function fakeSupabase(keys: unknown[] = []): SupabaseClient {
     const query = {
       select: () => query,
-      eq: () => query,
+      eq: (_column: string, key: unknown) => {
+        keys.push(key);
+        return query;
+      },
       maybeSingle: async () => ({ data: null }),
       upsert: async () => ({ error: null }),
     };
     return { from: () => query } as unknown as SupabaseClient;
   }
+
+  it("asks one day by default, under the day's cache key", async () => {
+    const keys: unknown[] = [];
+    const endpoints: string[] = [];
+    const get = async (endpoint: string) => {
+      endpoints.push(endpoint);
+      return { id: 31, name: "X", matches: [] };
+    };
+
+    await fetchFacilityMatches(
+      { supabase: fakeSupabase(keys), client: { get } as never },
+      31,
+      "2099-09-27",
+    );
+
+    expect(endpoints).toEqual([
+      "/facilities/31/matches?filter[dateStart]=2099-09-27&filter[dateEnd]=2099-09-28",
+    ]);
+    expect(keys).toEqual(["facility-matches:31:2099-09-27"]);
+  });
+
+  it("asks a multi-day window under its own cache key", async () => {
+    const keys: unknown[] = [];
+    const endpoints: string[] = [];
+    const get = async (endpoint: string) => {
+      endpoints.push(endpoint);
+      return { id: 31, name: "X", matches: [] };
+    };
+
+    await fetchFacilityMatches(
+      { supabase: fakeSupabase(keys), client: { get } as never },
+      31,
+      "2099-12-25",
+      { days: 14 },
+    );
+
+    // crosses a month and year boundary; the end stays exclusive
+    expect(endpoints).toEqual([
+      "/facilities/31/matches?filter[dateStart]=2099-12-25&filter[dateEnd]=2100-01-08",
+    ]);
+    expect(keys).toEqual(["facility-matches:31:2099-12-25:14d"]);
+  });
+
+  it("refuses a window the upstream would reject", async () => {
+    const get = vi.fn();
+    await expect(
+      fetchFacilityMatches(
+        { supabase: fakeSupabase(), client: { get } as never },
+        31,
+        "2099-09-27",
+        { days: 15 },
+      ),
+    ).rejects.toThrow();
+    expect(get).not.toHaveBeenCalled();
+  });
 
   it("fills in the facility as the venue of a match without a location", async () => {
     const match = {

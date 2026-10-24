@@ -86,6 +86,12 @@ export type NormalizedFixture = {
   competition: string | null;
   venue: string | null;
   field: string | null;
+  /**
+   * False when the source reported no field at all — facility match lists
+   * omit the location — as opposed to a field reported as unassigned. An
+   * unknown field must never overwrite or be compared against a stored one.
+   */
+  fieldKnown: boolean;
 };
 
 export type HockeyCredentials = {

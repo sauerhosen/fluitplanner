@@ -25,6 +25,16 @@ const POULE_TEAM_TTL_MS = 15 * 60 * 1000;
 const FACILITIES_TTL_MS = 24 * HOUR_MS;
 const FACILITY_MATCHES_TTL_MS = 15 * 60 * 1000;
 
+/** The widest window the facility match list accepts ("14 days or less"). */
+export const MAX_FACILITY_WINDOW_DAYS = 14;
+
+/** A YYYY-MM-DD calendar date shifted by whole days. */
+export function addDays(date: string, days: number): string {
+  const next = new Date(`${date}T00:00:00Z`);
+  next.setUTCDate(next.getUTCDate() + days);
+  return next.toISOString().slice(0, 10);
+}
+
 /** Most venues one club may cost upstream on a single day lookup. */
 const MAX_CLUB_FACILITIES = 5;
 
@@ -42,15 +52,16 @@ export async function fetchAllClubs(
   return clubs.filter((club) => club.type !== "business");
 }
 
-/** Club details including its teams, cached 6h. */
+/** Club details including its teams, cached 6h unless the caller asks otherwise. */
 export async function fetchClubDetail(
   deps: DiscoveryDeps,
   clubId: string,
+  ttlMs: number = CLUB_DETAIL_TTL_MS,
 ): Promise<ApiClubDetail> {
   return getCachedJson<ApiClubDetail>(
     deps.supabase,
     `club:${clubId}`,
-    CLUB_DETAIL_TTL_MS,
+    ttlMs,
     () =>
       deps.client.get<ApiClubDetail>(`/clubs/${encodeURIComponent(clubId)}`),
     deps.pause,
@@ -119,11 +130,13 @@ export async function fetchAllFacilities(
 }
 
 /**
- * Every match played at one facility on a calendar day, cached 15 min.
- * One request covers all of a venue's teams, which is what keeps a club-wide
- * day lookup far below the upstream rate limit (one poule per team is not —
- * a big club has ~80 field teams). The upstream window's end is exclusive, so
- * a single day asks for `[date, date + 1)`.
+ * Every match played at one facility from `date` on, for `days` calendar days
+ * (default 1, at most 14 — the upstream rejects wider windows), cached 15 min
+ * unless the caller asks otherwise. One request covers all of a venue's
+ * teams, which is what keeps a club-wide lookup far below the upstream rate
+ * limit (one poule per team is not — a big club has ~80 field teams). The
+ * upstream window's end is exclusive, so a single day asks for
+ * `[date, date + 1)`.
  *
  * Facility-scoped matches can omit `location` — the containing facility is the
  * context — so the facility's own name is filled in as the match's venue.
@@ -134,15 +147,22 @@ export async function fetchFacilityMatches(
   deps: DiscoveryDeps,
   facilityId: number,
   date: string,
+  opts: { days?: number; ttlMs?: number } = {},
 ): Promise<ApiMatchSummary[]> {
-  const next = new Date(`${date}T00:00:00Z`);
-  next.setUTCDate(next.getUTCDate() + 1);
-  const end = next.toISOString().slice(0, 10);
+  const days = opts.days ?? 1;
+  if (!Number.isInteger(days) || days < 1 || days > MAX_FACILITY_WINDOW_DAYS) {
+    throw new Error(`Facility window must be 1–14 days, got ${days}`);
+  }
+  const end = addDays(date, days);
 
   const response = await getCachedJson<ApiFacilityMatchesResponse>(
     deps.supabase,
-    `facility-matches:${facilityId}:${date}`,
-    FACILITY_MATCHES_TTL_MS,
+    // The one-day key predates windows; keep it so the day import's cache
+    // survives.
+    days === 1
+      ? `facility-matches:${facilityId}:${date}`
+      : `facility-matches:${facilityId}:${date}:${days}d`,
+    opts.ttlMs ?? FACILITY_MATCHES_TTL_MS,
     () =>
       deps.client.get<ApiFacilityMatchesResponse>(
         `/facilities/${facilityId}/matches?filter[dateStart]=${date}&filter[dateEnd]=${end}`,

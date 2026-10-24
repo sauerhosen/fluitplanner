@@ -4,6 +4,8 @@ import {
   fetchTeamPoule,
   fetchTeamPouleFetchedAt,
 } from "./discovery";
+import { HockeyRateLimitError } from "./client";
+import { sweepHomeVenues } from "./venues";
 import {
   amsterdamDateOf,
   fixtureToMatchRow,
@@ -12,7 +14,12 @@ import {
   normalizeMatch,
   sameInstant,
 } from "./normalize";
-import type { ApiClubDetail, HockeyClient, NormalizedFixture } from "./types";
+import type {
+  ApiClubDetail,
+  ApiMatchSummary,
+  HockeyClient,
+  NormalizedFixture,
+} from "./types";
 import type { MatchReviewReason, TrackedTeam } from "@/lib/types/domain";
 
 export type SyncResult = {
@@ -36,13 +43,21 @@ export type SyncDeps = {
 const MAX_TRACKED_TEAMS = 50;
 
 /**
- * How long a sync reuses a team's poule. Longer than the 15-minute manual
- * cooldown, so a repeated "sync now" spends the upstream budget (about five
- * requests a minute) on teams it has not reached yet instead of refetching
- * the ones it just did — but well under a day, so the nightly run still
- * refreshes every team.
+ * How long a sync reuses its venue sweep, and a team's poule when the sweep
+ * could not cover the near term. Longer than the 15-minute manual cooldown,
+ * so a repeated "sync now" spends the upstream budget (about five requests a
+ * minute) on what it has not reached yet instead of refetching what it just
+ * did — but well under a day, so the nightly run refreshes everything.
  */
-const SYNC_POULE_TTL_MS = 2 * 60 * 60 * 1000;
+const SYNC_FRESH_TTL_MS = 2 * 60 * 60 * 1000;
+
+/**
+ * How long a team's poule is reused once the venue sweep covers the near
+ * term (and a club's detail always, for its season rollovers). The poule is then a top-up — fields, home
+ * matches away from the club's venues, changes beyond the sweep — so a day
+ * is fresh enough. Just under one, so each nightly run still refreshes it.
+ */
+const SYNC_TOPUP_TTL_MS = 20 * 60 * 60 * 1000;
 
 /** How long a claimed run lease lasts before it self-expires (crash safety). */
 const SYNC_LEASE_MS = 10 * 60 * 1000;
@@ -243,78 +258,149 @@ export async function syncOrganizationMatches(
   // actually happens — cache hits don't sleep.
   const discovery = { client, supabase, pause: deps.pause };
   const today = amsterdamDateOf(now.toISOString());
-  const collected: Array<{ fixture: NormalizedFixture; team: TrackedTeam }> =
-    [];
+  const teams = trackedTeams as TrackedTeam[];
+  const teamById = new Map(teams.map((team) => [team.hockey_team_id, team]));
 
-  // Stalest first: when the upstream throttles part of a run, the teams it
-  // missed are fetched first next time instead of starving behind the same
-  // leaders. Never-fetched teams sort first; ties keep the tracking order.
+  /** A tracked team's home fixture worth syncing, or null. */
+  function homeFixture(
+    match: ApiMatchSummary,
+    team: TrackedTeam,
+  ): NormalizedFixture | null {
+    if (match.home?.id !== team.hockey_team_id) return null;
+    if (isSkippedStatus(match.status)) return null;
+    const fixture = normalizeMatch(match);
+    let fixtureDate: string;
+    try {
+      fixtureDate = amsterdamDateOf(fixture.start);
+    } catch {
+      return null; // unparseable upstream date
+    }
+    // Past matches are skipped — except cancellations, which must still
+    // flag an imported row even when observed after match day.
+    if (fixtureDate < today && !isCancelledStatus(fixture.status)) {
+      return null;
+    }
+    return fixture;
+  }
+
+  // 1. Venue sweep: every match at the club's home venues for four weeks, a
+  //    request per venue window however many teams are tracked. When it is
+  //    complete, every team's importable near term is covered.
+  const sweep = await sweepHomeVenues(discovery, {
+    organizationId,
+    trackedTeams: teams,
+    today,
+    ttlMs: SYNC_FRESH_TTL_MS,
+  });
+  result.errors.push(...sweep.errors);
+  const swept = new Map<
+    number,
+    { fixture: NormalizedFixture; team: TrackedTeam }
+  >();
+  for (const match of sweep.matches) {
+    const team = teamById.get(match.home?.id);
+    const fixture = team ? homeFixture(match, team) : null;
+    if (team && fixture) swept.set(fixture.matchId, { fixture, team });
+  }
+
+  /**
+   * Whether a top-up failure is only "later": throttling, on a team the
+   * sweep already covered. Anything else is reported.
+   */
+  const deferrable = (error: unknown) =>
+    sweep.complete && error instanceof HockeyRateLimitError;
+  const pouleTtlMs = sweep.complete ? SYNC_TOPUP_TTL_MS : SYNC_FRESH_TTL_MS;
+
+  // 2. Poule top-up, stalest first: when the upstream throttles part of a
+  //    run, the teams it missed are fetched first next time instead of
+  //    starving behind the same leaders. Never-fetched teams sort first;
+  //    ties keep the tracking order.
   const fetchedAt = await fetchTeamPouleFetchedAt(
     discovery,
-    (trackedTeams as TrackedTeam[])
+    teams
       .filter((team) => team.recent_poule_id != null)
       .map((team) => ({
         pouleId: team.recent_poule_id as number,
         teamId: team.hockey_team_id,
       })),
   );
-  const orderedTeams = [...(trackedTeams as TrackedTeam[])].sort((a, b) => {
+  const orderedTeams = [...teams].sort((a, b) => {
     const aAt = fetchedAt.get(a.hockey_team_id) ?? -Infinity;
     const bAt = fetchedAt.get(b.hockey_team_id) ?? -Infinity;
     return aAt < bAt ? -1 : aAt > bAt ? 1 : 0;
   });
 
-  // One detail per club, loaded on its first team. A failed club is
-  // reported once and its remaining teams skipped silently.
+  // One detail per club, loaded on its first team that needs it. A failed
+  // club is reported once; its teams fall back to their stored poule.
   const clubDetails = new Map<string, ApiClubDetail | null>();
-  // Teams that yielded no fixtures this run — what the run status counts,
-  // since one error message can stand for a whole club.
+  const polled = new Map<
+    number,
+    { fixture: NormalizedFixture; team: TrackedTeam }
+  >();
+  // Teams that yielded no fixtures from either source — what the run status
+  // counts, since one error message can stand for a whole club.
   let failedTeams = 0;
+  const lost = () => {
+    if (!sweep.complete) failedTeams++;
+  };
 
   for (const team of orderedTeams) {
-    const clubId = team.club_federation_reference_id;
-    if (!clubDetails.has(clubId)) {
-      try {
-        clubDetails.set(clubId, await fetchClubDetail(discovery, clubId));
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        result.errors.push(`Club ${team.club_name}: ${message}`);
-        clubDetails.set(clubId, null);
-      }
-    }
-    const clubDetail = clubDetails.get(clubId);
-    if (!clubDetail) {
-      failedTeams++;
-      continue;
-    }
-
-    const apiTeam = clubDetail.teams.find(
-      (candidate) => candidate.id === team.hockey_team_id,
-    );
-    if (!apiTeam) {
-      result.errors.push(
-        `Team ${team.team_name} not found in club ${team.club_name}`,
-      );
-      failedTeams++;
-      continue;
-    }
-
-    // Season rollover: follow the upstream recent poule
     let pouleId = team.recent_poule_id;
-    if (
-      apiTeam.recent_poule_id != null &&
-      apiTeam.recent_poule_id !== team.recent_poule_id
-    ) {
-      pouleId = apiTeam.recent_poule_id;
-      const { error } = await supabase
-        .from("tracked_teams")
-        .update({ recent_poule_id: pouleId })
-        .eq("id", team.id);
-      if (error) result.errors.push(`${team.team_name}: ${error.message}`);
+    const lastFetched = fetchedAt.get(team.hockey_team_id);
+    // A fresh cached poule is read as is: the club detail would only be
+    // checked for a season rollover, at the cost of a request.
+    const pouleFresh =
+      pouleId != null &&
+      lastFetched !== undefined &&
+      now.getTime() - lastFetched < pouleTtlMs;
+
+    if (!pouleFresh) {
+      const clubId = team.club_federation_reference_id;
+      if (!clubDetails.has(clubId)) {
+        try {
+          clubDetails.set(
+            clubId,
+            // Only rollovers are read from it — a day's lag is fine.
+            await fetchClubDetail(discovery, clubId, SYNC_TOPUP_TTL_MS),
+          );
+        } catch (error) {
+          if (!deferrable(error)) {
+            const message =
+              error instanceof Error ? error.message : String(error);
+            result.errors.push(`Club ${team.club_name}: ${message}`);
+          }
+          clubDetails.set(clubId, null);
+        }
+      }
+      const clubDetail = clubDetails.get(clubId);
+      if (clubDetail) {
+        const apiTeam = clubDetail.teams.find(
+          (candidate) => candidate.id === team.hockey_team_id,
+        );
+        if (!apiTeam) {
+          result.errors.push(
+            `Team ${team.team_name} not found in club ${team.club_name}`,
+          );
+          lost();
+          continue;
+        }
+        // Season rollover: follow the upstream recent poule
+        if (
+          apiTeam.recent_poule_id != null &&
+          apiTeam.recent_poule_id !== team.recent_poule_id
+        ) {
+          pouleId = apiTeam.recent_poule_id;
+          const { error } = await supabase
+            .from("tracked_teams")
+            .update({ recent_poule_id: pouleId })
+            .eq("id", team.id);
+          if (error) result.errors.push(`${team.team_name}: ${error.message}`);
+        }
+      }
     }
     if (pouleId == null) {
       result.errors.push(`Team ${team.team_name} has no current poule`);
-      failedTeams++;
+      lost();
       continue;
     }
 
@@ -323,31 +409,40 @@ export async function syncOrganizationMatches(
         discovery,
         pouleId,
         team.hockey_team_id,
-        SYNC_POULE_TTL_MS,
+        pouleTtlMs,
       );
       for (const match of response.poule?.matches ?? []) {
-        if (match.home?.id !== team.hockey_team_id) continue;
-        if (isSkippedStatus(match.status)) continue;
-        const fixture = normalizeMatch(match);
-        let fixtureDate: string;
-        try {
-          fixtureDate = amsterdamDateOf(fixture.start);
-        } catch {
-          continue; // unparseable upstream date
-        }
-        // Past matches are skipped — except cancellations, which must
-        // still flag an imported row even when observed after match day.
-        if (fixtureDate < today && !isCancelledStatus(fixture.status)) {
-          continue;
-        }
-        collected.push({ fixture, team });
+        const fixture = homeFixture(match, team);
+        if (fixture) polled.set(fixture.matchId, { fixture, team });
       }
     } catch (error) {
+      if (deferrable(error)) continue;
       const message = error instanceof Error ? error.message : String(error);
       result.errors.push(`Team ${team.team_name}: ${message}`);
-      failedTeams++;
+      lost();
     }
   }
+
+  // 3. Merge. The sweep is the fresher source (2h against up to a day) and
+  //    wins — but the facility list reports no field, so a poule's field is
+  //    kept while both put the match at the same venue.
+  const merged = new Map(polled);
+  for (const [matchId, entry] of swept) {
+    const fromPoule = polled.get(matchId)?.fixture;
+    const sameVenue = fromPoule?.venue === entry.fixture.venue;
+    merged.set(matchId, {
+      team: entry.team,
+      fixture:
+        fromPoule && sameVenue
+          ? {
+              ...entry.fixture,
+              field: fromPoule.field,
+              fieldKnown: fromPoule.fieldKnown,
+            }
+          : entry.fixture,
+    });
+  }
+  const collected = Array.from(merged.values());
 
   const cancelled = collected.filter(({ fixture }) =>
     isCancelledStatus(fixture.status),
@@ -407,9 +502,17 @@ export async function syncOrganizationMatches(
     if (!sameInstant(existing.start_time, row.start_time)) {
       reasons.push("time_changed");
     }
+    // An unknown field (facility lists omit it) is never compared: it
+    // would flag every match the planner already has a field for. A pitch
+    // assigned where none was stored — typically a match first imported from
+    // the sweep — is filled in silently: nothing moved. A changed or
+    // withdrawn pitch is flagged.
+    const fieldChanged =
+      fixture.fieldKnown && (existing.field ?? null) !== row.field;
+    const fieldAssigned = fieldChanged && (existing.field ?? null) === null;
     if (
       (existing.venue ?? null) !== row.venue ||
-      (existing.field ?? null) !== row.field
+      (fieldChanged && !fieldAssigned)
     ) {
       reasons.push("venue_changed");
     }
@@ -417,11 +520,12 @@ export async function syncOrganizationMatches(
     // no review needed.
     const competitionChanged =
       (existing.competition ?? null) !== row.competition;
+    const silentChange = competitionChanged || fieldAssigned;
 
     // Also adopts rows whose external id changed (upstream reissued the
     // fixture under a new match id with the same natural key).
     const adopting = existing.external_id !== fixture.matchId;
-    if (reasons.length === 0 && !adopting && !competitionChanged) {
+    if (reasons.length === 0 && !adopting && !silentChange) {
       unchangedIds.push(existing.id);
       continue;
     }
@@ -432,12 +536,16 @@ export async function syncOrganizationMatches(
       date: row.date,
       start_time: row.start_time,
       venue: row.venue,
-      field: row.field,
       competition: row.competition,
       external_id: fixture.matchId,
       source: "hockey_sync",
       last_synced_at: syncedAt,
     };
+    // An unknown field keeps the stored one — unless the venue moved, which
+    // leaves the stored field pointing at the old park.
+    if (fixture.fieldKnown || (existing.venue ?? null) !== row.venue) {
+      payload.field = row.field;
+    }
     if (reasons.length > 0) {
       payload.needs_review = true;
       payload.review_reasons = mergeReasons(existing.review_reasons, reasons);
@@ -452,7 +560,7 @@ export async function syncOrganizationMatches(
     } else if (reasons.length > 0) {
       result.updated++;
       result.flagged++;
-    } else if (competitionChanged) {
+    } else if (silentChange) {
       result.updated++;
     }
   }

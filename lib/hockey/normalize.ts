@@ -49,6 +49,9 @@ export function normalizeMatch(m: ApiMatchSummary): NormalizedFixture {
     competition: m.competition_name ?? null,
     venue: m.location?.facility?.name ?? null,
     field: m.location?.field?.name ?? null,
+    // `field: null` is a reported "no pitch assigned"; only an absent key
+    // (a facility list's synthesized location) is unknown.
+    fieldKnown: m.location?.field !== undefined,
   };
 }
 

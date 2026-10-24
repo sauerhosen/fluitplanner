@@ -4,6 +4,18 @@ import type { CredentialStore, HockeyClient, HockeyCredentials } from "./types";
 
 const REQUEST_TIMEOUT_MS = 10_000;
 
+/**
+ * The upstream refused a request for its rate limit — or the client refused
+ * it locally during a known throttle. Typed so callers that have another
+ * source for the data can treat it as "later", not as a failure.
+ */
+export class HockeyRateLimitError extends Error {
+  constructor(message = "Too Many Attempts.") {
+    super(message);
+    this.name = "HockeyRateLimitError";
+  }
+}
+
 /** Added to an upstream rate-limit wait, so the retry lands after the reset. */
 const RATE_LIMIT_MARGIN_MS = 1_000;
 
@@ -99,7 +111,7 @@ export function createHockeyClient(opts: {
     console.warn(
       `Match Center GET ${endpoint} not sent: rate limited for another ${Math.ceil(remainingMs / 1000)}s`,
     );
-    throw new Error("Too Many Attempts.");
+    throw new HockeyRateLimitError();
   }
 
   async function register(): Promise<HockeyCredentials> {
@@ -225,6 +237,9 @@ export function createHockeyClient(opts: {
         console.warn(
           `Match Center GET ${endpoint} failed: HTTP ${response.status} ${message ?? ""}`.trim(),
         );
+        if (response.status === 429) {
+          throw new HockeyRateLimitError(message ?? undefined);
+        }
         throw new Error(message ?? `HTTP ${response.status}`);
       }
       const payload = (await response.json()) as { data?: T };

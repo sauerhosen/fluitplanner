@@ -70,7 +70,41 @@ describe("normalizeMatch", () => {
       competition: "Hoofdklasse Dames",
       venue: "Sportpark Kees Boekelaan",
       field: "Veld 2",
+      fieldKnown: true,
     });
+  });
+
+  it("marks the field unknown when the source reports no field at all", () => {
+    // Facility match lists carry no location; the facility fills in the venue
+    const f = normalizeMatch(
+      makeMatch({ location: { facility: { name: "Sportpark X" } } }),
+    );
+    expect(f.venue).toBe("Sportpark X");
+    expect(f.field).toBeNull();
+    expect(f.fieldKnown).toBe(false);
+  });
+
+  it("treats a reported but unassigned field as known", () => {
+    const f = normalizeMatch(
+      makeMatch({
+        location: {
+          facility: { name: "Sportpark X" },
+          field: { name: null, type: null },
+        },
+      }),
+    );
+    expect(f.field).toBeNull();
+    expect(f.fieldKnown).toBe(true);
+  });
+
+  it("treats an explicit null field as reported, so a cleared pitch syncs", () => {
+    const f = normalizeMatch(
+      makeMatch({
+        location: { facility: { name: "Sportpark X" }, field: null },
+      }),
+    );
+    expect(f.field).toBeNull();
+    expect(f.fieldKnown).toBe(true);
   });
 
   it("tolerates missing location and nullable fields", () => {
@@ -83,6 +117,7 @@ describe("normalizeMatch", () => {
     );
     expect(f.venue).toBeNull();
     expect(f.field).toBeNull();
+    expect(f.fieldKnown).toBe(false);
     expect(f.competition).toBeNull();
   });
 });
