@@ -9,6 +9,7 @@ import {
   Copy,
   Check,
   CalendarDays,
+  Image as ImageIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -47,9 +48,11 @@ import {
   generateAssignmentMarkdown,
   generateDaySheetMarkdown,
 } from "@/lib/export/generators/markdown";
+import { generateDaySheetPng } from "@/lib/export/generators/image";
 import {
   downloadBlob,
   copyToClipboard,
+  copyImageToClipboard,
   sanitizeFilename,
 } from "@/lib/export/download";
 
@@ -259,20 +262,32 @@ export function ExportDropdown({
   }
 
   async function handleDaySheet(
-    exportFormat: "xlsx" | "html" | "markdown" | "copy",
+    exportFormat: "xlsx" | "html" | "markdown" | "copy" | "png" | "copyImage",
     filterDate: string,
   ) {
+    const daySheetFile = (ext: string) =>
+      `${fileBase}-daysheet-${filterDate}.${ext}`;
     try {
       const data = getDaySheetData(filterDate);
-      if (exportFormat === "xlsx") {
+      if (exportFormat === "copyImage") {
+        // No await before the clipboard write: it must stay in the click's gesture.
+        const ok = await copyImageToClipboard(() =>
+          generateDaySheetPng(data, daySheetColumnLabels),
+        );
+        if (ok) toast.success(t("copiedImage"));
+        else toast.error(t("copyFailed"));
+      } else if (exportFormat === "png") {
+        const blob = await generateDaySheetPng(data, daySheetColumnLabels);
+        downloadBlob(blob, daySheetFile("png"));
+      } else if (exportFormat === "xlsx") {
         const { generateDaySheetXlsx } =
           await import("@/lib/export/generators/xlsx");
         const blob = await generateDaySheetXlsx(data, daySheetColumnLabels);
-        downloadBlob(blob, `${fileBase}-daysheet-${filterDate}.xlsx`);
+        downloadBlob(blob, daySheetFile("xlsx"));
       } else if (exportFormat === "html") {
         const html = generateDaySheetHtml(data, daySheetColumnLabels, locale);
         const blob = new Blob([html], { type: "text/html;charset=utf-8" });
-        downloadBlob(blob, `${fileBase}-daysheet-${filterDate}.html`);
+        downloadBlob(blob, daySheetFile("html"));
       } else {
         const md = generateDaySheetMarkdown(data, daySheetColumnLabels);
         if (exportFormat === "copy") {
@@ -288,7 +303,7 @@ export function ExportDropdown({
           const blob = new Blob([md], {
             type: "text/markdown;charset=utf-8",
           });
-          downloadBlob(blob, `${fileBase}-daysheet-${filterDate}.md`);
+          downloadBlob(blob, daySheetFile("md"));
         }
       }
     } catch {
@@ -352,7 +367,19 @@ export function ExportDropdown({
                   <FileText className="mr-2 h-4 w-4" />
                   {t("exportMarkdown")}
                 </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => handleDaySheet("png", date.iso)}
+                >
+                  <ImageIcon className="mr-2 h-4 w-4" />
+                  {t("exportPng")}
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={() => handleDaySheet("copyImage", date.iso)}
+                >
+                  <ImageIcon className="mr-2 h-4 w-4" />
+                  {t("copyImage")}
+                </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => handleDaySheet("copy", date.iso)}
                 >

@@ -25,6 +25,29 @@ export async function copyToClipboard(text: string): Promise<boolean> {
 }
 
 /**
+ * Copy a PNG to clipboard. Takes a renderer returning the blob as a promise so
+ * the ClipboardItem is built synchronously inside the click handler — Safari
+ * rejects the write once the user gesture has been awaited away. The renderer
+ * is skipped where the async clipboard API is missing (insecure context, old
+ * browser).
+ */
+export async function copyImageToClipboard(
+  renderPng: () => Promise<Blob>,
+): Promise<boolean> {
+  if (typeof ClipboardItem === "undefined" || !navigator.clipboard?.write) {
+    return false;
+  }
+  try {
+    await navigator.clipboard.write([
+      new ClipboardItem({ "image/png": renderPng() }),
+    ]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Sanitize a string for use as a filename.
  */
 export function sanitizeFilename(title: string): string {
