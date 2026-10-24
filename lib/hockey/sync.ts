@@ -1,5 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { fetchClubDetail, fetchTeamPoule } from "./discovery";
+import {
+  fetchClubDetail,
+  fetchTeamPoule,
+  fetchTeamPouleFetchedAt,
+} from "./discovery";
 import {
   amsterdamDateOf,
   fixtureToMatchRow,
@@ -8,7 +12,7 @@ import {
   normalizeMatch,
   sameInstant,
 } from "./normalize";
-import type { HockeyClient, NormalizedFixture } from "./types";
+import type { ApiClubDetail, HockeyClient, NormalizedFixture } from "./types";
 import type { MatchReviewReason, TrackedTeam } from "@/lib/types/domain";
 
 export type SyncResult = {
@@ -30,6 +34,15 @@ export type SyncDeps = {
 };
 
 const MAX_TRACKED_TEAMS = 50;
+
+/**
+ * How long a sync reuses a team's poule. Longer than the 15-minute manual
+ * cooldown, so a repeated "sync now" spends the upstream budget (about five
+ * requests a minute) on teams it has not reached yet instead of refetching
+ * the ones it just did — but well under a day, so the nightly run still
+ * refreshes every team.
+ */
+const SYNC_POULE_TTL_MS = 2 * 60 * 60 * 1000;
 
 /** How long a claimed run lease lasts before it self-expires (crash safety). */
 const SYNC_LEASE_MS = 10 * 60 * 1000;
@@ -233,79 +246,106 @@ export async function syncOrganizationMatches(
   const collected: Array<{ fixture: NormalizedFixture; team: TrackedTeam }> =
     [];
 
-  const teamsByClub = new Map<string, TrackedTeam[]>();
-  for (const team of trackedTeams as TrackedTeam[]) {
-    const list = teamsByClub.get(team.club_federation_reference_id) ?? [];
-    list.push(team);
-    teamsByClub.set(team.club_federation_reference_id, list);
-  }
+  // Stalest first: when the upstream throttles part of a run, the teams it
+  // missed are fetched first next time instead of starving behind the same
+  // leaders. Never-fetched teams sort first; ties keep the tracking order.
+  const fetchedAt = await fetchTeamPouleFetchedAt(
+    discovery,
+    (trackedTeams as TrackedTeam[])
+      .filter((team) => team.recent_poule_id != null)
+      .map((team) => ({
+        pouleId: team.recent_poule_id as number,
+        teamId: team.hockey_team_id,
+      })),
+  );
+  const orderedTeams = [...(trackedTeams as TrackedTeam[])].sort((a, b) => {
+    const aAt = fetchedAt.get(a.hockey_team_id) ?? -Infinity;
+    const bAt = fetchedAt.get(b.hockey_team_id) ?? -Infinity;
+    return aAt < bAt ? -1 : aAt > bAt ? 1 : 0;
+  });
 
-  for (const [clubId, teams] of teamsByClub) {
-    let clubDetail;
-    try {
-      clubDetail = await fetchClubDetail(discovery, clubId);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      result.errors.push(`Club ${teams[0].club_name}: ${message}`);
+  // One detail per club, loaded on its first team. A failed club is
+  // reported once and its remaining teams skipped silently.
+  const clubDetails = new Map<string, ApiClubDetail | null>();
+  // Teams that yielded no fixtures this run — what the run status counts,
+  // since one error message can stand for a whole club.
+  let failedTeams = 0;
+
+  for (const team of orderedTeams) {
+    const clubId = team.club_federation_reference_id;
+    if (!clubDetails.has(clubId)) {
+      try {
+        clubDetails.set(clubId, await fetchClubDetail(discovery, clubId));
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        result.errors.push(`Club ${team.club_name}: ${message}`);
+        clubDetails.set(clubId, null);
+      }
+    }
+    const clubDetail = clubDetails.get(clubId);
+    if (!clubDetail) {
+      failedTeams++;
       continue;
     }
 
-    for (const team of teams) {
-      const apiTeam = clubDetail.teams.find(
-        (candidate) => candidate.id === team.hockey_team_id,
+    const apiTeam = clubDetail.teams.find(
+      (candidate) => candidate.id === team.hockey_team_id,
+    );
+    if (!apiTeam) {
+      result.errors.push(
+        `Team ${team.team_name} not found in club ${team.club_name}`,
       );
-      if (!apiTeam) {
-        result.errors.push(
-          `Team ${team.team_name} not found in club ${team.club_name}`,
-        );
-        continue;
-      }
+      failedTeams++;
+      continue;
+    }
 
-      // Season rollover: follow the upstream recent poule
-      let pouleId = team.recent_poule_id;
-      if (
-        apiTeam.recent_poule_id != null &&
-        apiTeam.recent_poule_id !== team.recent_poule_id
-      ) {
-        pouleId = apiTeam.recent_poule_id;
-        const { error } = await supabase
-          .from("tracked_teams")
-          .update({ recent_poule_id: pouleId })
-          .eq("id", team.id);
-        if (error) result.errors.push(`${team.team_name}: ${error.message}`);
-      }
-      if (pouleId == null) {
-        result.errors.push(`Team ${team.team_name} has no current poule`);
-        continue;
-      }
+    // Season rollover: follow the upstream recent poule
+    let pouleId = team.recent_poule_id;
+    if (
+      apiTeam.recent_poule_id != null &&
+      apiTeam.recent_poule_id !== team.recent_poule_id
+    ) {
+      pouleId = apiTeam.recent_poule_id;
+      const { error } = await supabase
+        .from("tracked_teams")
+        .update({ recent_poule_id: pouleId })
+        .eq("id", team.id);
+      if (error) result.errors.push(`${team.team_name}: ${error.message}`);
+    }
+    if (pouleId == null) {
+      result.errors.push(`Team ${team.team_name} has no current poule`);
+      failedTeams++;
+      continue;
+    }
 
-      try {
-        const response = await fetchTeamPoule(
-          discovery,
-          pouleId,
-          team.hockey_team_id,
-        );
-        for (const match of response.poule?.matches ?? []) {
-          if (match.home?.id !== team.hockey_team_id) continue;
-          if (isSkippedStatus(match.status)) continue;
-          const fixture = normalizeMatch(match);
-          let fixtureDate: string;
-          try {
-            fixtureDate = amsterdamDateOf(fixture.start);
-          } catch {
-            continue; // unparseable upstream date
-          }
-          // Past matches are skipped — except cancellations, which must
-          // still flag an imported row even when observed after match day.
-          if (fixtureDate < today && !isCancelledStatus(fixture.status)) {
-            continue;
-          }
-          collected.push({ fixture, team });
+    try {
+      const response = await fetchTeamPoule(
+        discovery,
+        pouleId,
+        team.hockey_team_id,
+        SYNC_POULE_TTL_MS,
+      );
+      for (const match of response.poule?.matches ?? []) {
+        if (match.home?.id !== team.hockey_team_id) continue;
+        if (isSkippedStatus(match.status)) continue;
+        const fixture = normalizeMatch(match);
+        let fixtureDate: string;
+        try {
+          fixtureDate = amsterdamDateOf(fixture.start);
+        } catch {
+          continue; // unparseable upstream date
         }
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        result.errors.push(`Team ${team.team_name}: ${message}`);
+        // Past matches are skipped — except cancellations, which must
+        // still flag an imported row even when observed after match day.
+        if (fixtureDate < today && !isCancelledStatus(fixture.status)) {
+          continue;
+        }
+        collected.push({ fixture, team });
       }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      result.errors.push(`Team ${team.team_name}: ${message}`);
+      failedTeams++;
     }
   }
 
@@ -500,7 +540,7 @@ export async function syncOrganizationMatches(
   const status =
     result.errors.length === 0
       ? "success"
-      : result.errors.length >= trackedTeams.length
+      : failedTeams >= trackedTeams.length
         ? "error"
         : "partial";
 

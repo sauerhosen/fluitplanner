@@ -4,34 +4,119 @@ import type { CredentialStore, HockeyClient, HockeyCredentials } from "./types";
 
 const REQUEST_TIMEOUT_MS = 10_000;
 
+/** Added to an upstream rate-limit wait, so the retry lands after the reset. */
+const RATE_LIMIT_MARGIN_MS = 1_000;
+
+/** Assumed window when a 429 carries no Retry-After or reset header. */
+const DEFAULT_RATE_LIMIT_WAIT_MS = 60_000;
+
+/**
+ * How long a 429 asks us to wait: Retry-After (seconds), else the
+ * X-RateLimit-Reset epoch, else one assumed window.
+ */
+function rateLimitWaitMs(response: Response): number {
+  // Number(null) is 0, so an absent header must not parse as "retry now".
+  const retryAfter = Number(response.headers.get("retry-after") ?? NaN);
+  if (Number.isFinite(retryAfter) && retryAfter >= 0) {
+    return retryAfter * 1000 + RATE_LIMIT_MARGIN_MS;
+  }
+  const resetAt = Number(response.headers.get("x-ratelimit-reset") ?? NaN);
+  if (Number.isFinite(resetAt) && resetAt > 0) {
+    return Math.max(0, resetAt * 1000 - Date.now()) + RATE_LIMIT_MARGIN_MS;
+  }
+  return DEFAULT_RATE_LIMIT_WAIT_MS;
+}
+
 /**
  * Signed transport for the unofficial Match Center API
  * (docs/hockey-match-center-api.md §5–6). Registers an anonymous device on
  * first use, signs every request, and re-registers once on 401.
+ *
+ * The upstream allows about five requests a minute and answers the rest with
+ * 429. With `rateLimitDeadline` set, a throttled request waits out the window
+ * and retries, as long as the wait ends before that deadline (so a cron run
+ * cannot idle past its function timeout). Without it — interactive callers,
+ * which cannot hang for a minute — a 429 throws straight away. Either way the
+ * client remembers the throttle, and a request that cannot wait for it to
+ * pass fails locally instead of spending a call that is certain to be refused.
  * Never log the device uuid or token — the pair is an access credential.
  */
 export function createHockeyClient(opts: {
   store: CredentialStore;
   fetchFn?: typeof fetch;
+  /** Epoch ms until which a rate-limited request may wait (default: never). */
+  rateLimitDeadline?: number;
+  sleep?: (ms: number) => Promise<void>;
 }): HockeyClient {
   const { store } = opts;
   const fetchFn = opts.fetchFn ?? fetch;
+  const sleep =
+    opts.sleep ??
+    ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+  const deadline = opts.rateLimitDeadline;
+  /** Epoch ms until which the upstream is known to refuse requests. */
+  let throttledUntil = 0;
   // Shared, not awaited per caller: one client serves parallel requests
   // (loadClubDayFixtures), and each must not register a device of its own.
   let credentials: Promise<HockeyCredentials> | null = null;
 
+  function mayWaitUntil(until: number): boolean {
+    return deadline !== undefined && until <= deadline;
+  }
+
+  /**
+   * Re-sends a throttled request after its wait while that wait ends before
+   * the deadline. Returns the first non-429 response, or the 429 it may not
+   * wait out (body intact, for the error message).
+   */
+  async function waitOutRateLimit(
+    response: Response,
+    resend: () => Promise<Response>,
+  ): Promise<Response> {
+    while (response.status === 429) {
+      const until = Date.now() + rateLimitWaitMs(response);
+      throttledUntil = Math.max(throttledUntil, until);
+      if (!mayWaitUntil(until)) break;
+      // Release the connection the unread body holds before idling.
+      await response.body?.cancel().catch(() => {});
+      await sleep(until - Date.now());
+      response = await resend();
+    }
+    return response;
+  }
+
+  /**
+   * Before sending: idle out a throttle already known, or — when it outlasts
+   * the deadline — fail without calling upstream.
+   */
+  async function respectKnownThrottle(endpoint: string): Promise<void> {
+    const remainingMs = throttledUntil - Date.now();
+    if (remainingMs <= 0) return;
+    if (mayWaitUntil(throttledUntil)) {
+      await sleep(remainingMs);
+      return;
+    }
+    console.warn(
+      `Match Center GET ${endpoint} not sent: rate limited for another ${Math.ceil(remainingMs / 1000)}s`,
+    );
+    throw new Error("Too Many Attempts.");
+  }
+
   async function register(): Promise<HockeyCredentials> {
     const uuid = randomUUID();
-    const response = await fetchFn(`${API_BASE}/device/register`, {
-      method: "POST",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-        "X-Requested-With": "XMLHttpRequest",
-      },
-      body: JSON.stringify({ uuid, os: "Web" }),
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-    });
+    // Registration counts against the rate limit too, so it waits like a GET.
+    const send = () =>
+      fetchFn(`${API_BASE}/device/register`, {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          "X-Requested-With": "XMLHttpRequest",
+        },
+        body: JSON.stringify({ uuid, os: "Web" }),
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
+    const response = await waitOutRateLimit(await send(), send);
     if (!response.ok) {
       throw new Error(`Device registration failed: HTTP ${response.status}`);
     }
@@ -119,11 +204,17 @@ export function createHockeyClient(opts: {
 
   return {
     async get<T>(endpoint: string): Promise<T> {
+      await respectKnownThrottle(endpoint);
       const used = ensureCredentials();
       let response = await execute(endpoint, used);
       if (response.status === 401) {
         response = await execute(endpoint, renewCredentials(used));
       }
+      // ensureCredentials, not `used`: a parallel request may have replaced
+      // (or failed to replace) the credentials during the wait.
+      response = await waitOutRateLimit(response, () =>
+        execute(endpoint, ensureCredentials()),
+      );
       if (!response.ok) {
         // Checked before parsing: a proxy error page or empty body must not
         // throw first and skip the log. The one trace of an upstream

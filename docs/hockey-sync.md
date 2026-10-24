@@ -113,9 +113,10 @@ correct them here, in the match editor, or by tracking the team.
 
 1. Authenticates on `CRON_SECRET` as a bearer token (the proxy skips `/api/cron/*` entirely, so the route is on its own here)
 2. Collects every organization that has tracked teams, paging `tracked_teams` 1000 rows at a time
-3. Orders them **stalest first**, so an over-long run cuts off different clubs each night instead of starving the same tail
+3. Orders them **last run failed first, then stalest first**. A club whose last run was not a `success` (or that never completed one) leads; within each group the oldest `last_synced_at` goes first. Staleness alone is not enough: a club whose teams were throttled still gets tonight's `last_synced_at`, and only its `partial` / `error` status says it lost out
 4. Syncs them **sequentially** with a jitter pause between upstream fetches — low request volume, and the shared cache dedupes teams several clubs follow
 5. Skips any club synced within the last **6 hours** (e.g. one that just ran a manual sync)
+6. Sets a **deadline 240 s** into the run: the Match Center client may wait out rate limits only while the wait ends before it (see [Rate limiting](#rate-limiting)), and no further club is started after it — those report `skipped: true` and, left unsynced, sort as stalest next night. The last minute of `maxDuration` is headroom for the work already under way
 
 `maxDuration` is 300s. Results are returned per organization; a club whose slot could not be
 claimed reports `skipped: true`.
@@ -141,7 +142,10 @@ right on its own.
 ## The sync engine
 
 `syncOrganizationMatches()` walks one club's tracked teams (capped at **50**; beyond that it
-reports truncation rather than silently dropping teams) and, per team:
+reports truncation rather than silently dropping teams), **least recently fetched first** —
+ordered by the `fetched_at` of each team's cached poule, never-fetched teams first, ties in
+tracking order. A club's detail is loaded once, on its first team; a club that fails is
+reported once and its teams are skipped. Per team, it:
 
 - Follows the upstream `recent_poule_id`, updating the stored one — this is how a season rollover is picked up automatically
 - Reads the poule's matches and keeps only **home** matches of the tracked team
@@ -168,10 +172,12 @@ have adjusted it after import.
 A run never deletes anything. The result (`inserted` / `updated` / `flagged` / `cancelled` /
 `awaitingTime` / `errors`) is returned in full but only partly persisted to
 `hockey_sync_state`: `cancelled` is folded into `last_flagged`, and only the _first_ error is
-kept, as `last_sync_error`. Status is `success` with no errors, `error` once the error count
-reaches the number of tracked teams, `partial` in between. Note that errors are one flat list
-— a truncation warning, a club fetch failure and a single match's update error all land in it
-— so with one tracked team a single bad row already reads as `error`.
+kept, as `last_sync_error`. Status is `success` with no errors, `error` when **no tracked
+team** yielded fixtures (a failed club detail, a team missing upstream, no current poule, or a
+failed poule fetch each count every team they cost), and `partial` otherwise — including a run
+where every team was read but a single match write failed. Errors themselves are one flat
+list: a truncation warning, a club fetch failure and a match's update error all land in it,
+and one club failure is a single message however many teams it cost.
 
 **"Awaiting time"** is an upstream convention: an `announced` match at local midnight means
 the date is set but the kick-off time is not (see the API doc §12). Such a fixture is never
@@ -184,7 +190,29 @@ above describes.
 - `lib/hockey/client.ts` — registers an anonymous device on first use, signs every request, re-registers once on a 401. Concurrent requests share one registration (cold start or a parallel batch of 401s), so a parallel batch never registers several devices. **Never log the device uuid or token** — the pair is an access credential.
 - `lib/hockey/signature.ts` — the request-signing algorithm (API doc §5.3), kept pure and unit-tested.
 - `lib/hockey/credential-store.ts` — the single global device credential in `hockey_device_credentials` (one row, service-role only).
-- `lib/hockey/cache.ts` + `discovery.ts` — a read-through cache in `hockey_api_cache`, shared across clubs and surviving function invocations. TTLs: clubs 24h, facilities 24h, club detail 6h, poule+team 15 min, a facility's matches for a day 15 min.
+- `lib/hockey/cache.ts` + `discovery.ts` — a read-through cache in `hockey_api_cache`, shared across clubs and surviving function invocations. TTLs: clubs 24h, facilities 24h, club detail 6h, poule+team 15 min (**2h** when read by the sync), a facility's matches for a day 15 min.
+
+### Rate limiting
+
+The Match Center allows about **five requests a minute** (`x-ratelimit-limit: 5`; device
+registration counts too) and answers the rest with `429 "Too Many Attempts."` plus
+`Retry-After`. A sync costs one request per club detail and one per tracked team, so a club
+with a dozen teams cannot be synced inside one window. Three things keep it working:
+
+- **Waiting** — `createHockeyClient({ rateLimitDeadline })` waits out a 429 (`Retry-After`,
+  else `X-RateLimit-Reset`, else 60 s) and retries — device registration included — as long
+  as the wait ends before the deadline. Only the cron sets one; manual sync, MCP
+  `trigger_sync` and the import dialog leave it unset and fail fast, since an interactive
+  request cannot hang for minutes.
+- **No doomed requests** — the client remembers until when it is throttled. A request in that
+  window that may not wait it out fails locally with the same `Too Many Attempts.` message
+  (and a `not sent` log line) instead of spending a call upstream is certain to refuse.
+- **Stalest first** — a throttled run's missed teams sort to the front of the next one, so
+  repeated manual syncs work through the whole list instead of refetching the same leaders.
+- **A 2-hour poule TTL for the sync** — longer than the 15-minute manual cooldown, so a
+  repeated "sync now" spends its budget on teams it has not reached yet. The trade-off: an
+  upstream change to a team fetched under two hours ago is picked up by a later sync, not the
+  next one. The import dialog keeps the 15-minute TTL.
 
 Everything upstream-facing runs on the **service-role client** (`lib/hockey/deps.ts`), since
 the sync also runs outside any request context. Org-scoped queries still filter on

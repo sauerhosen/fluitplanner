@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { getCachedJson } from "./cache";
+import { getCachedAt, getCachedJson } from "./cache";
 import type {
   ApiClubDetail,
   ApiClubSummary,
@@ -57,25 +57,52 @@ export async function fetchClubDetail(
   );
 }
 
+function pouleTeamKey(pouleId: number, teamId: number): string {
+  return `poule-team:${pouleId}:${teamId}`;
+}
+
 /**
- * Team + selected poule (standings and matches), cached 15 min.
- * The cache also dedupes upstream calls across orgs tracking the same team.
+ * Team + selected poule (standings and matches), cached 15 min unless the
+ * caller asks for another TTL. The cache also dedupes upstream calls across
+ * orgs tracking the same team.
  */
 export async function fetchTeamPoule(
   deps: DiscoveryDeps,
   pouleId: number,
   teamId: number,
+  ttlMs: number = POULE_TEAM_TTL_MS,
 ): Promise<ApiTeamPouleResponse> {
   return getCachedJson<ApiTeamPouleResponse>(
     deps.supabase,
-    `poule-team:${pouleId}:${teamId}`,
-    POULE_TEAM_TTL_MS,
+    pouleTeamKey(pouleId, teamId),
+    ttlMs,
     () =>
       deps.client.get<ApiTeamPouleResponse>(
         `/poules/${pouleId}/teams/${teamId}`,
       ),
     deps.pause,
   );
+}
+
+/**
+ * When each team's poule was last fetched upstream, keyed by team id; teams
+ * never fetched are absent. Lets the sync spend a throttled request budget on
+ * the stalest teams first.
+ */
+export async function fetchTeamPouleFetchedAt(
+  deps: DiscoveryDeps,
+  teams: Array<{ pouleId: number; teamId: number }>,
+): Promise<Map<number, number>> {
+  const cachedAt = await getCachedAt(
+    deps.supabase,
+    teams.map(({ pouleId, teamId }) => pouleTeamKey(pouleId, teamId)),
+  );
+  const byTeam = new Map<number, number>();
+  for (const { pouleId, teamId } of teams) {
+    const fetchedAt = cachedAt.get(pouleTeamKey(pouleId, teamId));
+    if (fetchedAt !== undefined) byTeam.set(teamId, fetchedAt);
+  }
+  return byTeam;
 }
 
 /** All facilities (~850), cached 24h. */

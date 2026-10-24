@@ -84,6 +84,72 @@ describe("GET /api/cron/hockey-sync", () => {
     expect(orgs).toEqual(["org-1", "org-2"]);
   });
 
+  it("lets the Match Center client wait out rate limits until a deadline inside maxDuration", async () => {
+    const before = Date.now();
+    const { createHockeyDeps } = await import("@/lib/hockey/deps");
+    const { GET } = await import("@/app/api/cron/hockey-sync/route");
+    await GET(makeRequest("Bearer test-secret"));
+
+    expect(createHockeyDeps).toHaveBeenCalledTimes(1);
+    const [options] = vi.mocked(createHockeyDeps).mock.calls[0] as unknown as [
+      { rateLimitDeadline: number },
+    ];
+    const allowedMs = options.rateLimitDeadline - before;
+    expect(allowedMs).toBeGreaterThan(120_000);
+    // leaves headroom under maxDuration (300s) for the last fetches and writes
+    expect(allowedMs).toBeLessThanOrEqual(250_000);
+  });
+
+  it("starts no further org once the deadline has passed", async () => {
+    const start = Date.now();
+    const now = vi.spyOn(Date, "now").mockReturnValue(start);
+    mockSyncWithLease.mockImplementationOnce(async () => {
+      now.mockReturnValue(start + 280_000); // org-1 used up the run
+      return {
+        inserted: 0,
+        updated: 0,
+        flagged: 0,
+        cancelled: 0,
+        awaitingTime: 0,
+        errors: [],
+      };
+    });
+
+    const { GET } = await import("@/app/api/cron/hockey-sync/route");
+    const response = await GET(makeRequest("Bearer test-secret"));
+    const body = await response.json();
+
+    expect(mockSyncWithLease).toHaveBeenCalledTimes(1);
+    expect(body.results).toContainEqual(
+      expect.objectContaining({ organizationId: "org-2", skipped: true }),
+    );
+    now.mockRestore();
+  });
+
+  it("processes orgs whose last run failed or was partial before the rest", async () => {
+    mockStateRange.mockResolvedValue({
+      data: [
+        {
+          organization_id: "org-1",
+          last_synced_at: "2026-08-01T00:00:00Z", // stalest, but succeeded
+          last_sync_status: "success",
+        },
+        {
+          organization_id: "org-2",
+          last_synced_at: "2026-08-15T00:00:00Z",
+          last_sync_status: "partial", // throttled last night → first
+        },
+      ],
+      error: null,
+    });
+
+    const { GET } = await import("@/app/api/cron/hockey-sync/route");
+    await GET(makeRequest("Bearer test-secret"));
+
+    const orgs = mockSyncWithLease.mock.calls.map(([, orgId]) => orgId);
+    expect(orgs).toEqual(["org-2", "org-1"]);
+  });
+
   it("pages through tracked_teams beyond the PostgREST row cap", async () => {
     const page = Array.from({ length: 1000 }, (_, i) => ({
       organization_id: `org-${i}`,

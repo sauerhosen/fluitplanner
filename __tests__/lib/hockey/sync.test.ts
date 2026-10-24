@@ -3,10 +3,12 @@ import type { ApiMatchSummary } from "@/lib/hockey/types";
 
 const mockFetchClubDetail = vi.fn();
 const mockFetchTeamPoule = vi.fn();
+const mockFetchTeamPouleFetchedAt = vi.fn();
 
 vi.mock("@/lib/hockey/discovery", () => ({
   fetchClubDetail: mockFetchClubDetail,
   fetchTeamPoule: mockFetchTeamPoule,
+  fetchTeamPouleFetchedAt: mockFetchTeamPouleFetchedAt,
 }));
 
 /** Records every query issued against the fake supabase client. */
@@ -204,6 +206,7 @@ async function runSync(handler: QueryHandler) {
 
 beforeEach(() => {
   vi.resetAllMocks();
+  mockFetchTeamPouleFetchedAt.mockResolvedValue(new Map());
   mockFetchClubDetail.mockResolvedValue(
     clubDetail([
       { id: 774, name: "VVV D1", hockey_type: "VE", recent_poule_id: 500 },
@@ -454,7 +457,193 @@ describe("syncOrganizationMatches", () => {
       expect.anything(),
       999,
       774,
+      expect.any(Number),
     );
+  });
+
+  it("fetches the least recently fetched teams first", async () => {
+    const teams = [
+      { ...trackedTeam, id: "tt-1", hockey_team_id: 774, team_name: "VVV D1" },
+      { ...trackedTeam, id: "tt-2", hockey_team_id: 775, team_name: "VVV D2" },
+      { ...trackedTeam, id: "tt-3", hockey_team_id: 776, team_name: "VVV D3" },
+    ];
+    mockFetchClubDetail.mockResolvedValue(
+      clubDetail(
+        teams.map((t) => ({
+          id: t.hockey_team_id,
+          name: t.team_name,
+          recent_poule_id: 500,
+        })),
+      ),
+    );
+    // D1 fetched an hour ago, D3 a day ago, D2 never → D2, D3, D1
+    mockFetchTeamPouleFetchedAt.mockResolvedValue(
+      new Map([
+        [774, NOW.getTime() - 60 * 60 * 1000],
+        [776, NOW.getTime() - 24 * 60 * 60 * 1000],
+      ]),
+    );
+    mockFetchTeamPoule.mockResolvedValue({ poule: { id: 500, matches: [] } });
+
+    await runSync(defaultHandler({ trackedTeams: teams }));
+
+    const order = mockFetchTeamPoule.mock.calls.map(([, , teamId]) => teamId);
+    expect(order).toEqual([775, 776, 774]);
+  });
+
+  it("keeps the tracking order among teams never fetched", async () => {
+    const teams = [774, 775, 776, 777].map((id, i) => ({
+      ...trackedTeam,
+      id: `tt-${i}`,
+      hockey_team_id: id,
+      team_name: `VVV D${i}`,
+    }));
+    mockFetchClubDetail.mockResolvedValue(
+      clubDetail(
+        teams.map((t) => ({ id: t.hockey_team_id, recent_poule_id: 500 })),
+      ),
+    );
+    mockFetchTeamPouleFetchedAt.mockResolvedValue(new Map([[776, 5]]));
+    mockFetchTeamPoule.mockResolvedValue({ poule: { id: 500, matches: [] } });
+
+    await runSync(defaultHandler({ trackedTeams: teams }));
+
+    const order = mockFetchTeamPoule.mock.calls.map(([, , teamId]) => teamId);
+    expect(order).toEqual([774, 775, 777, 776]);
+  });
+
+  it("loads each club's detail once when stalest-first interleaves its teams", async () => {
+    const teams = [
+      { ...trackedTeam, id: "tt-1", hockey_team_id: 774, team_name: "VVV D1" },
+      {
+        ...trackedTeam,
+        id: "tt-2",
+        club_federation_reference_id: "B2",
+        club_name: "AMVJ",
+        hockey_team_id: 900,
+        team_name: "AMVJ/VVV J1",
+      },
+      { ...trackedTeam, id: "tt-3", hockey_team_id: 776, team_name: "VVV D3" },
+    ];
+    mockFetchClubDetail.mockImplementation(async (_deps, clubId: string) =>
+      clubId === "A1"
+        ? clubDetail([
+            { id: 774, recent_poule_id: 500 },
+            { id: 776, recent_poule_id: 500 },
+          ])
+        : clubDetail([{ id: 900, recent_poule_id: 600 }]),
+    );
+    // A1 team, then B2 team, then A1 team again
+    mockFetchTeamPouleFetchedAt.mockResolvedValue(
+      new Map([
+        [774, 1],
+        [900, 2],
+        [776, 3],
+      ]),
+    );
+    mockFetchTeamPoule.mockResolvedValue({ poule: { id: 500, matches: [] } });
+
+    const { result } = await runSync(defaultHandler({ trackedTeams: teams }));
+
+    expect(mockFetchClubDetail).toHaveBeenCalledTimes(2);
+    expect(mockFetchTeamPoule).toHaveBeenCalledTimes(3);
+    expect(result.errors).toEqual([]);
+  });
+
+  it("reports a failed club once and skips only that club's teams", async () => {
+    const teams = [
+      { ...trackedTeam, id: "tt-1", hockey_team_id: 774 },
+      {
+        ...trackedTeam,
+        id: "tt-2",
+        club_federation_reference_id: "B2",
+        club_name: "AMVJ",
+        hockey_team_id: 900,
+      },
+      { ...trackedTeam, id: "tt-3", hockey_team_id: 776 },
+    ];
+    mockFetchClubDetail.mockImplementation(async (_deps, clubId: string) => {
+      if (clubId === "A1") throw new Error("Too Many Attempts.");
+      return clubDetail([{ id: 900, recent_poule_id: 600 }]);
+    });
+    mockFetchTeamPoule.mockResolvedValue({ poule: { id: 600, matches: [] } });
+
+    const { result } = await runSync(defaultHandler({ trackedTeams: teams }));
+
+    expect(mockFetchClubDetail).toHaveBeenCalledTimes(2);
+    expect(result.errors).toEqual(["Club VVV: Too Many Attempts."]);
+    expect(mockFetchTeamPoule).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports error, not partial, when a throttled club leaves no team synced", async () => {
+    const teams = [774, 775, 776].map((id, i) => ({
+      ...trackedTeam,
+      id: `tt-${i}`,
+      hockey_team_id: id,
+    }));
+    mockFetchClubDetail.mockRejectedValue(new Error("Too Many Attempts."));
+
+    const { queries } = await runSync(defaultHandler({ trackedTeams: teams }));
+
+    const state = queries.find(
+      (q) => q.table === "hockey_sync_state" && q.op === "upsert",
+    );
+    expect(state?.payload).toMatchObject({
+      last_sync_status: "error",
+      last_sync_error: "Club VVV: Too Many Attempts.",
+    });
+  });
+
+  it("reports partial when some teams synced and others were throttled", async () => {
+    const teams = [774, 775].map((id, i) => ({
+      ...trackedTeam,
+      id: `tt-${i}`,
+      hockey_team_id: id,
+    }));
+    mockFetchClubDetail.mockResolvedValue(
+      clubDetail(
+        teams.map((t) => ({ id: t.hockey_team_id, recent_poule_id: 500 })),
+      ),
+    );
+    mockFetchTeamPoule
+      .mockResolvedValueOnce({ poule: { id: 500, matches: [] } })
+      .mockRejectedValueOnce(new Error("Too Many Attempts."));
+
+    const { queries } = await runSync(defaultHandler({ trackedTeams: teams }));
+
+    const state = queries.find(
+      (q) => q.table === "hockey_sync_state" && q.op === "upsert",
+    );
+    expect(state?.payload).toMatchObject({ last_sync_status: "partial" });
+  });
+
+  it("reports partial when every team synced but a match write failed", async () => {
+    mockFetchTeamPoule.mockResolvedValue({
+      poule: { id: 500, matches: [apiMatch()] },
+    });
+    const handler = defaultHandler({});
+
+    const { queries } = await runSync((query) =>
+      query.table === "matches" && query.op === "insert"
+        ? { error: { message: "insert failed" } }
+        : handler(query),
+    );
+
+    const state = queries.find(
+      (q) => q.table === "hockey_sync_state" && q.op === "upsert",
+    );
+    expect(state?.payload).toMatchObject({ last_sync_status: "partial" });
+  });
+
+  it("reads poules through a cache that outlives the 15-minute manual cooldown", async () => {
+    mockFetchTeamPoule.mockResolvedValue({ poule: { id: 500, matches: [] } });
+
+    await runSync(defaultHandler({}));
+
+    const [, , , ttlMs] = mockFetchTeamPoule.mock.calls[0];
+    expect(ttlMs).toBeGreaterThan(15 * 60 * 1000);
+    // still well under a day, so the nightly run refetches every team
+    expect(ttlMs).toBeLessThan(6 * 60 * 60 * 1000);
   });
 
   it("records an error and continues when a tracked team disappears from the club", async () => {

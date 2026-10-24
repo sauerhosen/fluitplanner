@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { createHockeyClient } from "@/lib/hockey/client";
 import type { CredentialStore, HockeyCredentials } from "@/lib/hockey/types";
 
@@ -248,5 +248,188 @@ describe("createHockeyClient", () => {
     expect(line).toContain("/poules/1");
     expect(line).toContain("502");
     warn.mockRestore();
+  });
+  describe("rate limiting", () => {
+    const creds = {
+      uuid: "12345678-abcd-4ef0-9876-0123456789ab",
+      token: "tok",
+    };
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    function throttled(headers: Record<string, string>): Response {
+      return new Response(JSON.stringify({ message: "Too Many Attempts." }), {
+        status: 429,
+        headers: { "Content-Type": "application/json", ...headers },
+      });
+    }
+
+    it("waits out Retry-After and retries when the wait ends before the deadline", async () => {
+      vi.spyOn(console, "warn").mockImplementation(() => {});
+      const sleep = vi.fn(async () => {});
+      const fetchFn = vi
+        .fn()
+        .mockResolvedValueOnce(throttled({ "Retry-After": "47" }))
+        .mockResolvedValueOnce(jsonResponse(200, { data: { ok: true } }));
+
+      const client = createHockeyClient({
+        store: makeMemoryStore(creds),
+        fetchFn,
+        rateLimitDeadline: Date.now() + 120_000,
+        sleep,
+      });
+
+      await expect(client.get("/clubs")).resolves.toEqual({ ok: true });
+      expect(fetchFn).toHaveBeenCalledTimes(2);
+      expect(sleep).toHaveBeenCalledTimes(1);
+      // Retry-After plus a small margin, never less than what was asked
+      const waited = (sleep.mock.calls[0] as unknown as [number])[0];
+      expect(waited).toBeGreaterThanOrEqual(47_000);
+      expect(waited).toBeLessThan(50_000);
+    });
+
+    it("falls back to X-RateLimit-Reset when Retry-After is absent", async () => {
+      vi.spyOn(console, "warn").mockImplementation(() => {});
+      const sleep = vi.fn(async () => {});
+      const resetAt = Math.floor(Date.now() / 1000) + 30;
+      const fetchFn = vi
+        .fn()
+        .mockResolvedValueOnce(
+          throttled({ "X-RateLimit-Reset": String(resetAt) }),
+        )
+        .mockResolvedValueOnce(jsonResponse(200, { data: [] }));
+
+      const client = createHockeyClient({
+        store: makeMemoryStore(creds),
+        fetchFn,
+        rateLimitDeadline: Date.now() + 120_000,
+        sleep,
+      });
+
+      await client.get("/clubs");
+      const waited = (sleep.mock.calls[0] as unknown as [number])[0];
+      expect(waited).toBeGreaterThan(25_000);
+      expect(waited).toBeLessThanOrEqual(33_000);
+    });
+
+    it("throws without waiting when no deadline is set", async () => {
+      vi.spyOn(console, "warn").mockImplementation(() => {});
+      const sleep = vi.fn(async () => {});
+      const fetchFn = vi
+        .fn()
+        .mockResolvedValueOnce(throttled({ "Retry-After": "5" }));
+
+      const client = createHockeyClient({
+        store: makeMemoryStore(creds),
+        fetchFn,
+        sleep,
+      });
+
+      await expect(client.get("/clubs")).rejects.toThrow("Too Many Attempts.");
+      expect(sleep).not.toHaveBeenCalled();
+      expect(fetchFn).toHaveBeenCalledTimes(1);
+    });
+
+    it("waits out a throttled device registration too", async () => {
+      vi.spyOn(console, "warn").mockImplementation(() => {});
+      const sleep = vi.fn(async () => {});
+      const store = makeMemoryStore();
+      const fetchFn = vi
+        .fn()
+        .mockResolvedValueOnce(throttled({ "Retry-After": "20" }))
+        .mockResolvedValueOnce(jsonResponse(200, { token: "tok-1" }))
+        .mockResolvedValueOnce(jsonResponse(200, { data: [] }));
+
+      const client = createHockeyClient({
+        store,
+        fetchFn,
+        rateLimitDeadline: Date.now() + 60_000,
+        sleep,
+      });
+
+      await expect(client.get("/clubs")).resolves.toEqual([]);
+      expect(sleep).toHaveBeenCalledTimes(1);
+      expect(store.saved[0].token).toBe("tok-1");
+      expect(String(fetchFn.mock.calls[1][0])).toContain("/device/register");
+    });
+
+    it("does not wait past the deadline", async () => {
+      vi.spyOn(console, "warn").mockImplementation(() => {});
+      const sleep = vi.fn(async () => {});
+      const fetchFn = vi
+        .fn()
+        .mockResolvedValueOnce(throttled({ "Retry-After": "40" }));
+
+      const client = createHockeyClient({
+        store: makeMemoryStore(creds),
+        fetchFn,
+        rateLimitDeadline: Date.now() + 30_000,
+        sleep,
+      });
+
+      await expect(client.get("/a")).rejects.toThrow("Too Many Attempts.");
+      expect(sleep).not.toHaveBeenCalled();
+    });
+
+    it("fails locally, without calling upstream, while a known throttle lasts", async () => {
+      vi.spyOn(console, "warn").mockImplementation(() => {});
+      const fetchFn = vi
+        .fn()
+        .mockResolvedValueOnce(throttled({ "Retry-After": "40" }))
+        .mockImplementation(async () => jsonResponse(200, { data: 1 }));
+
+      const client = createHockeyClient({
+        store: makeMemoryStore(creds),
+        fetchFn,
+      });
+
+      await expect(client.get("/a")).rejects.toThrow("Too Many Attempts.");
+      await expect(client.get("/b")).rejects.toThrow("Too Many Attempts.");
+      expect(fetchFn).toHaveBeenCalledTimes(1);
+    });
+
+    it("sends again once the known throttle has passed", async () => {
+      vi.spyOn(console, "warn").mockImplementation(() => {});
+      const start = Date.now();
+      const now = vi.spyOn(Date, "now").mockReturnValue(start);
+      const fetchFn = vi
+        .fn()
+        .mockResolvedValueOnce(throttled({ "Retry-After": "40" }))
+        .mockImplementation(async () => jsonResponse(200, { data: 1 }));
+
+      const client = createHockeyClient({
+        store: makeMemoryStore(creds),
+        fetchFn,
+      });
+
+      await expect(client.get("/a")).rejects.toThrow("Too Many Attempts.");
+      now.mockReturnValue(start + 45_000);
+      await expect(client.get("/b")).resolves.toBe(1);
+      expect(fetchFn).toHaveBeenCalledTimes(2);
+    });
+
+    it("idles out a known throttle instead of failing when the deadline allows", async () => {
+      vi.spyOn(console, "warn").mockImplementation(() => {});
+      const sleep = vi.fn(async () => {});
+      const fetchFn = vi
+        .fn()
+        .mockResolvedValueOnce(throttled({ "Retry-After": "40" }))
+        .mockImplementation(async () => jsonResponse(200, { data: 1 }));
+
+      const client = createHockeyClient({
+        store: makeMemoryStore(creds),
+        fetchFn,
+        rateLimitDeadline: Date.now() + 120_000,
+        sleep,
+      });
+
+      await expect(client.get("/a")).resolves.toBe(1);
+      // The fake sleep does not advance the clock, so the throttle still
+      // looks active: the next request idles rather than throwing.
+      await expect(client.get("/b")).resolves.toBe(1);
+      expect(fetchFn).toHaveBeenCalledTimes(3);
+    });
   });
 });
