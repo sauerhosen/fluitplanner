@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.33.0](https://github.com/sauerhosen/fluitplanner/compare/v2.32.1...v2.33.0) (2026-10-24)
+
+
+### Features
+
+* sync club fixtures from venue match lists, poules as a top-up ([77d5459](https://github.com/sauerhosen/fluitplanner/commit/77d54594c97bb66cee983e1cb6912dbe03f7afb4))
+* sync club fixtures from venue match lists, poules as a top-up ([d9bdca8](https://github.com/sauerhosen/fluitplanner/commit/d9bdca868f98b8f454e0c257dd3e748c8a79d052))
+
+
+### Bug Fixes
+
+* keep the venue sweep honest about coverage and pitch changes ([4fcf02d](https://github.com/sauerhosen/fluitplanner/commit/4fcf02d6b912d529398a99d19aa5940e40ad8c28))
+
 ## [2.32.1](https://github.com/sauerhosen/fluitplanner/compare/v2.32.0...v2.32.1) (2026-10-24)
 
 
