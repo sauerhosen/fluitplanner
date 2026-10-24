@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.32.0](https://github.com/sauerhosen/fluitplanner/compare/v2.31.1...v2.32.0) (2026-10-24)
+
+
+### Features
+
+* export day sheet as image for copy/paste ([c76efb6](https://github.com/sauerhosen/fluitplanner/commit/c76efb67cbbc87679304a8c51b044f59f9d6d204))
+* export day sheet as image for copy/paste ([73300c9](https://github.com/sauerhosen/fluitplanner/commit/73300c9c9c06fa8e2a18fd304b0f789c3fdd2866))
+
+
+### Bug Fixes
+
+* harden day sheet image export ([e483c26](https://github.com/sauerhosen/fluitplanner/commit/e483c262ced21cf03cf2f497c1d24d997eb6d4bd))
+
 ## [2.31.1](https://github.com/sauerhosen/fluitplanner/compare/v2.31.0...v2.31.1) (2026-10-23)
 
 
