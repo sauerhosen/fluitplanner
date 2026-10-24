@@ -33,17 +33,19 @@ function rateLimitWaitMs(response: Response): number {
  * first use, signs every request, and re-registers once on 401.
  *
  * The upstream allows about five requests a minute and answers the rest with
- * 429. With `maxRateLimitWaitMs` set, a throttled request waits out the window
- * and retries, drawing on one budget shared by every request this client makes
- * (so a cron run cannot wait past its own deadline). Without it — interactive
- * callers, which cannot hang for a minute — a 429 throws straight away.
+ * 429. With `rateLimitDeadline` set, a throttled request waits out the window
+ * and retries, as long as the wait ends before that deadline (so a cron run
+ * cannot idle past its function timeout). Without it — interactive callers,
+ * which cannot hang for a minute — a 429 throws straight away. Either way the
+ * client remembers the throttle, and a request that cannot wait for it to
+ * pass fails locally instead of spending a call that is certain to be refused.
  * Never log the device uuid or token — the pair is an access credential.
  */
 export function createHockeyClient(opts: {
   store: CredentialStore;
   fetchFn?: typeof fetch;
-  /** Total time this client may spend waiting out rate limits (default 0). */
-  maxRateLimitWaitMs?: number;
+  /** Epoch ms until which a rate-limited request may wait (default: never). */
+  rateLimitDeadline?: number;
   sleep?: (ms: number) => Promise<void>;
 }): HockeyClient {
   const { store } = opts;
@@ -51,30 +53,53 @@ export function createHockeyClient(opts: {
   const sleep =
     opts.sleep ??
     ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
-  let waitBudgetMs = opts.maxRateLimitWaitMs ?? 0;
+  const deadline = opts.rateLimitDeadline;
+  /** Epoch ms until which the upstream is known to refuse requests. */
+  let throttledUntil = 0;
   // Shared, not awaited per caller: one client serves parallel requests
   // (loadClubDayFixtures), and each must not register a device of its own.
   let credentials: Promise<HockeyCredentials> | null = null;
 
+  function mayWaitUntil(until: number): boolean {
+    return deadline !== undefined && until <= deadline;
+  }
+
   /**
-   * Re-sends a throttled request after its wait while the shared budget
-   * covers it. Returns the first non-429 response, or the 429 the budget
-   * cannot cover (body intact, for the error message).
+   * Re-sends a throttled request after its wait while that wait ends before
+   * the deadline. Returns the first non-429 response, or the 429 it may not
+   * wait out (body intact, for the error message).
    */
   async function waitOutRateLimit(
     response: Response,
     resend: () => Promise<Response>,
   ): Promise<Response> {
     while (response.status === 429) {
-      const waitMs = rateLimitWaitMs(response);
-      if (waitMs > waitBudgetMs) break;
-      waitBudgetMs -= waitMs;
+      const until = Date.now() + rateLimitWaitMs(response);
+      throttledUntil = Math.max(throttledUntil, until);
+      if (!mayWaitUntil(until)) break;
       // Release the connection the unread body holds before idling.
       await response.body?.cancel().catch(() => {});
-      await sleep(waitMs);
+      await sleep(until - Date.now());
       response = await resend();
     }
     return response;
+  }
+
+  /**
+   * Before sending: idle out a throttle already known, or — when it outlasts
+   * the deadline — fail without calling upstream.
+   */
+  async function respectKnownThrottle(endpoint: string): Promise<void> {
+    const remainingMs = throttledUntil - Date.now();
+    if (remainingMs <= 0) return;
+    if (mayWaitUntil(throttledUntil)) {
+      await sleep(remainingMs);
+      return;
+    }
+    console.warn(
+      `Match Center GET ${endpoint} not sent: rate limited for another ${Math.ceil(remainingMs / 1000)}s`,
+    );
+    throw new Error("Too Many Attempts.");
   }
 
   async function register(): Promise<HockeyCredentials> {
@@ -179,6 +204,7 @@ export function createHockeyClient(opts: {
 
   return {
     async get<T>(endpoint: string): Promise<T> {
+      await respectKnownThrottle(endpoint);
       const used = ensureCredentials();
       let response = await execute(endpoint, used);
       if (response.status === 401) {

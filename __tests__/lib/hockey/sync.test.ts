@@ -575,6 +575,66 @@ describe("syncOrganizationMatches", () => {
     expect(mockFetchTeamPoule).toHaveBeenCalledTimes(1);
   });
 
+  it("reports error, not partial, when a throttled club leaves no team synced", async () => {
+    const teams = [774, 775, 776].map((id, i) => ({
+      ...trackedTeam,
+      id: `tt-${i}`,
+      hockey_team_id: id,
+    }));
+    mockFetchClubDetail.mockRejectedValue(new Error("Too Many Attempts."));
+
+    const { queries } = await runSync(defaultHandler({ trackedTeams: teams }));
+
+    const state = queries.find(
+      (q) => q.table === "hockey_sync_state" && q.op === "upsert",
+    );
+    expect(state?.payload).toMatchObject({
+      last_sync_status: "error",
+      last_sync_error: "Club VVV: Too Many Attempts.",
+    });
+  });
+
+  it("reports partial when some teams synced and others were throttled", async () => {
+    const teams = [774, 775].map((id, i) => ({
+      ...trackedTeam,
+      id: `tt-${i}`,
+      hockey_team_id: id,
+    }));
+    mockFetchClubDetail.mockResolvedValue(
+      clubDetail(
+        teams.map((t) => ({ id: t.hockey_team_id, recent_poule_id: 500 })),
+      ),
+    );
+    mockFetchTeamPoule
+      .mockResolvedValueOnce({ poule: { id: 500, matches: [] } })
+      .mockRejectedValueOnce(new Error("Too Many Attempts."));
+
+    const { queries } = await runSync(defaultHandler({ trackedTeams: teams }));
+
+    const state = queries.find(
+      (q) => q.table === "hockey_sync_state" && q.op === "upsert",
+    );
+    expect(state?.payload).toMatchObject({ last_sync_status: "partial" });
+  });
+
+  it("reports partial when every team synced but a match write failed", async () => {
+    mockFetchTeamPoule.mockResolvedValue({
+      poule: { id: 500, matches: [apiMatch()] },
+    });
+    const handler = defaultHandler({});
+
+    const { queries } = await runSync((query) =>
+      query.table === "matches" && query.op === "insert"
+        ? { error: { message: "insert failed" } }
+        : handler(query),
+    );
+
+    const state = queries.find(
+      (q) => q.table === "hockey_sync_state" && q.op === "upsert",
+    );
+    expect(state?.payload).toMatchObject({ last_sync_status: "partial" });
+  });
+
   it("reads poules through a cache that outlives the 15-minute manual cooldown", async () => {
     mockFetchTeamPoule.mockResolvedValue({ poule: { id: 500, matches: [] } });
 

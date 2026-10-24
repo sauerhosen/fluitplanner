@@ -266,7 +266,7 @@ describe("createHockeyClient", () => {
       });
     }
 
-    it("waits out Retry-After and retries when the wait fits the budget", async () => {
+    it("waits out Retry-After and retries when the wait ends before the deadline", async () => {
       vi.spyOn(console, "warn").mockImplementation(() => {});
       const sleep = vi.fn(async () => {});
       const fetchFn = vi
@@ -277,7 +277,7 @@ describe("createHockeyClient", () => {
       const client = createHockeyClient({
         store: makeMemoryStore(creds),
         fetchFn,
-        maxRateLimitWaitMs: 120_000,
+        rateLimitDeadline: Date.now() + 120_000,
         sleep,
       });
 
@@ -304,7 +304,7 @@ describe("createHockeyClient", () => {
       const client = createHockeyClient({
         store: makeMemoryStore(creds),
         fetchFn,
-        maxRateLimitWaitMs: 120_000,
+        rateLimitDeadline: Date.now() + 120_000,
         sleep,
       });
 
@@ -314,7 +314,7 @@ describe("createHockeyClient", () => {
       expect(waited).toBeLessThanOrEqual(33_000);
     });
 
-    it("throws without waiting when no wait budget is configured", async () => {
+    it("throws without waiting when no deadline is set", async () => {
       vi.spyOn(console, "warn").mockImplementation(() => {});
       const sleep = vi.fn(async () => {});
       const fetchFn = vi
@@ -345,7 +345,7 @@ describe("createHockeyClient", () => {
       const client = createHockeyClient({
         store,
         fetchFn,
-        maxRateLimitWaitMs: 60_000,
+        rateLimitDeadline: Date.now() + 60_000,
         sleep,
       });
 
@@ -355,26 +355,80 @@ describe("createHockeyClient", () => {
       expect(String(fetchFn.mock.calls[1][0])).toContain("/device/register");
     });
 
-    it("shares one wait budget across requests and throws once it is spent", async () => {
+    it("does not wait past the deadline", async () => {
       vi.spyOn(console, "warn").mockImplementation(() => {});
       const sleep = vi.fn(async () => {});
       const fetchFn = vi
         .fn()
-        .mockResolvedValueOnce(throttled({ "Retry-After": "40" }))
-        .mockResolvedValueOnce(jsonResponse(200, { data: 1 }))
         .mockResolvedValueOnce(throttled({ "Retry-After": "40" }));
 
       const client = createHockeyClient({
         store: makeMemoryStore(creds),
         fetchFn,
-        maxRateLimitWaitMs: 60_000,
+        rateLimitDeadline: Date.now() + 30_000,
+        sleep,
+      });
+
+      await expect(client.get("/a")).rejects.toThrow("Too Many Attempts.");
+      expect(sleep).not.toHaveBeenCalled();
+    });
+
+    it("fails locally, without calling upstream, while a known throttle lasts", async () => {
+      vi.spyOn(console, "warn").mockImplementation(() => {});
+      const fetchFn = vi
+        .fn()
+        .mockResolvedValueOnce(throttled({ "Retry-After": "40" }))
+        .mockImplementation(async () => jsonResponse(200, { data: 1 }));
+
+      const client = createHockeyClient({
+        store: makeMemoryStore(creds),
+        fetchFn,
+      });
+
+      await expect(client.get("/a")).rejects.toThrow("Too Many Attempts.");
+      await expect(client.get("/b")).rejects.toThrow("Too Many Attempts.");
+      expect(fetchFn).toHaveBeenCalledTimes(1);
+    });
+
+    it("sends again once the known throttle has passed", async () => {
+      vi.spyOn(console, "warn").mockImplementation(() => {});
+      const start = Date.now();
+      const now = vi.spyOn(Date, "now").mockReturnValue(start);
+      const fetchFn = vi
+        .fn()
+        .mockResolvedValueOnce(throttled({ "Retry-After": "40" }))
+        .mockImplementation(async () => jsonResponse(200, { data: 1 }));
+
+      const client = createHockeyClient({
+        store: makeMemoryStore(creds),
+        fetchFn,
+      });
+
+      await expect(client.get("/a")).rejects.toThrow("Too Many Attempts.");
+      now.mockReturnValue(start + 45_000);
+      await expect(client.get("/b")).resolves.toBe(1);
+      expect(fetchFn).toHaveBeenCalledTimes(2);
+    });
+
+    it("idles out a known throttle instead of failing when the deadline allows", async () => {
+      vi.spyOn(console, "warn").mockImplementation(() => {});
+      const sleep = vi.fn(async () => {});
+      const fetchFn = vi
+        .fn()
+        .mockResolvedValueOnce(throttled({ "Retry-After": "40" }))
+        .mockImplementation(async () => jsonResponse(200, { data: 1 }));
+
+      const client = createHockeyClient({
+        store: makeMemoryStore(creds),
+        fetchFn,
+        rateLimitDeadline: Date.now() + 120_000,
         sleep,
       });
 
       await expect(client.get("/a")).resolves.toBe(1);
-      // 40s + margin already spent: a second 40s wait no longer fits
-      await expect(client.get("/b")).rejects.toThrow("Too Many Attempts.");
-      expect(sleep).toHaveBeenCalledTimes(1);
+      // The fake sleep does not advance the clock, so the throttle still
+      // looks active: the next request idles rather than throwing.
+      await expect(client.get("/b")).resolves.toBe(1);
       expect(fetchFn).toHaveBeenCalledTimes(3);
     });
   });

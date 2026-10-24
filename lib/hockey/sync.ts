@@ -267,6 +267,9 @@ export async function syncOrganizationMatches(
   // One detail per club, loaded on its first team. A failed club is
   // reported once and its remaining teams skipped silently.
   const clubDetails = new Map<string, ApiClubDetail | null>();
+  // Teams that yielded no fixtures this run — what the run status counts,
+  // since one error message can stand for a whole club.
+  let failedTeams = 0;
 
   for (const team of orderedTeams) {
     const clubId = team.club_federation_reference_id;
@@ -280,7 +283,10 @@ export async function syncOrganizationMatches(
       }
     }
     const clubDetail = clubDetails.get(clubId);
-    if (!clubDetail) continue;
+    if (!clubDetail) {
+      failedTeams++;
+      continue;
+    }
 
     const apiTeam = clubDetail.teams.find(
       (candidate) => candidate.id === team.hockey_team_id,
@@ -289,6 +295,7 @@ export async function syncOrganizationMatches(
       result.errors.push(
         `Team ${team.team_name} not found in club ${team.club_name}`,
       );
+      failedTeams++;
       continue;
     }
 
@@ -307,6 +314,7 @@ export async function syncOrganizationMatches(
     }
     if (pouleId == null) {
       result.errors.push(`Team ${team.team_name} has no current poule`);
+      failedTeams++;
       continue;
     }
 
@@ -337,6 +345,7 @@ export async function syncOrganizationMatches(
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       result.errors.push(`Team ${team.team_name}: ${message}`);
+      failedTeams++;
     }
   }
 
@@ -531,7 +540,7 @@ export async function syncOrganizationMatches(
   const status =
     result.errors.length === 0
       ? "success"
-      : result.errors.length >= trackedTeams.length
+      : failedTeams >= trackedTeams.length
         ? "error"
         : "partial";
 
