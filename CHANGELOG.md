@@ -1,5 +1,15 @@
 # Changelog
 
+## [2.32.1](https://github.com/sauerhosen/fluitplanner/compare/v2.32.0...v2.32.1) (2026-10-24)
+
+
+### Bug Fixes
+
+* bound the cron by a deadline and stop starving throttled clubs ([28f207e](https://github.com/sauerhosen/fluitplanner/commit/28f207ec6eed6b05bc015eda74d10f701d942fc7))
+* keep the Match Center sync working under the upstream rate limit ([7d450e8](https://github.com/sauerhosen/fluitplanner/commit/7d450e8439c0563869ea24c03c77dc21fcf11aa2))
+* keep the Match Center sync working under the upstream rate limit ([418aa1e](https://github.com/sauerhosen/fluitplanner/commit/418aa1e20174b0375dd4e7005c37656c4b711662))
+* wait out throttled device registration and retry with live credentials ([9f8356c](https://github.com/sauerhosen/fluitplanner/commit/9f8356c7495fede621345044e470a765c1eebe41))
+
 ## [2.32.0](https://github.com/sauerhosen/fluitplanner/compare/v2.31.1...v2.32.0) (2026-10-24)
 
 
