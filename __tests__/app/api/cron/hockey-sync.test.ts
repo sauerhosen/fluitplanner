@@ -84,6 +84,20 @@ describe("GET /api/cron/hockey-sync", () => {
     expect(orgs).toEqual(["org-1", "org-2"]);
   });
 
+  it("lets the Match Center client wait out rate limits, within the function deadline", async () => {
+    const { createHockeyDeps } = await import("@/lib/hockey/deps");
+    const { GET } = await import("@/app/api/cron/hockey-sync/route");
+    await GET(makeRequest("Bearer test-secret"));
+
+    expect(createHockeyDeps).toHaveBeenCalledTimes(1);
+    const [options] = vi.mocked(createHockeyDeps).mock.calls[0] as unknown as [
+      { maxRateLimitWaitMs: number },
+    ];
+    expect(options.maxRateLimitWaitMs).toBeGreaterThan(60_000);
+    // leaves headroom under maxDuration (300s) for the fetches and DB work
+    expect(options.maxRateLimitWaitMs).toBeLessThanOrEqual(200_000);
+  });
+
   it("pages through tracked_teams beyond the PostgREST row cap", async () => {
     const page = Array.from({ length: 1000 }, (_, i) => ({
       organization_id: `org-${i}`,

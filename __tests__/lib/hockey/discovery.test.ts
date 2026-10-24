@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   fetchFacilityMatches,
+  fetchTeamPouleFetchedAt,
   pickClubFacilities,
 } from "@/lib/hockey/discovery";
 import type {
@@ -170,5 +171,58 @@ describe("fetchFacilityMatches", () => {
       "Sportpark 'Het Loopveld' (VVV)",
       "Own name",
     ]);
+  });
+});
+
+describe("fetchTeamPouleFetchedAt", () => {
+  function fakeSupabase(
+    rows: Array<{ cache_key: string; fetched_at: string }> | null,
+    error: { message: string } | null = null,
+  ): { client: SupabaseClient; keys: () => unknown } {
+    let asked: unknown;
+    const query = {
+      select: () => query,
+      in: async (_column: string, keys: unknown) => {
+        asked = keys;
+        return { data: rows, error };
+      },
+    };
+    return {
+      client: { from: () => query } as unknown as SupabaseClient,
+      keys: () => asked,
+    };
+  }
+
+  it("maps each team to when its poule was last fetched", async () => {
+    const supabase = fakeSupabase([
+      { cache_key: "poule-team:500:774", fetched_at: "2026-10-24T04:30:00Z" },
+    ]);
+
+    const fetchedAt = await fetchTeamPouleFetchedAt(
+      { supabase: supabase.client, client: { get: async () => null } as never },
+      [
+        { pouleId: 500, teamId: 774 },
+        { pouleId: 600, teamId: 900 },
+      ],
+    );
+
+    expect(supabase.keys()).toEqual([
+      "poule-team:500:774",
+      "poule-team:600:900",
+    ]);
+    expect(fetchedAt).toEqual(
+      new Map([[774, new Date("2026-10-24T04:30:00Z").getTime()]]),
+    );
+  });
+
+  it("returns no ages when the cache cannot be read", async () => {
+    const supabase = fakeSupabase(null, { message: "db down" });
+
+    const fetchedAt = await fetchTeamPouleFetchedAt(
+      { supabase: supabase.client, client: { get: async () => null } as never },
+      [{ pouleId: 500, teamId: 774 }],
+    );
+
+    expect(fetchedAt.size).toBe(0);
   });
 });

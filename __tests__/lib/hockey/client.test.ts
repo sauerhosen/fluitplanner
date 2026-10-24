@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { createHockeyClient } from "@/lib/hockey/client";
 import type { CredentialStore, HockeyCredentials } from "@/lib/hockey/types";
 
@@ -248,5 +248,111 @@ describe("createHockeyClient", () => {
     expect(line).toContain("/poules/1");
     expect(line).toContain("502");
     warn.mockRestore();
+  });
+  describe("rate limiting", () => {
+    const creds = {
+      uuid: "12345678-abcd-4ef0-9876-0123456789ab",
+      token: "tok",
+    };
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    function throttled(headers: Record<string, string>): Response {
+      return new Response(JSON.stringify({ message: "Too Many Attempts." }), {
+        status: 429,
+        headers: { "Content-Type": "application/json", ...headers },
+      });
+    }
+
+    it("waits out Retry-After and retries when the wait fits the budget", async () => {
+      vi.spyOn(console, "warn").mockImplementation(() => {});
+      const sleep = vi.fn(async () => {});
+      const fetchFn = vi
+        .fn()
+        .mockResolvedValueOnce(throttled({ "Retry-After": "47" }))
+        .mockResolvedValueOnce(jsonResponse(200, { data: { ok: true } }));
+
+      const client = createHockeyClient({
+        store: makeMemoryStore(creds),
+        fetchFn,
+        maxRateLimitWaitMs: 120_000,
+        sleep,
+      });
+
+      await expect(client.get("/clubs")).resolves.toEqual({ ok: true });
+      expect(fetchFn).toHaveBeenCalledTimes(2);
+      expect(sleep).toHaveBeenCalledTimes(1);
+      // Retry-After plus a small margin, never less than what was asked
+      const waited = (sleep.mock.calls[0] as unknown as [number])[0];
+      expect(waited).toBeGreaterThanOrEqual(47_000);
+      expect(waited).toBeLessThan(50_000);
+    });
+
+    it("falls back to X-RateLimit-Reset when Retry-After is absent", async () => {
+      vi.spyOn(console, "warn").mockImplementation(() => {});
+      const sleep = vi.fn(async () => {});
+      const resetAt = Math.floor(Date.now() / 1000) + 30;
+      const fetchFn = vi
+        .fn()
+        .mockResolvedValueOnce(
+          throttled({ "X-RateLimit-Reset": String(resetAt) }),
+        )
+        .mockResolvedValueOnce(jsonResponse(200, { data: [] }));
+
+      const client = createHockeyClient({
+        store: makeMemoryStore(creds),
+        fetchFn,
+        maxRateLimitWaitMs: 120_000,
+        sleep,
+      });
+
+      await client.get("/clubs");
+      const waited = (sleep.mock.calls[0] as unknown as [number])[0];
+      expect(waited).toBeGreaterThan(25_000);
+      expect(waited).toBeLessThanOrEqual(33_000);
+    });
+
+    it("throws without waiting when no wait budget is configured", async () => {
+      vi.spyOn(console, "warn").mockImplementation(() => {});
+      const sleep = vi.fn(async () => {});
+      const fetchFn = vi
+        .fn()
+        .mockResolvedValueOnce(throttled({ "Retry-After": "5" }));
+
+      const client = createHockeyClient({
+        store: makeMemoryStore(creds),
+        fetchFn,
+        sleep,
+      });
+
+      await expect(client.get("/clubs")).rejects.toThrow("Too Many Attempts.");
+      expect(sleep).not.toHaveBeenCalled();
+      expect(fetchFn).toHaveBeenCalledTimes(1);
+    });
+
+    it("shares one wait budget across requests and throws once it is spent", async () => {
+      vi.spyOn(console, "warn").mockImplementation(() => {});
+      const sleep = vi.fn(async () => {});
+      const fetchFn = vi
+        .fn()
+        .mockResolvedValueOnce(throttled({ "Retry-After": "40" }))
+        .mockResolvedValueOnce(jsonResponse(200, { data: 1 }))
+        .mockResolvedValueOnce(throttled({ "Retry-After": "40" }));
+
+      const client = createHockeyClient({
+        store: makeMemoryStore(creds),
+        fetchFn,
+        maxRateLimitWaitMs: 60_000,
+        sleep,
+      });
+
+      await expect(client.get("/a")).resolves.toBe(1);
+      // 40s + margin already spent: a second 40s wait no longer fits
+      await expect(client.get("/b")).rejects.toThrow("Too Many Attempts.");
+      expect(sleep).toHaveBeenCalledTimes(1);
+      expect(fetchFn).toHaveBeenCalledTimes(3);
+    });
   });
 });

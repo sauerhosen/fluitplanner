@@ -7,6 +7,14 @@ export const maxDuration = 300;
 /** Orgs synced within this window (e.g. manually) are skipped. */
 const SKIP_IF_SYNCED_WITHIN_MS = 6 * 60 * 60 * 1000;
 
+/**
+ * Total time the run may spend waiting out Match Center rate limits (about
+ * five requests a minute). One tracked team costs a request, so a club with
+ * a dozen teams needs a few windows; the rest of maxDuration stays free for
+ * the fetches and database work.
+ */
+const RATE_LIMIT_WAIT_BUDGET_MS = 180_000;
+
 /** PostgREST caps responses at 1000 rows — page to see every org. */
 const ORG_PAGE_SIZE = 1000;
 
@@ -22,7 +30,9 @@ export async function GET(request: Request): Promise<NextResponse> {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const deps = createHockeyDeps();
+  const deps = createHockeyDeps({
+    maxRateLimitWaitMs: RATE_LIMIT_WAIT_BUDGET_MS,
+  });
   const { supabase } = deps;
 
   const organizationIds = new Set<string>();

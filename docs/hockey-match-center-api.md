@@ -873,7 +873,12 @@ Avoid matching only on a human-readable team label. Labels can change, and dupli
 
 ## 16. Caching and polling
 
-No documented rate limit or cache contract was observed. Use conservative defaults:
+No cache contract is documented. A rate limit is enforced: since at least 2026-10-24 every
+response carries `x-ratelimit-limit: 5` and `x-ratelimit-remaining`, counting down per
+request (device registration included) over a window of about a minute. The sixth request
+gets `429` with `{"message":"Too Many Attempts."}`, `retry-after` (seconds) and
+`x-ratelimit-reset` (epoch seconds). The counter appears to be per client IP rather than per
+device token. Use conservative defaults:
 
 - Club list: cache for 24 hours or longer.
 - Facility list: cache for 24 hours or longer.

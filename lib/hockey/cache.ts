@@ -39,3 +39,24 @@ export async function getCachedJson<T>(
   if (pause) await pause();
   return fresh;
 }
+
+/**
+ * When each of these keys was last fetched upstream (ms since epoch). Keys
+ * never cached are absent. Best-effort: a failed read returns an empty map.
+ */
+export async function getCachedAt(
+  supabase: SupabaseClient,
+  keys: string[],
+): Promise<Map<string, number>> {
+  const fetchedAt = new Map<string, number>();
+  if (keys.length === 0) return fetchedAt;
+  const { data, error } = await supabase
+    .from("hockey_api_cache")
+    .select("cache_key, fetched_at")
+    .in("cache_key", keys);
+  if (error) return fetchedAt;
+  for (const row of data ?? []) {
+    fetchedAt.set(row.cache_key, new Date(row.fetched_at).getTime());
+  }
+  return fetchedAt;
+}
