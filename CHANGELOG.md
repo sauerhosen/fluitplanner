@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.34.0](https://github.com/sauerhosen/fluitplanner/compare/v2.33.0...v2.34.0) (2026-10-25)
+
+
+### Features
+
+* detect Hockey.nl changes early from LISA club websites ([ed34bd4](https://github.com/sauerhosen/fluitplanner/commit/ed34bd4300b972f3c5e12b9d378b717c4cd14e12))
+* detect Hockey.nl changes early from LISA club websites ([bb5096a](https://github.com/sauerhosen/fluitplanner/commit/bb5096ab669f4a8abd57255df029cc939637f5e9))
+
 ## [2.33.0](https://github.com/sauerhosen/fluitplanner/compare/v2.32.1...v2.33.0) (2026-10-24)
 
 
