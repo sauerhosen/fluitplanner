@@ -155,7 +155,7 @@ Authenticated (`app/protected/layout.tsx` adds nav, org switcher, auth button):
 - `/protected/matches`, `/protected/umpires`
 - `/protected/account` — per-user account settings (passkeys); every role, no planner gate
 - `/protected/polls`, `/protected/polls/new`, `/protected/polls/[id]`
-- `/protected/settings` — managed teams, tracked teams (Hockey.nl sync), availability lock, MCP tokens
+- `/protected/settings` — managed teams, tracked teams and club websites (Hockey.nl sync), availability lock, MCP tokens
 - `/protected/organizations`, `/protected/users` — master admin, root domain only
 
 Machine / integration:
@@ -174,6 +174,7 @@ Machine / integration:
 | `lib/parsers/`   | Match import: Excel (exceljs), CSV (papaparse), paste, KNHB mapping                                       |
 | `lib/export/`    | Export/day-sheet preparation plus XLSX / HTML / Markdown generators                                       |
 | `lib/hockey/`    | Hockey.nl Match Center sync — see [`docs/hockey-sync.md`](docs/hockey-sync.md)                            |
+| `lib/club-feed/` | LISA club-website change detector feeding the sync — see [`docs/hockey-sync.md`](docs/hockey-sync.md)     |
 | `lib/mcp/`       | MCP auth, tools, org-scoped data, planning helpers                                                        |
 | `lib/passkey/`   | Passkey ceremony origin rules and the cross-subdomain `next` validator                                    |
 | `lib/oauth/`     | OAuth authorization server: `clients.ts` (DCR/CIMD), `grants.ts` (auth codes), `tokens.ts`, `metadata.ts` |

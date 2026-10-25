@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { createHockeyDeps } from "@/lib/hockey/deps";
-import { syncWithLease } from "@/lib/hockey/sync";
+import { refreshOrganization } from "@/lib/hockey/refresh";
 
 export const maxDuration = 300;
 
-/** Orgs synced within this window (e.g. manually) are skipped. */
+/** Orgs fully synced within this window (e.g. manually) skip the full sync. */
 const SKIP_IF_SYNCED_WITHIN_MS = 6 * 60 * 60 * 1000;
 
 /**
@@ -96,15 +96,22 @@ export async function GET(request: Request): Promise<NextResponse> {
       continue;
     }
     try {
-      const result = await syncWithLease(
+      // Club feeds first, then the full sync unless one ran within the skip
+      // window (e.g. a manual sync).
+      const result = await refreshOrganization(
         { ...deps, pause: jitterPause },
         organizationId,
-        SKIP_IF_SYNCED_WITHIN_MS,
+        { fullSyncWindowMs: SKIP_IF_SYNCED_WITHIN_MS },
       );
-      if (result === null) {
+      if (result.status === "busy") {
         results.push({ organizationId, skipped: true });
       } else {
-        results.push({ organizationId, ...result });
+        const { detector, sync } = result;
+        results.push({
+          organizationId,
+          ...(sync ?? { skipped: true }),
+          ...(detector ? { detector } : {}),
+        });
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

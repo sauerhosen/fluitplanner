@@ -10,15 +10,22 @@ import type { HockeySyncState } from "@/lib/types/domain";
 
 type Props = {
   initialState: HockeySyncState | null;
+  /** When a club website (LISA feed) was last polled, if the club has one. */
+  initialFeedPolledAt?: string | null;
   onSynced: () => void;
 };
 
-export function SyncNowButton({ initialState, onSynced }: Props) {
+export function SyncNowButton({
+  initialState,
+  initialFeedPolledAt = null,
+  onSynced,
+}: Props) {
   const t = useTranslations("matches");
   const format = useFormatter();
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(
     initialState?.last_synced_at ?? null,
   );
+  const [feedPolledAt, setFeedPolledAt] = useState(initialFeedPolledAt);
   const [awaitingTime, setAwaitingTime] = useState(
     initialState?.awaiting_time_count ?? 0,
   );
@@ -32,21 +39,50 @@ export function SyncNowButton({ initialState, onSynced }: Props) {
         toast.error(t("syncCooldown"));
         return;
       }
+      if (result.status === "busy") {
+        toast.error(t("syncBusy"));
+        return;
+      }
+      const { detector, sync } = result;
+      const changes = [detector, sync].filter((step) => step !== null);
       const counts = {
-        inserted: result.inserted,
-        updated: result.updated,
-        flagged: result.flagged + result.cancelled,
+        inserted: changes.reduce((sum, step) => sum + step.inserted, 0),
+        updated: changes.reduce((sum, step) => sum + step.updated, 0),
+        flagged: changes.reduce(
+          (sum, step) => sum + step.flagged + step.cancelled,
+          0,
+        ),
       };
-      if (result.errors.length > 0) {
-        toast.warning(
-          t("syncPartial", { ...counts, problems: result.errors.length }),
-        );
+      const problems = changes.reduce(
+        (sum, step) => sum + step.errors.length,
+        0,
+      );
+      if (problems > 0) {
+        toast.warning(t("syncPartial", { ...counts, problems }));
+      } else if (sync === null && detector !== null) {
+        // Inside the full sync's cooldown: only the club websites were read.
+        const checked = {
+          checked: detector.confirmed,
+          changed: counts.inserted + counts.updated + detector.cancelled,
+        };
+        if (detector.pending > 0) {
+          // The Match Center budget ran out before every change was asked.
+          toast.warning(
+            t("syncDetectorPending", { ...checked, pending: detector.pending }),
+          );
+        } else {
+          toast.success(t("syncDetectorChecked", checked));
+        }
       } else {
         toast.success(t("syncSuccess", counts));
       }
       // The result already carries the new state — no extra round trip.
-      setLastSyncedAt(new Date().toISOString());
-      setAwaitingTime(result.awaitingTime);
+      const now = new Date().toISOString();
+      if (sync) {
+        setLastSyncedAt(now);
+        setAwaitingTime(sync.awaitingTime);
+      }
+      if (detector && detector.polled > 0) setFeedPolledAt(now);
       onSynced();
     } catch {
       toast.error(t("syncError"));
@@ -62,6 +98,13 @@ export function SyncNowButton({ initialState, onSynced }: Props) {
           <p>
             {t("syncLastSynced", {
               time: format.relativeTime(new Date(lastSyncedAt)),
+            })}
+          </p>
+        )}
+        {feedPolledAt && (
+          <p>
+            {t("syncLastFeedPoll", {
+              time: format.relativeTime(new Date(feedPolledAt)),
             })}
           </p>
         )}

@@ -1,0 +1,71 @@
+{
+  "name": "matches_oct_2026",
+  "values": [
+    {
+      "data": {
+        "id": "bcc759e9-0e7d-4f02-b1fe-72676e95904a",
+        "code": "2116609",
+        "date": "24-10-2026",
+        "time": "17:50",
+        "field": "Veld 1",
+        "team_id": "c8784178-706d-4723-baa1-cb872de3dfba",
+        "is_home_match": false,
+        "is_cancelled": true,
+        "location": {
+          "name": "Sportcomplex Groenoord"
+        }
+      }
+    },
+    {
+      "data": {
+        "id": "0648149b-892e-431f-be51-19426ff2b3c9",
+        "code": "2102172",
+        "date": "25-10-2026",
+        "time": "08:30",
+        "field": "KG3",
+        "team_id": "c45a2aff-49b7-4a80-9b6a-7778241edef9",
+        "is_home_match": true,
+        "is_cancelled": false,
+        "location": {
+          "name": "Sportpark 'Het Loopveld' (AMVJ)"
+        }
+      }
+    },
+    {
+      "data": {
+        "id": "decb9c38-7394-43d3-86a3-4add39183cc9",
+        "code": "2099726",
+        "date": "04-10-2026",
+        "time": "08:30",
+        "field": "KG3",
+        "team_id": "5ac73d80-c259-45f8-b953-8459ed523670",
+        "is_home_match": true,
+        "is_cancelled": false,
+        "location": {
+          "name": "Sportpark 'Het Loopveld' (AMVJ)"
+        }
+      }
+    },
+    {
+      "data": {
+        "id": "d52f1866-602e-4201-a1a0-89571553a849",
+        "code": null,
+        "date": "11-10-2026",
+        "time": null,
+        "field": "",
+        "team_id": "00000000-0000-0000-0000-000000000000",
+        "is_home_match": false,
+        "is_cancelled": false,
+        "location": {
+          "name": "Sportpark 'Het Loopveld' (AMVJ)"
+        }
+      }
+    }
+  ],
+  "page": {
+    "pageSize": 100,
+    "pageNumber": 0,
+    "totalPages": 1,
+    "totalItems": 4
+  }
+}

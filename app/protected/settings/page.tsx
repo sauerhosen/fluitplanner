@@ -9,6 +9,8 @@ import { ManagedTeamsList } from "@/components/settings/managed-teams-list";
 import { AvailabilityLockSetting } from "@/components/settings/availability-lock-setting";
 import { HockeySyncSettings } from "@/components/settings/hockey-sync-settings";
 import { getTrackedTeams } from "@/lib/actions/hockey-teams";
+import { ClubFeedsSettings } from "@/components/settings/club-feeds-settings";
+import { getClubFeeds } from "@/lib/actions/club-feeds";
 import { getTranslations } from "next-intl/server";
 import { PageHeader } from "@/components/shared/page-header";
 import { McpTokenSettings } from "@/components/settings/mcp-token-settings";
@@ -21,11 +23,17 @@ async function ManagedTeamsLoader() {
 }
 
 async function HockeySyncLoader() {
-  const [teams, canEdit] = await Promise.all([
+  const [teams, feeds, canEdit] = await Promise.all([
     getTrackedTeams(),
+    getClubFeeds(),
     isPlannerRole(),
   ]);
-  return <HockeySyncSettings initialTeams={teams} canEdit={canEdit} />;
+  return (
+    <div className="space-y-6">
+      <HockeySyncSettings initialTeams={teams} canEdit={canEdit} />
+      <ClubFeedsSettings initialFeeds={feeds} canEdit={canEdit} />
+    </div>
+  );
 }
 
 async function McpTokenLoader() {

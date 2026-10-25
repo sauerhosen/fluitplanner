@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const mockRequirePlanner = vi.fn();
 const mockRequireAuthContext = vi.fn();
-const mockSyncWithLease = vi.fn();
+const mockRefresh = vi.fn();
 const mockRevalidatePath = vi.fn();
 
 const mockStateMaybeSingle = vi.fn();
@@ -37,9 +37,34 @@ vi.mock("@/lib/hockey/deps", () => ({
   })),
 }));
 
-vi.mock("@/lib/hockey/sync", () => ({
-  syncWithLease: mockSyncWithLease,
+vi.mock("@/lib/hockey/refresh", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/hockey/refresh")>()),
+  refreshOrganization: mockRefresh,
 }));
+
+const SYNC_RESULT = {
+  inserted: 2,
+  updated: 1,
+  flagged: 1,
+  cancelled: 0,
+  awaitingTime: 3,
+  errors: [],
+};
+
+const detectorResult = (overrides: Record<string, unknown> = {}) => ({
+  feeds: 1,
+  polled: 1,
+  suspects: 0,
+  confirmed: 0,
+  pending: 0,
+  shadowed: 0,
+  inserted: 0,
+  updated: 0,
+  flagged: 0,
+  cancelled: 0,
+  errors: [],
+  ...overrides,
+});
 
 beforeEach(() => {
   vi.resetAllMocks();
@@ -53,35 +78,92 @@ beforeEach(() => {
     user: { id: "user-1" },
   });
   mockStateMaybeSingle.mockResolvedValue({ data: null, error: null });
-  mockSyncWithLease.mockResolvedValue({
-    inserted: 2,
-    updated: 1,
-    flagged: 1,
-    cancelled: 0,
-    awaitingTime: 3,
-    errors: [],
+  mockRefresh.mockResolvedValue({
+    status: "refreshed",
+    detector: null,
+    sync: SYNC_RESULT,
   });
 });
 
 describe("syncNow", () => {
-  it("runs the leased sync for the current org and revalidates the matches page", async () => {
+  it("refreshes the current org with the 15-minute full-sync window and revalidates", async () => {
     const { syncNow } = await import("@/lib/actions/hockey-sync");
     const result = await syncNow();
 
-    expect(mockSyncWithLease).toHaveBeenCalledWith(
+    expect(mockRefresh).toHaveBeenCalledWith(
       expect.objectContaining({ supabase: expect.anything() }),
       "test-org-id",
-      15 * 60 * 1000,
+      { fullSyncWindowMs: 15 * 60 * 1000 },
     );
-    expect(result).toMatchObject({ status: "synced", inserted: 2 });
+    expect(result).toEqual({
+      status: "refreshed",
+      detector: null,
+      sync: SYNC_RESULT,
+    });
     expect(mockRevalidatePath).toHaveBeenCalledWith("/protected/matches");
   });
 
-  it("returns cooldown status when the sync slot is not claimed", async () => {
-    mockSyncWithLease.mockResolvedValue(null);
+  it("returns cooldown when inside the window and the org has no feeds", async () => {
+    mockRefresh.mockResolvedValue({
+      status: "refreshed",
+      detector: null,
+      sync: null,
+    });
 
     const { syncNow } = await import("@/lib/actions/hockey-sync");
     await expect(syncNow()).resolves.toEqual({ status: "cooldown" });
+    expect(mockRevalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("returns cooldown when inside the window and the feeds showed no change", async () => {
+    mockRefresh.mockResolvedValue({
+      status: "refreshed",
+      detector: detectorResult(),
+      sync: null,
+    });
+
+    const { syncNow } = await import("@/lib/actions/hockey-sync");
+    await expect(syncNow()).resolves.toEqual({ status: "cooldown" });
+  });
+
+  it("reports detector errors inside the cooldown instead of hiding them", async () => {
+    const detector = detectorResult({ errors: ["www.club.nl: HTTP 503"] });
+    mockRefresh.mockResolvedValue({
+      status: "refreshed",
+      detector,
+      sync: null,
+    });
+
+    const { syncNow } = await import("@/lib/actions/hockey-sync");
+    await expect(syncNow()).resolves.toEqual({
+      status: "refreshed",
+      detector,
+      sync: null,
+    });
+  });
+
+  it("reports the detector's work inside the cooldown", async () => {
+    const detector = detectorResult({ suspects: 2, confirmed: 2, updated: 1 });
+    mockRefresh.mockResolvedValue({
+      status: "refreshed",
+      detector,
+      sync: null,
+    });
+
+    const { syncNow } = await import("@/lib/actions/hockey-sync");
+    await expect(syncNow()).resolves.toEqual({
+      status: "refreshed",
+      detector,
+      sync: null,
+    });
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/protected/matches");
+  });
+
+  it("returns busy when another refresh holds the lease", async () => {
+    mockRefresh.mockResolvedValue({ status: "busy" });
+
+    const { syncNow } = await import("@/lib/actions/hockey-sync");
+    await expect(syncNow()).resolves.toEqual({ status: "busy" });
     expect(mockRevalidatePath).not.toHaveBeenCalled();
   });
 
@@ -89,7 +171,7 @@ describe("syncNow", () => {
     mockRequirePlanner.mockRejectedValue(new Error("NOT_PLANNER"));
     const { syncNow } = await import("@/lib/actions/hockey-sync");
     await expect(syncNow()).rejects.toThrow("NOT_PLANNER");
-    expect(mockSyncWithLease).not.toHaveBeenCalled();
+    expect(mockRefresh).not.toHaveBeenCalled();
   });
 });
 

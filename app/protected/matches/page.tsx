@@ -5,6 +5,7 @@ import { getManagedTeams } from "@/lib/actions/managed-teams";
 import { getPollOptions } from "@/lib/actions/polls";
 import { getTrackedTeams } from "@/lib/actions/hockey-teams";
 import { getSyncState } from "@/lib/actions/hockey-sync";
+import { getClubFeeds } from "@/lib/actions/club-feeds";
 import { isPlannerRole } from "@/lib/actions/organization-settings";
 import { MatchesPageClient } from "@/components/matches/matches-page-client";
 import { addMonths, format } from "date-fns";
@@ -23,10 +24,16 @@ async function MatchesLoader() {
     isPlannerRole(),
   ]);
 
-  // Sync UI is planner-only — spare everyone else the two extra queries.
-  const [trackedTeams, syncState] = isPlanner
-    ? await Promise.all([getTrackedTeams(), getSyncState()])
-    : [[], null];
+  // Sync UI is planner-only — spare everyone else the extra queries.
+  const [trackedTeams, syncState, clubFeeds] = isPlanner
+    ? await Promise.all([getTrackedTeams(), getSyncState(), getClubFeeds()])
+    : [[], null, []];
+  const lastFeedPolledAt =
+    clubFeeds
+      .map((feed) => feed.last_polled_at)
+      .filter((polledAt): polledAt is string => polledAt !== null)
+      .sort()
+      .at(-1) ?? null;
 
   return (
     <MatchesPageClient
@@ -34,6 +41,7 @@ async function MatchesLoader() {
       managedTeams={managedTeams}
       polls={polls}
       syncState={syncState}
+      lastFeedPolledAt={lastFeedPolledAt}
       showSync={isPlanner && trackedTeams.length > 0}
     />
   );

@@ -43,12 +43,14 @@ of the club's venues instead — inferred from facility names, else the club's c
 five (`pickClubFacilities`) — keeps the club's own field home matches, and fails as a whole if
 one venue cannot be loaded. Details in [Importing single matches](#importing-single-matches).
 
-**On demand.** `syncNow()` (`lib/actions/hockey-sync.ts`) runs the same engine for the
-current club, behind a **15-minute cooldown**. The cooldown is a returned status rather than
-a thrown error, because Next.js replaces server-action error messages with a generic digest
-in production. The MCP `trigger_sync` tool runs the same engine behind the same 15-minute window, though
-it calls `syncWithLease()` directly rather than going through `syncNow()` (and spells the
-cooldown constant out again — keep the two in step).
+**On demand.** `syncNow()` (`lib/actions/hockey-sync.ts`) refreshes the current club through
+`refreshOrganization()` (see [Club websites](#club-websites-lisa-change-detector)): the
+club-website detector always, then the full sync unless one ran within **15 minutes**. It
+returns `refreshed` (with the detector's and the full sync's results, either possibly null),
+`cooldown` (inside the window, and no feed had a change to check) or `busy` (another refresh
+holds the lease) — returned statuses rather than thrown errors, because Next.js replaces
+server-action error messages with a generic digest in production. The MCP `trigger_sync` tool
+calls `refreshOrganization()` with the same `MANUAL_SYNC_COOLDOWN_MS`.
 
 ## Importing single matches
 
@@ -114,12 +116,13 @@ correct them here, in the match editor, or by tracking the team.
 1. Authenticates on `CRON_SECRET` as a bearer token (the proxy skips `/api/cron/*` entirely, so the route is on its own here)
 2. Collects every organization that has tracked teams, paging `tracked_teams` 1000 rows at a time
 3. Orders them **last run failed first, then stalest first**. A club whose last run was not a `success` (or that never completed one) leads; within each group the oldest `last_synced_at` goes first. Staleness alone is not enough: a club whose teams were throttled still gets tonight's `last_synced_at`, and only its `partial` / `error` status says it lost out
-4. Syncs them **sequentially** with a jitter pause between upstream fetches — low request volume, and the shared cache dedupes teams several clubs follow
-5. Skips any club synced within the last **6 hours** (e.g. one that just ran a manual sync)
+4. Refreshes them **sequentially** through `refreshOrganization()` — the club-website detector, then the full sync — with a jitter pause between upstream fetches: low request volume, and the shared cache dedupes teams several clubs follow
+5. Skips the full sync of any club synced within the last **6 hours** (e.g. one that just ran a manual sync); its detector still runs
 6. Sets a **deadline 240 s** into the run: the Match Center client may wait out rate limits only while the wait ends before it (see [Rate limiting](#rate-limiting)), and no further club is started after it — those report `skipped: true` and, left unsynced, sort as stalest next night. The last minute of `maxDuration` is headroom for the work already under way
 
-`maxDuration` is 300s. Results are returned per organization; a club whose slot could not be
-claimed reports `skipped: true`.
+`maxDuration` is 300s. Results are returned per organization; a club whose lease was taken,
+or whose full sync was inside the skip window, reports `skipped: true`, and a club with feeds
+also carries its `detector` result.
 
 ## Concurrency: cooldown + lease
 
@@ -136,8 +139,12 @@ Manual syncs, cron runs, and MCP `trigger_sync` can all fire at once, so `claimS
 The cooldown is checked twice — cheaply before claiming, then again under the lease, which
 closes the race where a stale pre-check claims a slot another run just released. Releasing
 is fenced by the lease token, so a run that outlived its lease cannot clear a newer
-claimant's. `syncWithLease()` wraps claim → sync → release so no call site has to get this
-right on its own.
+claimant's. `refreshOrganization()` (`lib/hockey/refresh.ts`) wraps claim → refresh →
+release so no call site has to get this right on its own. Every trigger goes through it; it
+claims with a **zero** window: it skips the cooldown but keeps the lease, so
+the detector and the full sync of one club never overlap with another refresh of it. It
+re-reads `last_synced_at` under the lease to decide whether the full sync is due. Only the
+full sync advances `last_synced_at`, so it stays "last full sync".
 
 ## The sync engine
 
@@ -179,7 +186,7 @@ are `final`, `result`, `live`, `expired` or `unknown` (already played or unusabl
 past matches **except** cancellations (`cancelled` or `discontinued`), which must still flag
 an imported row even when observed after match day.
 
-Then, per fixture:
+Then, per fixture — through `reconcileFixtures()`, which the club-website detector shares:
 
 | Situation                                     | What happens                                                                                                                                                      |
 | --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -211,6 +218,72 @@ the date is set but the kick-off time is not (see the API doc §12). Such a fixt
 imported, and is counted in `awaiting_time_count` until a real time appears — but where it
 corresponds to a row that already _has_ a time, that is a retraction, handled as the table
 above describes.
+
+## Club websites (LISA change detector)
+
+Design: [`plans/2026-10-25-lisa-change-detector-design.md`](plans/2026-10-25-lisa-change-detector-design.md).
+Clubs whose website runs on LISA (a Duda site the KNHB club administration exports into)
+publish their whole programme as public, unthrottled JSON whose `code` is the Match Center
+match id. The detector uses it as a **change detector, never a source**: nothing read from
+LISA is written to `matches`; it only decides which matches to ask the Match Center about.
+
+**Settings → Match Center Sync → Club websites** (`components/settings/club-feeds-settings.tsx`,
+`lib/actions/club-feeds.ts`). A planner adds a club site by URL; `resolveClubFeed()` reads the
+page's Duda `SiteAlias` and confirms the schedule index (`Toekomstige_wedstrijden`) behind it.
+That is the one place the app fetches a URL a planner typed, so it accepts only `https:` with
+a DNS host name (no IP literal, port, credentials or local name), follows a redirect only to
+the same host give or take `www.`, caps the response size and times out after 10s. After that
+only `https://{host}/rts/collections/public/{alias}/…` is requested, never following a
+redirect, always with `User-Agent: Fluitplanner/1.0 (+https://fluitplanner.nl)` (the sites' WAF
+rejects library defaults). At most five feeds per club; a club with combined youth teams adds
+its partner's site too.
+
+**Each refresh** (`lib/club-feed/watch.ts`, before the full sync, under its lease) polls each
+feed — skipped if polled under **2 minutes** ago, least recently polled first — reading the
+index and every month it names (`lib/club-feed/fetch.ts`). Polling all feeds gets **20 s**
+(`POLL_BUDGET_MS`), so a slow club site cannot eat an MCP call's 60 s before the full sync:
+no request starts after it, a month not reached makes the poll `partial`, and a feed not
+reached is reported and polled first next run. A month that 404s (the index often names some) makes the poll
+`partial`, never wrong: absence means nothing. `lib/club-feed/parse.ts` keeps coded home rows
+from today on (or cancelled), one per code, and fingerprints date, time, pitch, cancellation
+and venue. `lib/club-feed/detect.ts` raises suspects:
+
+| Rule              | Suspect when                                                                              |
+| ----------------- | ----------------------------------------------------------------------------------------- |
+| **Changed**       | The fingerprint differs from the snapshot's (a row seen for the first time is a baseline) |
+| **Drift**         | The code is in `matches` and LISA's date, time or cancellation disagrees with it          |
+| **New**           | Not in `matches`, LISA has a time, and the row's LISA team maps to a tracked team         |
+| **Pitch fill-in** | In `matches` with no `field`, and LISA has a pitch                                        |
+
+Only codes we store, or rows of a mapped team, can be suspects — a club with 100 teams and 9
+tracked never spends requests on the other 91. LISA team ids map to tracked teams
+(`club_feed_teams`), learned from our own matches (a stored code whose `home_team` is a tracked
+team's) and corrected by each confirmation's `home.id`. Suspects from all of a club's feeds
+merge by code and are confirmed **cancellations first, then soonest**, at most **4 per run**,
+with one `GET /matches/{id}` each (`fetchMatch`, cached `match:{id}` for 10 min — except for a
+"changed" suspect, which asks fresh, since a cached answer may predate the change). A 429, a
+timeout, a network failure or an upstream error stops the run with that suspect and the rest
+pending; the nightly cron's client may wait out one 429 window first. Only a 404 (a withdrawn
+match id) or an unreadable payload counts as checked. The answers go through
+`reconcileFixtures()` — the full sync's insert / flag / retract / cancel rules — after the
+same `homeFixtureOf()` filter, so a code that is another team's home match is dropped.
+
+The **snapshot** (`club_feed_fixtures`) advances only once the Match Center was asked: an
+unconfirmed suspect keeps `pending_fingerprint` and leads the next run. A suspect not raised by
+"changed" is re-checked at most every **6 hours** (`checked_at`), so a lasting LISA/Match
+Center disagreement cannot burn the budget. Rows unseen for 30 days are pruned. Referees,
+remarks, standings and names are never stored.
+
+**Shadow mode.** `club_feeds.apply_changes` defaults to **false**: the detector polls,
+confirms and advances its snapshot, but only logs what it would apply (`[club-feed] shadow`)
+instead of calling `reconcileFixtures()`. Settings shows such a feed as "Trial". A master admin
+flips it per feed in the database (rollout phase 3); a suspect raised by several feeds is
+applied if any of them is on.
+
+**What a planner sees.** Inside the 15-minute cooldown "sync now" still runs the detector and
+reports what it checked; the sync button shows when a club website was last checked, and
+Settings shows each feed's last poll and status. MCP `get_sync_status` lists the feeds;
+`trigger_sync` reports both steps.
 
 ## Upstream access
 
@@ -253,7 +326,8 @@ the sync also runs outside any request context. Org-scoped queries still filter 
 
 ## Schema
 
-Migration `supabase/migrations/20260815000001_hockey_sync.sql`:
+Migrations `supabase/migrations/20260815000001_hockey_sync.sql` and
+`20261025000001_club_feeds.sql` (the last three tables):
 
 | Table                       | Purpose                                                      | RLS                                          |
 | --------------------------- | ------------------------------------------------------------ | -------------------------------------------- |
@@ -261,6 +335,9 @@ Migration `supabase/migrations/20260815000001_hockey_sync.sql`:
 | `hockey_api_cache`          | Org-agnostic upstream response cache                         | Enabled with no policies — service role only |
 | `tracked_teams`             | Per-club team subscriptions, linked to a `managed_teams` row | Members read; planners write                 |
 | `hockey_sync_state`         | Per-club last run, counters, and the run lease               | Members read; all writes via service client  |
+| `club_feeds`                | Club websites (LISA) a club watches, with last poll status   | Members read; all writes via service client  |
+| `club_feed_fixtures`        | Per-feed snapshot: fingerprint, pending change, last check   | Enabled with no policies — service role only |
+| `club_feed_teams`           | Learned LISA team → tracked team mapping, per feed           | Enabled with no policies — service role only |
 
 Plus, on `matches`: `external_id`, `source`, `cancelled_upstream`, `needs_review`,
 `review_reasons`, `last_synced_at`, and a **partial** unique index on
@@ -277,4 +354,9 @@ transport and its re-registration on 401 (`client.test.ts`), normalisation inclu
 midnight/"awaiting time" rule (`normalize.test.ts`), and the claim/release lease protocol
 plus the sync engine's insert/update/flag/cancel branches against a fake client
 (`sync.test.ts`, including the venue sweep merge), and venue learning and the sweep windows
-(`venues.test.ts`). `__tests__/app/api/cron/hockey-sync.test.ts` covers the cron route.
+(`venues.test.ts`), and `refreshOrganization()` (`refresh.test.ts`).
+`__tests__/lib/club-feed/` covers the detector: parsing on fixtures captured from three LISA
+feeds with names and referees stripped (`parse.test.ts`), the suspect rules
+(`detect.test.ts`), URL validation and paging (`fetch.test.ts`), and the poll → confirm →
+apply run against fakes (`watch.test.ts`). `__tests__/app/api/cron/hockey-sync.test.ts` covers
+the cron route.

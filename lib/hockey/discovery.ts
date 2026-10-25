@@ -116,6 +116,25 @@ export async function fetchTeamPouleFetchedAt(
   return byTeam;
 }
 
+/**
+ * One match's detail. A superset of the list shape — including `location`
+ * with the field, which facility lists omit — so normalizeMatch() takes it as
+ * is. The cache shares an answer across orgs watching the same match.
+ */
+export async function fetchMatch(
+  deps: DiscoveryDeps,
+  matchId: number,
+  ttlMs: number,
+): Promise<ApiMatchSummary> {
+  return getCachedJson<ApiMatchSummary>(
+    deps.supabase,
+    `match:${matchId}`,
+    ttlMs,
+    () => deps.client.get<ApiMatchSummary>(`/matches/${matchId}`),
+    deps.pause,
+  );
+}
+
 /** All facilities (~850), cached 24h. */
 export async function fetchAllFacilities(
   deps: DiscoveryDeps,

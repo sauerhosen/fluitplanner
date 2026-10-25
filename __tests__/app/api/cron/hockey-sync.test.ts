@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
-const mockSyncWithLease = vi.fn();
+const mockRefresh = vi.fn();
 const mockRange = vi.fn();
 const mockStateRange = vi.fn();
 
@@ -19,9 +19,24 @@ vi.mock("@/lib/hockey/deps", () => ({
   })),
 }));
 
-vi.mock("@/lib/hockey/sync", () => ({
-  syncWithLease: mockSyncWithLease,
+vi.mock("@/lib/hockey/refresh", () => ({
+  refreshOrganization: mockRefresh,
 }));
+
+const syncResult = (overrides: Record<string, unknown> = {}) => ({
+  inserted: 0,
+  updated: 0,
+  flagged: 0,
+  cancelled: 0,
+  awaitingTime: 0,
+  errors: [],
+  ...overrides,
+});
+
+const refreshed = (
+  sync: Record<string, unknown> | null,
+  detector: Record<string, unknown> | null = null,
+) => ({ status: "refreshed", detector, sync });
 
 function makeRequest(authorization?: string): Request {
   return new Request("http://localhost/api/cron/hockey-sync", {
@@ -41,14 +56,7 @@ beforeEach(() => {
     error: null,
   });
   mockStateRange.mockResolvedValue({ data: [], error: null });
-  mockSyncWithLease.mockResolvedValue({
-    inserted: 1,
-    updated: 0,
-    flagged: 0,
-    cancelled: 0,
-    awaitingTime: 0,
-    errors: [],
-  });
+  mockRefresh.mockResolvedValue(refreshed(syncResult({ inserted: 1 })));
 });
 
 afterEach(() => {
@@ -60,7 +68,7 @@ describe("GET /api/cron/hockey-sync", () => {
     const { GET } = await import("@/app/api/cron/hockey-sync/route");
     const response = await GET(makeRequest());
     expect(response.status).toBe(401);
-    expect(mockSyncWithLease).not.toHaveBeenCalled();
+    expect(mockRefresh).not.toHaveBeenCalled();
   });
 
   it("returns 401 with a wrong secret", async () => {
@@ -69,18 +77,16 @@ describe("GET /api/cron/hockey-sync", () => {
     expect(response.status).toBe(401);
   });
 
-  it("runs a leased sync per org with the 6h skip window", async () => {
+  it("refreshes each org with the 6h full-sync skip window", async () => {
     const { GET } = await import("@/app/api/cron/hockey-sync/route");
     const response = await GET(makeRequest("Bearer test-secret"));
 
     expect(response.status).toBe(200);
-    expect(mockSyncWithLease).toHaveBeenCalledTimes(2);
-    expect(mockSyncWithLease).toHaveBeenCalledWith(
-      expect.anything(),
-      "org-1",
-      6 * 60 * 60 * 1000,
-    );
-    const orgs = mockSyncWithLease.mock.calls.map(([, orgId]) => orgId);
+    expect(mockRefresh).toHaveBeenCalledTimes(2);
+    expect(mockRefresh).toHaveBeenCalledWith(expect.anything(), "org-1", {
+      fullSyncWindowMs: 6 * 60 * 60 * 1000,
+    });
+    const orgs = mockRefresh.mock.calls.map(([, orgId]) => orgId);
     expect(orgs).toEqual(["org-1", "org-2"]);
   });
 
@@ -103,23 +109,16 @@ describe("GET /api/cron/hockey-sync", () => {
   it("starts no further org once the deadline has passed", async () => {
     const start = Date.now();
     const now = vi.spyOn(Date, "now").mockReturnValue(start);
-    mockSyncWithLease.mockImplementationOnce(async () => {
+    mockRefresh.mockImplementationOnce(async () => {
       now.mockReturnValue(start + 280_000); // org-1 used up the run
-      return {
-        inserted: 0,
-        updated: 0,
-        flagged: 0,
-        cancelled: 0,
-        awaitingTime: 0,
-        errors: [],
-      };
+      return refreshed(syncResult());
     });
 
     const { GET } = await import("@/app/api/cron/hockey-sync/route");
     const response = await GET(makeRequest("Bearer test-secret"));
     const body = await response.json();
 
-    expect(mockSyncWithLease).toHaveBeenCalledTimes(1);
+    expect(mockRefresh).toHaveBeenCalledTimes(1);
     expect(body.results).toContainEqual(
       expect.objectContaining({ organizationId: "org-2", skipped: true }),
     );
@@ -146,7 +145,7 @@ describe("GET /api/cron/hockey-sync", () => {
     const { GET } = await import("@/app/api/cron/hockey-sync/route");
     await GET(makeRequest("Bearer test-secret"));
 
-    const orgs = mockSyncWithLease.mock.calls.map(([, orgId]) => orgId);
+    const orgs = mockRefresh.mock.calls.map(([, orgId]) => orgId);
     expect(orgs).toEqual(["org-2", "org-1"]);
   });
 
@@ -160,7 +159,7 @@ describe("GET /api/cron/hockey-sync", () => {
         data: [{ organization_id: "org-last" }],
         error: null,
       });
-    mockSyncWithLease.mockResolvedValue(null); // all skipped, keep it fast
+    mockRefresh.mockResolvedValue({ status: "busy" }); // all skipped, keep it fast
 
     const { GET } = await import("@/app/api/cron/hockey-sync/route");
     const response = await GET(makeRequest("Bearer test-secret"));
@@ -173,39 +172,25 @@ describe("GET /api/cron/hockey-sync", () => {
   });
 
   it("continues with other orgs when one fails", async () => {
-    mockSyncWithLease
+    mockRefresh
       .mockRejectedValueOnce(new Error("boom"))
-      .mockResolvedValueOnce({
-        inserted: 3,
-        updated: 0,
-        flagged: 0,
-        cancelled: 0,
-        awaitingTime: 0,
-        errors: [],
-      });
+      .mockResolvedValueOnce(refreshed(syncResult({ inserted: 3 })));
 
     const { GET } = await import("@/app/api/cron/hockey-sync/route");
     const response = await GET(makeRequest("Bearer test-secret"));
     const body = await response.json();
 
     expect(response.status).toBe(200);
-    expect(mockSyncWithLease).toHaveBeenCalledTimes(2);
+    expect(mockRefresh).toHaveBeenCalledTimes(2);
     expect(body.results).toHaveLength(2);
     expect(body.results[0]).toMatchObject({ error: "boom" });
     expect(body.results[1]).toMatchObject({ inserted: 3 });
   });
 
-  it("reports orgs whose sync slot was not claimed as skipped", async () => {
-    mockSyncWithLease
-      .mockResolvedValueOnce(null) // org-1: synced recently
-      .mockResolvedValueOnce({
-        inserted: 0,
-        updated: 0,
-        flagged: 0,
-        cancelled: 0,
-        awaitingTime: 0,
-        errors: [],
-      });
+  it("reports orgs whose lease was taken as skipped", async () => {
+    mockRefresh
+      .mockResolvedValueOnce({ status: "busy" }) // org-1: another run holds it
+      .mockResolvedValueOnce(refreshed(syncResult()));
 
     const { GET } = await import("@/app/api/cron/hockey-sync/route");
     const response = await GET(makeRequest("Bearer test-secret"));
@@ -214,6 +199,23 @@ describe("GET /api/cron/hockey-sync", () => {
     expect(body.results).toContainEqual(
       expect.objectContaining({ organizationId: "org-1", skipped: true }),
     );
+  });
+
+  it("reports an org synced within the window as skipped, with its detector run", async () => {
+    const detector = { feeds: 1, polled: 1, suspects: 2, confirmed: 2 };
+    mockRefresh
+      .mockResolvedValueOnce(refreshed(null, detector)) // org-1: synced recently
+      .mockResolvedValueOnce(refreshed(syncResult({ inserted: 2 })));
+
+    const { GET } = await import("@/app/api/cron/hockey-sync/route");
+    const response = await GET(makeRequest("Bearer test-secret"));
+    const body = await response.json();
+
+    expect(body.results).toEqual([
+      { organizationId: "org-1", skipped: true, detector },
+      expect.objectContaining({ organizationId: "org-2", inserted: 2 }),
+    ]);
+    expect(body.results[1]).not.toHaveProperty("detector");
   });
 
   it("processes the stalest org first", async () => {
@@ -234,7 +236,7 @@ describe("GET /api/cron/hockey-sync", () => {
     const { GET } = await import("@/app/api/cron/hockey-sync/route");
     await GET(makeRequest("Bearer test-secret"));
 
-    const orgs = mockSyncWithLease.mock.calls.map(([, orgId]) => orgId);
+    const orgs = mockRefresh.mock.calls.map(([, orgId]) => orgId);
     expect(orgs).toEqual(["org-2", "org-1"]);
   });
 
@@ -244,6 +246,6 @@ describe("GET /api/cron/hockey-sync", () => {
     const { GET } = await import("@/app/api/cron/hockey-sync/route");
     const response = await GET(makeRequest("Bearer test-secret"));
     expect(response.status).toBe(500);
-    expect(mockSyncWithLease).not.toHaveBeenCalled();
+    expect(mockRefresh).not.toHaveBeenCalled();
   });
 });

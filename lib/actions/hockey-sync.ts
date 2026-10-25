@@ -4,36 +4,45 @@ import { revalidatePath } from "next/cache";
 import { requireAuthContext, requirePlanner } from "@/lib/auth";
 import { requireTenantId } from "@/lib/tenant";
 import { createHockeyDeps } from "@/lib/hockey/deps";
-import { syncWithLease, type SyncResult } from "@/lib/hockey/sync";
+import {
+  MANUAL_SYNC_COOLDOWN_MS,
+  refreshOrganization,
+  refreshedNothing,
+} from "@/lib/hockey/refresh";
+import type { SyncResult } from "@/lib/hockey/sync";
+import type { WatchResult } from "@/lib/club-feed/watch";
 import type { HockeySyncState } from "@/lib/types/domain";
 
-const SYNC_COOLDOWN_MS = 15 * 60 * 1000;
-
 /**
- * Cooldown is a returned state, not a thrown error: Next.js replaces thrown
- * server-action error messages with a generic digest in production, which
- * would break client-side sentinel matching.
+ * Cooldown and busy are returned states, not thrown errors: Next.js replaces
+ * thrown server-action error messages with a generic digest in production,
+ * which would break client-side sentinel matching.
+ *
+ * `refreshed` carries the club-feed detector's result (null without feeds)
+ * and the full sync's (null inside its cooldown). `cooldown` means neither
+ * did anything: inside the cooldown, and no feed had a change to check or
+ * an error to report.
  */
 export type SyncNowResult =
-  | ({ status: "synced" } & SyncResult)
   | {
-      status: "cooldown";
-    };
+      status: "refreshed";
+      detector: WatchResult | null;
+      sync: SyncResult | null;
+    }
+  | { status: "cooldown" }
+  | { status: "busy" };
 
 export async function syncNow(): Promise<SyncNowResult> {
   const { tenantId } = await requirePlanner();
 
-  const result = await syncWithLease(
-    createHockeyDeps(),
-    tenantId,
-    SYNC_COOLDOWN_MS,
-  );
-  if (result === null) {
-    return { status: "cooldown" };
-  }
+  const result = await refreshOrganization(createHockeyDeps(), tenantId, {
+    fullSyncWindowMs: MANUAL_SYNC_COOLDOWN_MS,
+  });
+  if (result.status === "busy") return { status: "busy" };
+  if (refreshedNothing(result)) return { status: "cooldown" };
 
   revalidatePath("/protected/matches");
-  return { status: "synced", ...result };
+  return { status: "refreshed", detector: result.detector, sync: result.sync };
 }
 
 export async function getSyncState(): Promise<HockeySyncState | null> {

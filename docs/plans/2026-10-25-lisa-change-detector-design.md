@@ -1,7 +1,10 @@
 # LISA change detector — design
 
-**Status:** proposal, not started. How much "sync now" gains depends on the cadence
-measurement in [Phase 0](#rollout); the nightly path does not.
+**Status:** phases 1–3 built (refactor, feeds + detector, all three triggers). Writes
+start in shadow mode: `club_feeds.apply_changes` defaults to false and is flipped per feed.
+Phase 0 (cadence measurement) and phase 4 (page-visit trigger) are not started. How much
+"sync now" gains depends on the cadence measurement in [Phase 0](#rollout); the nightly path
+does not. The current behaviour is documented in [`docs/hockey-sync.md`](../hockey-sync.md).
 **Builds on:** the Hockey.nl sync (`docs/hockey-sync.md`), whose engine and review flags it
 reuses unchanged.
 

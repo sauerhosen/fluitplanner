@@ -62,7 +62,8 @@ const SYNC_TOPUP_TTL_MS = 20 * 60 * 60 * 1000;
 /** How long a claimed run lease lasts before it self-expires (crash safety). */
 const SYNC_LEASE_MS = 10 * 60 * 1000;
 
-function withinCooldown(
+/** Whether a sync completed at `lastSyncedAt` is still inside `windowMs`. */
+export function withinCooldown(
   lastSyncedAt: string | null | undefined,
   windowMs: number,
 ): boolean {
@@ -165,28 +166,6 @@ export async function releaseSyncSlot(
     .eq("organization_id", organizationId)
     .eq("sync_claimed_until", leaseToken);
   if (error) throw new Error(error.message);
-}
-
-/**
- * Claim → sync → release in one place, so the lease invariants (token-fenced
- * release, in a finally, release errors never masking sync errors) live in
- * code instead of at every call site. Returns null when the slot could not
- * be claimed (cooldown active or another run in progress).
- */
-export async function syncWithLease(
-  deps: SyncDeps,
-  organizationId: string,
-  windowMs: number,
-): Promise<SyncResult | null> {
-  const lease = await claimSyncSlot(deps.supabase, organizationId, windowMs);
-  if (!lease) return null;
-  try {
-    return await syncOrganizationMatches(deps, organizationId);
-  } finally {
-    await releaseSyncSlot(deps.supabase, organizationId, lease).catch(() => {
-      // lease self-expires; a failed release must not mask the sync error
-    });
-  }
 }
 
 function mergeReasons(
@@ -526,7 +505,7 @@ export async function reconcileFixtures(
   result.awaitingTime = entries.length - cancelled.length - importable.length;
 
   // Cancellations may be observed after match day, so the natural-key window
-  // must reach back to the earliest entries cancellation — otherwise a
+  // must reach back to the earliest cancellation passed in — otherwise a
   // past-dated cancellation reissued under a new match id resolves nowhere.
   const naturalFromDate = cancelled.reduce((earliest, { fixture }) => {
     const date = amsterdamDateOf(fixture.start);
@@ -626,7 +605,8 @@ export async function reconcileFixtures(
     const { error } = await supabase
       .from("matches")
       .update(payload)
-      .eq("id", existing.id);
+      .eq("id", existing.id)
+      .eq("organization_id", organizationId);
     if (error) {
       result.errors.push(`Match ${fixture.matchId}: ${error.message}`);
     } else if (reasons.length > 0) {
@@ -679,7 +659,8 @@ export async function reconcileFixtures(
         review_reasons: mergeReasons(existing.review_reasons, ["time_changed"]),
         last_synced_at: syncedAt,
       })
-      .eq("id", existing.id);
+      .eq("id", existing.id)
+      .eq("organization_id", organizationId);
     if (error) {
       result.errors.push(`Match ${fixture.matchId}: ${error.message}`);
     } else {
@@ -702,7 +683,8 @@ export async function reconcileFixtures(
         external_id: fixture.matchId,
         last_synced_at: syncedAt,
       })
-      .eq("id", existing.id);
+      .eq("id", existing.id)
+      .eq("organization_id", organizationId);
     if (error) {
       result.errors.push(`Match ${fixture.matchId}: ${error.message}`);
     } else {
@@ -714,6 +696,7 @@ export async function reconcileFixtures(
     await supabase
       .from("matches")
       .update({ last_synced_at: syncedAt })
+      .eq("organization_id", organizationId)
       .in("id", unchangedIds);
   }
 
