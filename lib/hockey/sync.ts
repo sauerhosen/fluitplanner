@@ -214,6 +214,31 @@ type ExistingMatchRow = {
 };
 
 /**
+ * A tracked team's home fixture worth syncing, or null: the team's own home
+ * match, not played or unusable, and from `today` on — except cancellations,
+ * which must still flag an imported row when observed after match day.
+ */
+export function homeFixtureOf(
+  match: ApiMatchSummary,
+  team: TrackedTeam,
+  today: string,
+): NormalizedFixture | null {
+  if (match.home?.id !== team.hockey_team_id) return null;
+  if (isSkippedStatus(match.status)) return null;
+  const fixture = normalizeMatch(match);
+  let fixtureDate: string;
+  try {
+    fixtureDate = amsterdamDateOf(fixture.start);
+  } catch {
+    return null; // unparseable upstream date
+  }
+  if (fixtureDate < today && !isCancelledStatus(fixture.status)) {
+    return null;
+  }
+  return fixture;
+}
+
+/**
  * Sync one organization's tracked teams against the Match Center: import
  * future home matches with confirmed times, update changed matches in place
  * (flagging them for review), and mark upstream cancellations — never delete.
@@ -261,28 +286,6 @@ export async function syncOrganizationMatches(
   const teams = trackedTeams as TrackedTeam[];
   const teamById = new Map(teams.map((team) => [team.hockey_team_id, team]));
 
-  /** A tracked team's home fixture worth syncing, or null. */
-  function homeFixture(
-    match: ApiMatchSummary,
-    team: TrackedTeam,
-  ): NormalizedFixture | null {
-    if (match.home?.id !== team.hockey_team_id) return null;
-    if (isSkippedStatus(match.status)) return null;
-    const fixture = normalizeMatch(match);
-    let fixtureDate: string;
-    try {
-      fixtureDate = amsterdamDateOf(fixture.start);
-    } catch {
-      return null; // unparseable upstream date
-    }
-    // Past matches are skipped — except cancellations, which must still
-    // flag an imported row even when observed after match day.
-    if (fixtureDate < today && !isCancelledStatus(fixture.status)) {
-      return null;
-    }
-    return fixture;
-  }
-
   // 1. Venue sweep: every match at the club's home venues for four weeks, a
   //    request per venue window however many teams are tracked. When it is
   //    complete, every team's importable near term is covered.
@@ -299,7 +302,7 @@ export async function syncOrganizationMatches(
   >();
   for (const match of sweep.matches) {
     const team = teamById.get(match.home?.id);
-    const fixture = team ? homeFixture(match, team) : null;
+    const fixture = team ? homeFixtureOf(match, team, today) : null;
     if (team && fixture) swept.set(fixture.matchId, { fixture, team });
   }
 
@@ -412,7 +415,7 @@ export async function syncOrganizationMatches(
         pouleTtlMs,
       );
       for (const match of response.poule?.matches ?? []) {
-        const fixture = homeFixture(match, team);
+        const fixture = homeFixtureOf(match, team, today);
         if (fixture) polled.set(fixture.matchId, { fixture, team });
       }
     } catch (error) {
@@ -444,17 +447,86 @@ export async function syncOrganizationMatches(
   }
   const collected = Array.from(merged.values());
 
-  const cancelled = collected.filter(({ fixture }) =>
+  const reconciled = await reconcileFixtures(
+    supabase,
+    organizationId,
+    collected,
+    { today, syncedAt, levelByManagedId },
+  );
+  const { errors: reconcileErrors, ...counts } = reconciled;
+  Object.assign(result, counts);
+  result.errors.push(...reconcileErrors);
+
+  const status =
+    result.errors.length === 0
+      ? "success"
+      : failedTeams >= trackedTeams.length
+        ? "error"
+        : "partial";
+
+  const { error: stateError } = await supabase.from("hockey_sync_state").upsert(
+    {
+      organization_id: organizationId,
+      last_synced_at: syncedAt,
+      last_sync_status: status,
+      last_sync_error: result.errors[0] ?? null,
+      last_inserted: result.inserted,
+      last_updated: result.updated,
+      last_flagged: result.flagged + result.cancelled,
+      awaiting_time_count: result.awaitingTime,
+    },
+    { onConflict: "organization_id" },
+  );
+  if (stateError) result.errors.push(stateError.message);
+
+  return result;
+}
+
+export type ReconcileResult = Pick<
+  SyncResult,
+  "inserted" | "updated" | "flagged" | "cancelled" | "awaitingTime" | "errors"
+>;
+
+/**
+ * Apply Match Center fixtures to an organization's matches: insert newly
+ * timed ones, update changed ones in place (flagging them for review),
+ * retract a withdrawn time, and mark upstream cancellations — never delete.
+ * Shared by the full sync and the club-feed change detector, so both write
+ * under the same rules. Callers pass only home fixtures of tracked teams
+ * (see homeFixtureOf); `awaitingTime` counts the entries passed, not the
+ * club's whole programme.
+ */
+export async function reconcileFixtures(
+  supabase: SupabaseClient,
+  organizationId: string,
+  entries: Array<{ fixture: NormalizedFixture; team: TrackedTeam }>,
+  opts: {
+    today: string;
+    syncedAt: string;
+    levelByManagedId: Map<string, 1 | 2 | 3>;
+  },
+): Promise<ReconcileResult> {
+  const { today, syncedAt, levelByManagedId } = opts;
+  const result: ReconcileResult = {
+    inserted: 0,
+    updated: 0,
+    flagged: 0,
+    cancelled: 0,
+    awaitingTime: 0,
+    errors: [],
+  };
+
+  const cancelled = entries.filter(({ fixture }) =>
     isCancelledStatus(fixture.status),
   );
-  const importable = collected.filter(
+  const importable = entries.filter(
     ({ fixture }) =>
       !isCancelledStatus(fixture.status) && fixture.timeConfirmed,
   );
-  result.awaitingTime = collected.length - cancelled.length - importable.length;
+  result.awaitingTime = entries.length - cancelled.length - importable.length;
 
   // Cancellations may be observed after match day, so the natural-key window
-  // must reach back to the earliest collected cancellation — otherwise a
+  // must reach back to the earliest entries cancellation — otherwise a
   // past-dated cancellation reissued under a new match id resolves nowhere.
   const naturalFromDate = cancelled.reduce((earliest, { fixture }) => {
     const date = amsterdamDateOf(fixture.start);
@@ -464,8 +536,8 @@ export async function syncOrganizationMatches(
   const { byExternal, byNatural } = await loadExistingMatches(
     supabase,
     organizationId,
-    collected.map(({ fixture }) => fixture.matchId),
-    trackedTeams as TrackedTeam[],
+    entries.map(({ fixture }) => fixture.matchId),
+    entries.map(({ team }) => team),
     naturalFromDate,
   );
 
@@ -591,7 +663,7 @@ export async function syncOrganizationMatches(
   // "announced" at midnight). The stale time must not stand unflagged —
   // planners would staff a match on a withdrawn time. Clear it and flag;
   // an already-null start_time keeps subsequent syncs idempotent.
-  const awaiting = collected.filter(
+  const awaiting = entries.filter(
     ({ fixture }) =>
       !isCancelledStatus(fixture.status) && !fixture.timeConfirmed,
   );
@@ -645,32 +717,10 @@ export async function syncOrganizationMatches(
       .in("id", unchangedIds);
   }
 
-  const status =
-    result.errors.length === 0
-      ? "success"
-      : failedTeams >= trackedTeams.length
-        ? "error"
-        : "partial";
-
-  const { error: stateError } = await supabase.from("hockey_sync_state").upsert(
-    {
-      organization_id: organizationId,
-      last_synced_at: syncedAt,
-      last_sync_status: status,
-      last_sync_error: result.errors[0] ?? null,
-      last_inserted: result.inserted,
-      last_updated: result.updated,
-      last_flagged: result.flagged + result.cancelled,
-      awaiting_time_count: result.awaitingTime,
-    },
-    { onConflict: "organization_id" },
-  );
-  if (stateError) result.errors.push(stateError.message);
-
   return result;
 }
 
-async function loadRequiredLevels(
+export async function loadRequiredLevels(
   supabase: SupabaseClient,
   trackedTeams: Array<{ managed_team_id: string | null }>,
 ): Promise<Map<string, 1 | 2 | 3>> {
