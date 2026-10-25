@@ -1,0 +1,146 @@
+{
+  "name": "matches_oct_2026",
+  "values": [
+    {
+      "data": {
+        "id": "7a41469c-07cf-40fc-aa50-ddefdfd4f14e",
+        "code": "2066441",
+        "date": "03-10-2026",
+        "time": "08:30",
+        "field": "Zand 3D",
+        "team_id": "eeb126a4-56ba-4544-9cb1-f4acb907aab9",
+        "is_home_match": true,
+        "is_cancelled": false,
+        "location": {
+          "name": "Sportcomplex 'Het Loopveld' - VVV HC"
+        }
+      }
+    },
+    {
+      "data": {
+        "id": "1dd0853e-09ce-425d-b8b9-1fab5e076095",
+        "code": "2113388",
+        "date": "31-10-2026",
+        "time": "08:30",
+        "field": "Zand 3A",
+        "team_id": "70205175-3637-4cce-ab9b-06548c79a2d8",
+        "is_home_match": true,
+        "is_cancelled": false,
+        "location": {
+          "name": "Sportcomplex 'Het Loopveld' - VVV HC"
+        }
+      }
+    },
+    {
+      "data": {
+        "id": "82a3d182-c7a0-4837-a4ea-b91c612ddd12",
+        "code": "2064656",
+        "date": "03-10-2026",
+        "time": "08:30",
+        "field": "Zand 3C",
+        "team_id": "b475e7e2-60e8-4259-9234-3db16c5cbc29",
+        "is_home_match": true,
+        "is_cancelled": false,
+        "location": {
+          "name": "Sportcomplex 'Het Loopveld' - VVV HC"
+        }
+      }
+    },
+    {
+      "data": {
+        "id": "9d16fe6b-4744-411f-9375-6f61005ea358",
+        "code": "2065955",
+        "date": "03-10-2026",
+        "time": "08:30",
+        "field": "Zand 3A",
+        "team_id": "4fce601b-54b3-425a-8fa0-e0538e9b836d",
+        "is_home_match": true,
+        "is_cancelled": false,
+        "location": {
+          "name": "Sportcomplex 'Het Loopveld' - VVV HC"
+        }
+      }
+    },
+    {
+      "data": {
+        "id": "b0858a74-6812-475e-a22a-7442d9497441",
+        "code": "2138031",
+        "date": "28-10-2026",
+        "time": null,
+        "field": null,
+        "team_id": "266625e8-751a-4b8b-80e9-13c9c01b6074",
+        "is_home_match": true,
+        "is_cancelled": false,
+        "location": {
+          "name": "Sportcomplex 'Het Loopveld' - VVV HC"
+        }
+      }
+    },
+    {
+      "data": {
+        "id": "8a57753a-359c-4400-b191-b52244abcde1",
+        "code": null,
+        "date": "03-10-2026",
+        "time": "08:30",
+        "field": "Water 1",
+        "team_id": "22a58865-726e-45ed-bff5-b131e8936a01",
+        "is_home_match": true,
+        "is_cancelled": false,
+        "location": {
+          "name": "Sportcomplex 'Het Loopveld' - VVV HC"
+        }
+      }
+    },
+    {
+      "data": {
+        "id": "38596a5d-a70b-4042-b8c5-636c64d9ca0d",
+        "code": null,
+        "date": "31-10-2026",
+        "time": "08:30",
+        "field": "Water 1",
+        "team_id": "d9f85435-c9ed-4e4c-b481-f0e0a861e5ec",
+        "is_home_match": true,
+        "is_cancelled": false,
+        "location": {
+          "name": "Sportcomplex 'Het Loopveld' - VVV HC"
+        }
+      }
+    },
+    {
+      "data": {
+        "id": "f8d7abb5-f466-4aba-a885-e3abae958e78",
+        "code": "2099668",
+        "date": "25-10-2026",
+        "time": null,
+        "field": "",
+        "team_id": "56b214a8-36d8-4c4b-aebf-458de4f538d8",
+        "is_home_match": false,
+        "is_cancelled": false,
+        "location": {
+          "name": "Amsterdamse Bos (Amsterdam)"
+        }
+      }
+    },
+    {
+      "data": {
+        "id": "0638735a-caec-4613-baf6-d69a6ba4d54f",
+        "code": "2098081",
+        "date": "30-09-2026",
+        "time": null,
+        "field": "",
+        "team_id": "a8496493-4109-4da4-a690-93622e758587",
+        "is_home_match": false,
+        "is_cancelled": false,
+        "location": {
+          "name": "Amsterdamse Bos (Hurley)"
+        }
+      }
+    }
+  ],
+  "page": {
+    "pageSize": 100,
+    "pageNumber": 0,
+    "totalPages": 1,
+    "totalItems": 9
+  }
+}

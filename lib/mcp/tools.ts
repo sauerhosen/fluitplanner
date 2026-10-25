@@ -384,7 +384,7 @@ export function registerMcpTools(server: McpServer, ctx: McpPlannerContext) {
     {
       title: "Match Center sync status",
       description:
-        "Sync triage for the federation (Match Center) feed: when the last sync ran, what it inserted/updated/flagged, and every match currently flagged for review with its reasons. Clear handled flags with clear_match_review_flags.",
+        "Sync triage for the federation (Match Center) feed: when the last full sync ran, what it inserted/updated/flagged, the club websites (LISA) watched for changes and when each was last polled, and every match currently flagged for review with its reasons. Clear handled flags with clear_match_review_flags.",
       inputSchema: z.object({}),
       annotations: { readOnlyHint: true, destructiveHint: false },
     },
@@ -661,7 +661,7 @@ export function registerMcpTools(server: McpServer, ctx: McpPlannerContext) {
     {
       title: "Run Match Center sync",
       description:
-        "Run the federation (Match Center) sync for this club now — same as the app's sync button, including its 15-minute cooldown. Returns what was inserted, updated, and flagged; review flags via get_sync_status.",
+        "Refresh this club's matches from the federation (Match Center) now — same as the app's sync button. First checks the club websites (LISA) for changed matches and confirms those with the Match Center, even inside the full sync's 15-minute cooldown; then runs the full sync unless one ran within those 15 minutes. Returns what was inserted, updated, and flagged by each step; review flags via get_sync_status.",
       inputSchema: z.object({}),
       annotations: { readOnlyHint: false, destructiveHint: false },
     },

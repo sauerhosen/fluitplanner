@@ -42,12 +42,14 @@ export function MatchesPageClient({
   managedTeams,
   polls,
   syncState = null,
+  lastFeedPolledAt = null,
   showSync = false,
 }: {
   initialMatches: MatchWithPoll[];
   managedTeams: ManagedTeam[];
   polls: { id: string; title: string | null; status: string }[];
   syncState?: HockeySyncState | null;
+  lastFeedPolledAt?: string | null;
   showSync?: boolean;
 }) {
   const [matches, setMatches] = useState(initialMatches);
@@ -209,7 +211,11 @@ export function MatchesPageClient({
         <DateRangePicker value={dateRange} onChange={handleDateRangeChange} />
         {showSync && (
           <div className="ml-auto">
-            <SyncNowButton initialState={syncState} onSynced={refreshMatches} />
+            <SyncNowButton
+              initialState={syncState}
+              initialFeedPolledAt={lastFeedPolledAt}
+              onSynced={refreshMatches}
+            />
           </div>
         )}
       </StickyToolbar>

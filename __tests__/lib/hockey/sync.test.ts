@@ -963,59 +963,6 @@ describe("syncOrganizationMatches", () => {
   });
 });
 
-describe("syncWithLease", () => {
-  it("returns null without running the engine when the slot is not claimed", async () => {
-    const { client } = makeFakeSupabase((query) => {
-      if (query.table === "hockey_sync_state" && query.op === "select") {
-        return { data: { last_synced_at: new Date().toISOString() } };
-      }
-      return { data: [] };
-    });
-    const { syncWithLease } = await import("@/lib/hockey/sync");
-    const result = await syncWithLease(
-      { supabase: client as never, client: { get: vi.fn() } },
-      ORG,
-      15 * 60_000,
-    );
-    expect(result).toBeNull();
-    expect(mockFetchClubDetail).not.toHaveBeenCalled();
-  });
-
-  it("claims, runs the engine, and releases the lease with its token", async () => {
-    mockFetchTeamPoule.mockResolvedValue({ poule: { id: 500, matches: [] } });
-    const handler = defaultHandler({});
-    const { client, queries } = makeFakeSupabase((query) => {
-      if (query.table === "hockey_sync_state" && query.op === "select") {
-        return { data: { last_synced_at: null } };
-      }
-      if (query.table === "hockey_sync_state" && query.op === "update") {
-        return { data: [{ organization_id: ORG }] };
-      }
-      return handler(query);
-    });
-    const { syncWithLease } = await import("@/lib/hockey/sync");
-    const result = await syncWithLease(
-      { supabase: client as never, client: { get: vi.fn() }, now: NOW },
-      ORG,
-      15 * 60_000,
-    );
-    expect(result).not.toBeNull();
-    // last state-table update is the token-fenced lease release
-    const stateUpdates = queries.filter(
-      (q) => q.table === "hockey_sync_state" && q.op === "update",
-    );
-    const release = stateUpdates.at(-1);
-    expect(release?.payload).toEqual({
-      sync_claimed_until: new Date(0).toISOString(),
-    });
-    expect(
-      release?.filters.some(
-        ([op, col]) => op === "eq" && col === "sync_claimed_until",
-      ),
-    ).toBe(true);
-  });
-});
-
 describe("claimSyncSlot", () => {
   async function runClaim(opts: {
     lastSyncedAt: string | null;

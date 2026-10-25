@@ -70,7 +70,7 @@ Tokens can be revoked in the same settings section; revocation takes effect imme
 | `clear_tentative_assignments`          | write | Discard a poll's tentative draft                                                 |
 | `explain_gap`                          | read  | Why a match is (or is not) fillable, bucketed per umpire (S2)                    |
 | `get_day_sheet`                        | read  | The weekend read out in conversation (S8)                                        |
-| `get_sync_status`                      | read  | Sync triage: last run, changes, flagged matches (S6)                             |
+| `get_sync_status`                      | read  | Sync triage: last run, club websites, flagged matches (S6)                       |
 | `list_availability_withdrawals`        | read  | Who pulled a yes after being assigned (S7)                                       |
 | `set_match_notes` / `set_umpire_notes` | write | Capture planner notes the moment they're said (S3)                               |
 | `create_match` / `update_match`        | write | Add a friendly, move a kick-off, fix a venue (S4)                                |
@@ -80,7 +80,7 @@ Tokens can be revoked in the same settings section; revocation takes effect imme
 | `suggest_swaps`                        | read  | Direct picks plus one-move swap chains to repair an unfillable match             |
 | `get_season_stats`                     | read  | Coverage, load distribution, responsiveness, hardest-to-fill (C3)                |
 | `update_poll_response`                 | write | Record an availability change an umpire communicated outside the poll            |
-| `trigger_sync`                         | write | Run the Match Center sync on demand (15-min cooldown) (S6)                       |
+| `trigger_sync`                         | write | Club-website check, then the full sync outside its 15-min cooldown (S6)          |
 | `clear_match_review_flags`             | write | Mark a sync flag as handled (S6)                                                 |
 
 The `draft_chase_message` prompt (S1) gathers non-responders, at-risk slots, and the poll

@@ -216,6 +216,22 @@ export type HockeySyncState = {
   updated_at: string;
 };
 
+/** A club website whose LISA export the change detector polls. */
+export type ClubFeed = {
+  id: string;
+  organization_id: string;
+  host: string;
+  site_alias: string;
+  apply_changes: boolean;
+  created_by: string;
+  created_at: string;
+  last_polled_at: string | null;
+  last_poll_status: "success" | "partial" | "error" | null;
+  last_poll_error: string | null;
+  last_suspects: number;
+  last_confirmed: number;
+};
+
 /** Move PollAssignmentContext into domain types for consistency. */
 export type AssignedSlotInfo = {
   slotId: string;

@@ -10,7 +10,11 @@ import {
 } from "@/lib/domain/carry-over-responses";
 import { buildPollShareUrl } from "@/lib/domain/poll-share-link";
 import { createHockeyDeps } from "@/lib/hockey/deps";
-import { syncWithLease } from "@/lib/hockey/sync";
+import {
+  MANUAL_SYNC_COOLDOWN_MS,
+  refreshOrganization,
+  refreshedNothing,
+} from "@/lib/hockey/refresh";
 import { normalizeNote, MAX_NOTE_LENGTH } from "@/lib/domain/notes";
 import { composeAmsterdamTimestamp } from "@/lib/domain/timezone";
 import type {
@@ -2488,16 +2492,12 @@ export async function removeMatchesFromPollForPlanner(
 // Trigger a Match Center sync
 // ---------------------------------------------------------------------------
 
-const MCP_SYNC_COOLDOWN_MS = 15 * 60 * 1000;
-
 export async function triggerSync(ctx: McpPlannerContext) {
   let result;
   try {
-    result = await syncWithLease(
-      createHockeyDeps(),
-      ctx.organizationId,
-      MCP_SYNC_COOLDOWN_MS,
-    );
+    result = await refreshOrganization(createHockeyDeps(), ctx.organizationId, {
+      fullSyncWindowMs: MANUAL_SYNC_COOLDOWN_MS,
+    });
   } catch (error) {
     console.error("[mcp] sync failed:", error);
     const detail = error instanceof Error ? error.message : String(error);
@@ -2505,20 +2505,43 @@ export async function triggerSync(ctx: McpPlannerContext) {
       `The Match Center sync failed: ${detail}. This failure is not recorded in get_sync_status (that still shows the last completed run) — try again later.`,
     );
   }
-  if (result === null) {
+  if (result.status === "busy") {
     return {
-      status: "cooldown",
-      note: "A sync ran within the last 15 minutes (or is running now); nothing was started. get_sync_status shows the latest state.",
+      status: "busy",
+      note: "Another sync of this club is running now; nothing was started. get_sync_status shows the latest state.",
     };
   }
+  if (refreshedNothing(result)) {
+    return {
+      status: "cooldown",
+      note: "A full sync ran within the last 15 minutes, and the club websites showed no change to check; nothing was started. get_sync_status shows the latest state.",
+    };
+  }
+  const { detector, sync } = result;
   return {
-    status: "synced",
-    inserted: result.inserted,
-    updated: result.updated,
-    flagged: result.flagged,
-    cancelled: result.cancelled,
-    matches_awaiting_time: result.awaitingTime,
-    errors: result.errors.length ? result.errors : undefined,
+    status: "refreshed",
+    club_websites: detector
+      ? {
+          changes_checked: detector.confirmed,
+          changes_waiting: detector.pending || undefined,
+          inserted: detector.inserted,
+          updated: detector.updated,
+          flagged: detector.flagged,
+          cancelled: detector.cancelled,
+          not_applied_shadow_mode: detector.shadowed || undefined,
+          errors: detector.errors.length ? detector.errors : undefined,
+        }
+      : undefined,
+    full_sync: sync
+      ? {
+          inserted: sync.inserted,
+          updated: sync.updated,
+          flagged: sync.flagged,
+          cancelled: sync.cancelled,
+          matches_awaiting_time: sync.awaitingTime,
+          errors: sync.errors.length ? sync.errors : undefined,
+        }
+      : "skipped: a full sync ran within the last 15 minutes",
     note: "Flagged matches need review — get_sync_status lists them; clear handled ones with clear_match_review_flags.",
   };
 }
@@ -2529,7 +2552,7 @@ export async function triggerSync(ctx: McpPlannerContext) {
 
 export async function getSyncStatus(ctx: McpPlannerContext) {
   const client = db();
-  const [stateRes, trackedRes, flaggedRes] = await Promise.all([
+  const [stateRes, trackedRes, flaggedRes, feedsRes] = await Promise.all([
     client
       .from("hockey_sync_state")
       .select("*")
@@ -2547,10 +2570,18 @@ export async function getSyncStatus(ctx: McpPlannerContext) {
       .eq("organization_id", ctx.organizationId)
       .eq("needs_review", true)
       .order("date"),
+    client
+      .from("club_feeds")
+      .select(
+        "host, apply_changes, last_polled_at, last_poll_status, last_poll_error, last_suspects, last_confirmed",
+      )
+      .eq("organization_id", ctx.organizationId)
+      .order("created_at"),
   ]);
   throwDb(stateRes.error);
   throwDb(trackedRes.error);
   throwDb(flaggedRes.error);
+  throwDb(feedsRes.error);
 
   const state = stateRes.data;
   return {
@@ -2566,6 +2597,15 @@ export async function getSyncStatus(ctx: McpPlannerContext) {
           matches_awaiting_time: state.awaiting_time_count,
         }
       : null,
+    club_websites: (feedsRes.data ?? []).map((feed) => ({
+      host: feed.host,
+      shadow_mode: !feed.apply_changes || undefined,
+      last_polled_at: feed.last_polled_at,
+      status: feed.last_poll_status,
+      error: feed.last_poll_error,
+      last_changes_found: feed.last_suspects,
+      last_changes_checked: feed.last_confirmed,
+    })),
     flagged_matches: (flaggedRes.data ?? []).map((m) => ({
       id: m.id,
       date: m.date,

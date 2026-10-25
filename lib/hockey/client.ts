@@ -16,6 +16,20 @@ export class HockeyRateLimitError extends Error {
   }
 }
 
+/**
+ * The upstream answered with an error status other than a throttle. Typed so
+ * callers can tell "this match does not exist" (404) from an outage.
+ */
+export class HockeyHttpError extends Error {
+  constructor(
+    readonly status: number,
+    message = `HTTP ${status}`,
+  ) {
+    super(message);
+    this.name = "HockeyHttpError";
+  }
+}
+
 /** Added to an upstream rate-limit wait, so the retry lands after the reset. */
 const RATE_LIMIT_MARGIN_MS = 1_000;
 
@@ -240,7 +254,7 @@ export function createHockeyClient(opts: {
         if (response.status === 429) {
           throw new HockeyRateLimitError(message ?? undefined);
         }
-        throw new Error(message ?? `HTTP ${response.status}`);
+        throw new HockeyHttpError(response.status, message ?? undefined);
       }
       const payload = (await response.json()) as { data?: T };
       return payload.data as T;
