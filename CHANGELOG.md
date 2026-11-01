@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.35.0](https://github.com/sauerhosen/fluitplanner/compare/v2.34.0...v2.35.0) (2026-11-01)
+
+
+### Features
+
+* open poll detail on the next two weeks ([9b1aa30](https://github.com/sauerhosen/fluitplanner/commit/9b1aa30a49d0cdf5cdf79e68c7dd3b69cb11066c))
+* open poll detail on the next two weeks instead of all dates ([ffb62f5](https://github.com/sauerhosen/fluitplanner/commit/ffb62f56fd3c48ba88b38752f436d52bb37cd5e6))
+
 ## [2.34.0](https://github.com/sauerhosen/fluitplanner/compare/v2.33.0...v2.34.0) (2026-10-25)
 
 
