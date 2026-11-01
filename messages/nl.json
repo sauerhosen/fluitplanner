@@ -372,7 +372,16 @@
     "featureUnavailableNoKickoff": "Geen aanvangstijd, dus deze wedstrijd zit in geen enkel tijdslot",
     "featureToggleError": "Kon niet wijzigen wat deze poll toont",
     "featureNotInPoll": "Deze wedstrijd zit niet meer in deze poll",
-    "featureMatchNotFound": "Deze wedstrijd bestaat niet meer"
+    "featureMatchNotFound": "Deze wedstrijd bestaat niet meer",
+    "hideMatch": "Wedstrijd verbergen",
+    "unhideMatch": "Wedstrijd tonen",
+    "hiddenBadge": "Verborgen",
+    "hiddenMatchesCount": "{count, plural, one {# verborgen wedstrijd} other {# verborgen wedstrijden}}",
+    "hiddenMatchesHint": "Verborgen in dit overzicht en in exports. Scheidsrechters zien het tijdvak nog wel.",
+    "showAllHidden": "Alles tonen",
+    "hideToggleError": "Kon de wedstrijd niet bijwerken. Probeer het opnieuw.",
+    "hiddenMatchesAssigned": "{confirmed} bevestigd, {tentative} voorlopig",
+    "hideConfirmedWarning": "{count, plural, one {Deze wedstrijd heeft een bevestigde scheidsrechter} other {Deze wedstrijd heeft # bevestigde scheidsrechters}}. Verborgen wedstrijden staan niet in exports, dus hij komt niet op de dagstaat. Toch verbergen?"
   },
   "pollResponse": {
     "loadingPoll": "Peiling laden...",

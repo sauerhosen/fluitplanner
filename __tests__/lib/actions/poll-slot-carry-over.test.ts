@@ -200,3 +200,26 @@ describe("updatePollMatches slot changes", () => {
     expect(writes()).not.toContain("poll_slots delete");
   });
 });
+
+describe("updatePollMatches hidden flags", () => {
+  it("keeps a hidden match hidden across a match-list edit", async () => {
+    scenario();
+    const base = state.respond;
+    state.respond = (op) =>
+      op.table === "poll_matches" && op.kind === "select"
+        ? {
+            data: [{ match_id: PLACEHOLDER.id, featured: false, hidden: true }],
+          }
+        : base(op);
+
+    await updatePollMatches("poll-1", [PLACEHOLDER.id, REAL.id]);
+
+    const insert = state.ops.find(
+      (o) => o.table === "poll_matches" && o.kind === "insert",
+    );
+    const rows = insert?.payload as { match_id: string; hidden: boolean }[];
+    expect(rows.find((r) => r.match_id === PLACEHOLDER.id)?.hidden).toBe(true);
+    // A newly added match starts visible.
+    expect(rows.find((r) => r.match_id === REAL.id)?.hidden).toBe(false);
+  });
+});

@@ -372,7 +372,16 @@
     "featureUnavailableNoKickoff": "No kick-off time, so this match is not in any slot",
     "featureToggleError": "Could not change what this poll shows",
     "featureNotInPoll": "This match is no longer in this poll",
-    "featureMatchNotFound": "This match no longer exists"
+    "featureMatchNotFound": "This match no longer exists",
+    "hideMatch": "Hide match",
+    "unhideMatch": "Show match",
+    "hiddenBadge": "Hidden",
+    "hiddenMatchesCount": "{count, plural, one {# hidden match} other {# hidden matches}}",
+    "hiddenMatchesHint": "Hidden from this grid and from exports. Umpires still see the time slot.",
+    "showAllHidden": "Show all",
+    "hideToggleError": "Could not update the match. Try again.",
+    "hiddenMatchesAssigned": "{confirmed} confirmed, {tentative} tentative",
+    "hideConfirmedWarning": "{count, plural, one {This match has a confirmed umpire} other {This match has # confirmed umpires}}. Hidden matches are left out of exports, so it will not appear on the day sheet. Hide anyway?"
   },
   "pollResponse": {
     "loadingPoll": "Loading poll...",

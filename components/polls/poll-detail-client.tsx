@@ -20,6 +20,9 @@ import {
 import { groupMatchesIntoSlots } from "@/lib/domain/slots";
 import { mapMatchesToSlots } from "@/lib/domain/match-slot-mapping";
 import { countDiscardedResponses } from "@/lib/domain/carry-over-responses";
+import { withoutHidden } from "@/lib/domain/hidden-matches";
+import { setPollMatchesHidden } from "@/lib/actions/hidden-matches";
+import { toast } from "sonner";
 import { MatchSelector } from "./match-selector";
 import { SlotPreview } from "./slot-preview";
 import { DiscardedAnswersWarning } from "./discarded-answers-warning";
@@ -54,6 +57,8 @@ import {
   Lock,
   LockOpen,
   ChevronLeft,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { ExportDropdown } from "./export-dropdown";
 import { PollToolbarMenu } from "./poll-toolbar-menu";
@@ -217,6 +222,64 @@ export function PollDetailClient({
       }));
     },
     [],
+  );
+
+  const hiddenMatchIds = useMemo(
+    () => new Set(poll.hiddenMatchIds),
+    [poll.hiddenMatchIds],
+  );
+
+  // Hidden matches never reach an export: the grid folds them away, and a
+  // day sheet listing fixtures the planner set aside would be wrong.
+  const exportMatches = useMemo(
+    () => withoutHidden(filteredMatches, poll.hiddenMatchIds),
+    [filteredMatches, poll.hiddenMatchIds],
+  );
+
+  // Optimistic: the column folds on click, and comes back with a toast if the
+  // database did not take it.
+  const handleSetHidden = useCallback(
+    (matchIds: string[], hidden: boolean) => {
+      const apply = (prev: PollDetail, on: boolean) => ({
+        ...prev,
+        hiddenMatchIds: on
+          ? [...new Set([...prev.hiddenMatchIds, ...matchIds])]
+          : prev.hiddenMatchIds.filter((id) => !matchIds.includes(id)),
+      });
+      // Hidden matches drop out of exports, so a booked umpire would vanish
+      // from the day sheet. Say so before it happens.
+      if (hidden) {
+        const booked = liveAssignments.filter(
+          (a) => a.status === "confirmed" && matchIds.includes(a.match_id),
+        ).length;
+        if (
+          booked > 0 &&
+          !confirm(t("hideConfirmedWarning", { count: booked }))
+        )
+          return;
+      }
+      setPoll((prev) => apply(prev, hidden));
+      setPollMatchesHidden(poll.id, matchIds, hidden)
+        .then((result) => {
+          if (!result.ok) throw new Error(result.reason);
+        })
+        .catch(async () => {
+          toast.error(t("hideToggleError"));
+          // Read the stored flags back rather than flipping the optimistic
+          // change: with several toggles in flight, undoing one by applying
+          // its opposite can leave the page claiming the wrong state.
+          try {
+            const fresh = await getPoll(poll.id);
+            setPoll((prev) => ({
+              ...prev,
+              hiddenMatchIds: fresh.hiddenMatchIds,
+            }));
+          } catch {
+            setPoll((prev) => apply(prev, !hidden));
+          }
+        });
+    },
+    [poll.id, t, liveAssignments],
   );
 
   // Umpires arrive as a prop from the server, so an umpire note edited in the
@@ -513,7 +576,7 @@ export function PollDetailClient({
             className="sm:hidden"
             pollTitle={poll.title ?? ""}
             slots={filteredSlots}
-            matches={filteredMatches}
+            matches={exportMatches}
             responses={liveResponses}
             assignments={liveAssignments}
             umpires={umpires}
@@ -531,7 +594,7 @@ export function PollDetailClient({
             <ExportDropdown
               pollTitle={poll.title ?? ""}
               slots={filteredSlots}
-              matches={filteredMatches}
+              matches={exportMatches}
               responses={liveResponses}
               assignments={liveAssignments}
               umpires={umpires}
@@ -668,47 +731,103 @@ export function PollDetailClient({
                               </div>
                               {slotMatches.length > 0 ? (
                                 <div className="divide-y px-3">
-                                  {slotMatches.map((match) => (
-                                    <div
-                                      key={match.id}
-                                      className="flex items-center justify-between gap-2 py-1.5 text-sm"
-                                    >
-                                      <span>
-                                        {match.home_team} – {match.away_team}
-                                      </span>
-                                      <div className="flex items-center gap-1">
-                                        {match.start_time && (
-                                          <span className="text-muted-foreground text-xs">
-                                            {format.dateTime(
-                                              new Date(match.start_time),
-                                              {
-                                                hour: "2-digit",
-                                                minute: "2-digit",
-                                                hour12: false,
-                                              },
-                                            )}
-                                          </span>
-                                        )}
-                                        <FeatureMatchButton
-                                          pollId={poll.id}
-                                          matchId={match.id}
-                                          featured={featuredMatchIds.has(
-                                            match.id,
-                                          )}
-                                          disabled={!match.start_time}
-                                          onToggled={handleFeatureToggled}
-                                        />
-                                        <MatchNoteButton
-                                          match={match}
-                                          variant={
-                                            canEdit ? "editor" : "indicator"
+                                  {slotMatches.map((match) => {
+                                    const isHidden = hiddenMatchIds.has(
+                                      match.id,
+                                    );
+                                    const toggleHiddenLabel = isHidden
+                                      ? t("unhideMatch")
+                                      : t("hideMatch");
+                                    return (
+                                      <div
+                                        key={match.id}
+                                        data-hidden={isHidden || undefined}
+                                        className="flex items-center justify-between gap-2 py-1.5 text-sm"
+                                      >
+                                        <span
+                                          className={
+                                            isHidden
+                                              ? "flex items-center gap-2 text-muted-foreground"
+                                              : undefined
                                           }
-                                          readOnly={!canEdit}
-                                          onSaved={refreshPoll}
-                                        />
+                                        >
+                                          <span
+                                            className={
+                                              isHidden
+                                                ? "line-through"
+                                                : undefined
+                                            }
+                                          >
+                                            {match.home_team} –{" "}
+                                            {match.away_team}
+                                          </span>
+                                          {isHidden && (
+                                            <Badge
+                                              variant="outline"
+                                              className="font-normal"
+                                            >
+                                              {t("hiddenBadge")}
+                                            </Badge>
+                                          )}
+                                        </span>
+                                        <div className="flex items-center gap-1">
+                                          {match.start_time && (
+                                            <span className="text-muted-foreground text-xs">
+                                              {format.dateTime(
+                                                new Date(match.start_time),
+                                                {
+                                                  hour: "2-digit",
+                                                  minute: "2-digit",
+                                                  hour12: false,
+                                                },
+                                              )}
+                                            </span>
+                                          )}
+                                          {canEdit && (
+                                            <Button
+                                              type="button"
+                                              variant="ghost"
+                                              size="icon"
+                                              className="h-7 w-7"
+                                              aria-pressed={isHidden}
+                                              aria-label={toggleHiddenLabel}
+                                              title={toggleHiddenLabel}
+                                              data-testid={`toggle-hidden-${match.id}`}
+                                              onClick={() =>
+                                                handleSetHidden(
+                                                  [match.id],
+                                                  !isHidden,
+                                                )
+                                              }
+                                            >
+                                              {isHidden ? (
+                                                <Eye className="h-3.5 w-3.5 text-muted-foreground" />
+                                              ) : (
+                                                <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />
+                                              )}
+                                            </Button>
+                                          )}
+                                          <FeatureMatchButton
+                                            pollId={poll.id}
+                                            matchId={match.id}
+                                            featured={featuredMatchIds.has(
+                                              match.id,
+                                            )}
+                                            disabled={!match.start_time}
+                                            onToggled={handleFeatureToggled}
+                                          />
+                                          <MatchNoteButton
+                                            match={match}
+                                            variant={
+                                              canEdit ? "editor" : "indicator"
+                                            }
+                                            readOnly={!canEdit}
+                                            onSaved={refreshPoll}
+                                          />
+                                        </div>
                                       </div>
-                                    </div>
-                                  ))}
+                                    );
+                                  })}
                                 </div>
                               ) : (
                                 <div className="text-muted-foreground px-3 py-1.5 text-sm">
@@ -751,6 +870,8 @@ export function PollDetailClient({
             onAssignmentsChange={setLiveAssignments}
             onNoteSaved={refreshPoll}
             onUmpireNoteSaved={refreshUmpires}
+            hiddenMatchIds={poll.hiddenMatchIds}
+            onSetHidden={canEdit ? handleSetHidden : undefined}
           />
         </TabsContent>
       </Tabs>

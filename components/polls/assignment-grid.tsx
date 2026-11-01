@@ -8,7 +8,7 @@ import {
   useEffect,
   useRef,
 } from "react";
-import { Check, Ban, AlertTriangle } from "lucide-react";
+import { Check, Ban, AlertTriangle, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,7 @@ import {
   clearTentativeAssignments,
 } from "@/lib/actions/assignments";
 import { mapMatchesToSlots } from "@/lib/domain/match-slot-mapping";
+import { collapseHiddenMatches } from "@/lib/domain/hidden-matches";
 import { stripClubPrefix } from "@/lib/domain/team-names";
 import { shortenUmpireName } from "@/lib/domain/umpire-names";
 import {
@@ -39,6 +40,7 @@ import { UmpireNoteButton } from "@/components/umpires/umpire-note-button";
 import { useTranslations, useFormatter } from "next-intl";
 import { usePinnedTableHeader } from "@/hooks/use-pinned-table-header";
 import { useIsPlanner } from "@/components/shared/role-provider";
+import { HiddenMatchesMarker } from "./hidden-matches-marker";
 
 type Props = {
   pollId: string;
@@ -68,7 +70,16 @@ type Props = {
   onNoteSaved?: () => void;
   /** Called after an umpire note is saved so the parent can refetch. */
   onUmpireNoteSaved?: () => void;
+  /**
+   * Matches folded out of the grid. They stay in `matches` so conflicts and
+   * workload counts still see their assignments; only their columns collapse.
+   */
+  hiddenMatchIds?: string[];
+  /** Hide or unhide matches; absent means the grid offers no such control. */
+  onSetHidden?: (matchIds: string[], hidden: boolean) => void;
 };
+
+const NO_HIDDEN: string[] = [];
 
 const AVAILABILITY_COLORS: Record<string, string> = {
   yes: "bg-green-100 dark:bg-green-900/30",
@@ -95,6 +106,8 @@ export function AssignmentGrid({
   onAssignmentsChange,
   onNoteSaved,
   onUmpireNoteSaved,
+  hiddenMatchIds = NO_HIDDEN,
+  onSetHidden,
 }: Props) {
   const [assignments, setAssignments] = useState(initialAssignments);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -349,6 +362,49 @@ export function AssignmentGrid({
     return groups;
   }, [sortedMatches, format]);
 
+  const hiddenSet = useMemo(() => new Set(hiddenMatchIds), [hiddenMatchIds]);
+  const dateSegments = useMemo(
+    () =>
+      dateGroups.map((group) => ({
+        ...group,
+        segments: collapseHiddenMatches(group.matches, hiddenSet),
+      })),
+    [dateGroups, hiddenSet],
+  );
+  // Flattened for the column-per-match layout; the first column of every day
+  // after the first carries the day divider.
+  const columns = useMemo(
+    () =>
+      dateSegments.flatMap((group, gi) =>
+        group.segments.map((segment, si) => ({
+          segment,
+          showBorder: gi > 0 && si === 0,
+        })),
+      ),
+    [dateSegments],
+  );
+  const segmentCount = columns.length;
+  const handleUnhide =
+    canEdit && onSetHidden
+      ? (ids: string[]) => onSetHidden(ids, false)
+      : undefined;
+
+  function renderHideButton(matchId: string, className?: string) {
+    if (!canEdit || !onSetHidden) return null;
+    return (
+      <button
+        type="button"
+        onClick={() => onSetHidden([matchId], true)}
+        title={t("hideMatch")}
+        aria-label={t("hideMatch")}
+        data-testid={`hide-${matchId}`}
+        className={`inline-flex h-5 w-5 items-center justify-center rounded text-muted-foreground opacity-0 transition-opacity hover:bg-muted hover:text-foreground focus-visible:opacity-100 group-hover/match:opacity-100 [@media(hover:none)]:opacity-60 ${className ?? ""}`}
+      >
+        <EyeOff className="h-3 w-3" />
+      </button>
+    );
+  }
+
   if (umpires.length === 0) {
     return (
       <p className="text-sm text-muted-foreground py-4">
@@ -571,6 +627,44 @@ export function AssignmentGrid({
     );
   }
 
+  function renderMatchRow(match: Match) {
+    return (
+      <tr key={match.id} className="group/match border-b border-border/50">
+        <td className="py-1.5 px-2 sticky left-0 z-10 bg-background max-w-[40vw]">
+          <div className="flex items-baseline gap-2">
+            {match.start_time && (
+              <span className="text-xs tabular-nums text-muted-foreground shrink-0">
+                {format.dateTime(new Date(match.start_time), {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  hour12: false,
+                })}
+              </span>
+            )}
+            <span className="font-medium truncate">
+              {match.home_team} &ndash; {match.away_team}
+            </span>
+            <MatchNoteButton
+              match={match}
+              variant="indicator"
+              readOnly={!canEdit}
+              onSaved={onNoteSaved}
+            />
+            {renderHideButton(match.id, "self-center")}
+          </div>
+        </td>
+        <td className="py-1.5 px-1 text-center">
+          {renderCountBadge(match.id)}
+        </td>
+        {umpires.map((u) => (
+          <td key={u.id} className="p-1">
+            {renderCell(match.id, u.id)}
+          </td>
+        ))}
+      </tr>
+    );
+  }
+
   if (!transposed) {
     return (
       <div className="flex flex-col gap-2">
@@ -611,7 +705,7 @@ export function AssignmentGrid({
               </tr>
             </thead>
             <tbody>
-              {dateGroups.map((group) => (
+              {dateSegments.map((group) => (
                 <Fragment key={group.date}>
                   <tr>
                     <td className="pt-4 pb-1 px-2 bg-background sticky left-0 z-10">
@@ -626,40 +720,26 @@ export function AssignmentGrid({
                       <div className="h-px bg-border" />
                     </td>
                   </tr>
-                  {group.matches.map((match) => (
-                    <tr key={match.id} className="border-b border-border/50">
-                      <td className="py-1.5 px-2 sticky left-0 z-10 bg-background max-w-[40vw]">
-                        <div className="flex items-baseline gap-2">
-                          {match.start_time && (
-                            <span className="text-xs tabular-nums text-muted-foreground shrink-0">
-                              {format.dateTime(new Date(match.start_time), {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                                hour12: false,
-                              })}
-                            </span>
-                          )}
-                          <span className="font-medium truncate">
-                            {match.home_team} &ndash; {match.away_team}
-                          </span>
-                          <MatchNoteButton
-                            match={match}
-                            variant="indicator"
-                            readOnly={!canEdit}
-                            onSaved={onNoteSaved}
+                  {group.segments.map((segment) =>
+                    segment.kind === "hidden" ? (
+                      <tr
+                        key={segment.key}
+                        className="border-b border-border/50"
+                      >
+                        <td className="py-0.5 px-1 sticky left-0 z-10 bg-background">
+                          <HiddenMatchesMarker
+                            matches={segment.matches}
+                            onUnhide={handleUnhide}
+                            countFor={matchCount}
+                            orientation="row"
                           />
-                        </div>
-                      </td>
-                      <td className="py-1.5 px-1 text-center">
-                        {renderCountBadge(match.id)}
-                      </td>
-                      {umpires.map((u) => (
-                        <td key={u.id} className="p-1">
-                          {renderCell(match.id, u.id)}
                         </td>
-                      ))}
-                    </tr>
-                  ))}
+                        <td colSpan={1 + umpires.length} />
+                      </tr>
+                    ) : (
+                      renderMatchRow(segment.match)
+                    ),
+                  )}
                 </Fragment>
               ))}
             </tbody>
@@ -689,10 +769,10 @@ export function AssignmentGrid({
               >
                 {t("umpireColumnHeader")}
               </th>
-              {dateGroups.map((group, gi) => (
+              {dateSegments.map((group, gi) => (
                 <th
                   key={group.date}
-                  colSpan={group.matches.length}
+                  colSpan={group.segments.length}
                   className={`bg-background p-1 pb-0 text-center font-semibold text-xs capitalize ${gi > 0 ? "border-l-2 border-border" : ""}`}
                 >
                   {group.label}
@@ -700,14 +780,27 @@ export function AssignmentGrid({
               ))}
             </tr>
             <tr className="bg-background">
-              {sortedMatches.map((match, i) => {
-                const prevMatch = sortedMatches[i - 1];
-                const showBorder =
-                  i > 0 && (!prevMatch || prevMatch.date !== match.date);
+              {columns.map(({ segment, showBorder }) => {
+                if (segment.kind === "hidden") {
+                  return (
+                    <th
+                      key={segment.key}
+                      className={`w-6 bg-background p-0 pb-1 align-bottom ${showBorder ? "border-l-2 border-border" : ""}`}
+                    >
+                      <HiddenMatchesMarker
+                        matches={segment.matches}
+                        onUnhide={handleUnhide}
+                        countFor={matchCount}
+                        orientation="column"
+                      />
+                    </th>
+                  );
+                }
+                const match = segment.match;
                 return (
                   <th
                     key={match.id}
-                    className={`relative bg-background p-1 sm:p-2 pt-0 text-center font-medium whitespace-nowrap min-w-14 sm:min-w-24 ${showBorder ? "border-l-2 border-border" : ""}`}
+                    className={`group/match relative bg-background p-1 sm:p-2 pt-0 text-center font-medium whitespace-nowrap min-w-14 sm:min-w-24 ${showBorder ? "border-l-2 border-border" : ""}`}
                   >
                     <div className="flex flex-col items-center gap-0.5">
                       {match.start_time && (
@@ -737,6 +830,7 @@ export function AssignmentGrid({
                         onSaved={onNoteSaved}
                         className="absolute right-0 top-0"
                       />
+                      {renderHideButton(match.id, "absolute left-0 top-0")}
                       {renderCountBar(match.id)}
                     </div>
                   </th>
@@ -746,10 +840,7 @@ export function AssignmentGrid({
             {/* A collapsed border on a sticky header is dropped while it is
                 pinned, so the header's bottom edge is a row of its own. */}
             <tr className="bg-background">
-              <td
-                colSpan={1 + sortedMatches.length}
-                className="h-px bg-border p-0"
-              />
+              <td colSpan={1 + segmentCount} className="h-px bg-border p-0" />
             </tr>
           </thead>
           <tbody>
@@ -774,19 +865,25 @@ export function AssignmentGrid({
                     />
                   </div>
                 </td>
-                {sortedMatches.map((match, i) => {
-                  const prevMatch = sortedMatches[i - 1];
-                  const showBorder =
-                    i > 0 && (!prevMatch || prevMatch.date !== match.date);
-                  return (
+                {columns.map(({ segment, showBorder }) =>
+                  segment.kind === "hidden" ? (
+                    // A faint sliver, so the folded run still reads as a
+                    // column without competing with real cells.
                     <td
-                      key={match.id}
+                      key={segment.key}
                       className={`p-1 ${showBorder ? "border-l-2 border-border" : ""}`}
                     >
-                      {renderCell(match.id, u.id)}
+                      <div className="h-10 w-4 mx-auto rounded bg-muted/30" />
                     </td>
-                  );
-                })}
+                  ) : (
+                    <td
+                      key={segment.match.id}
+                      className={`p-1 ${showBorder ? "border-l-2 border-border" : ""}`}
+                    >
+                      {renderCell(segment.match.id, u.id)}
+                    </td>
+                  ),
+                )}
               </tr>
             ))}
           </tbody>
