@@ -165,6 +165,14 @@ describe("setPollMatchesHidden", () => {
     );
   });
 
+  it("reports a bulk write that changed only some of the matches", async () => {
+    respondWith({ updatedRows: [{ match_id: "m1" }] });
+
+    await expect(
+      setPollMatchesHidden("poll-1", ["m1", "m2"], false),
+    ).resolves.toEqual({ ok: false, reason: "not_in_poll" });
+  });
+
   it("does nothing for an empty list", async () => {
     await expect(setPollMatchesHidden("poll-1", [], true)).resolves.toEqual({
       ok: true,

@@ -253,4 +253,22 @@ describe("PollDetailClient hiding a match", () => {
       screen.queryByTestId("hidden-matches-marker"),
     ).not.toBeInTheDocument();
   });
+
+  it("drops a match another editor removed when a hide is refused", async () => {
+    vi.mocked(setPollMatchesHidden).mockResolvedValueOnce({
+      ok: false,
+      reason: "not_in_poll",
+    });
+    vi.mocked(getPoll).mockResolvedValue({ ...POLL, matches: [] });
+    renderPoll({ ...POLL, matches: [MATCH] });
+
+    await userEvent.click(screen.getByTestId("hide-m1"));
+
+    await waitFor(() =>
+      expect(screen.queryByTestId("hide-m1")).not.toBeInTheDocument(),
+    );
+    expect(
+      screen.queryByTestId("hidden-matches-marker"),
+    ).not.toBeInTheDocument();
+  });
 });

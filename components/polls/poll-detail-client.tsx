@@ -270,8 +270,14 @@ export function PollDetailClient({
           // its opposite can leave the page claiming the wrong state.
           try {
             const fresh = await getPoll(poll.id);
+            // A refusal usually means a match left the poll meanwhile, so
+            // take its match list and slots too. Answers and assignments stay
+            // local: they may hold edits still in flight.
             setPoll((prev) => ({
               ...prev,
+              matches: fresh.matches,
+              slots: fresh.slots,
+              featuredMatchIds: fresh.featuredMatchIds,
               hiddenMatchIds: fresh.hiddenMatchIds,
             }));
           } catch {

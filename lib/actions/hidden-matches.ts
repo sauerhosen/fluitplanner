@@ -44,7 +44,11 @@ export async function setPollMatchesHidden(
     .select("match_id");
 
   if (error) throw new Error(error.message);
-  if (!data || data.length === 0) return { ok: false, reason: "not_in_poll" };
+  // Every requested match must have changed: a partial result means some
+  // left the poll meanwhile, and the caller has to re-read what is there.
+  if (!data || data.length !== new Set(matchIds).size) {
+    return { ok: false, reason: "not_in_poll" };
+  }
 
   revalidatePath("/protected/polls");
   return { ok: true };
