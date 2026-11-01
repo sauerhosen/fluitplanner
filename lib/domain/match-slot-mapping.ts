@@ -30,7 +30,8 @@ export function mapMatchesToSlots(
       start: new Date(slot.start_time).getTime(),
       end: new Date(slot.end_time).getTime(),
     }))
-    .sort((a, b) => a.start - b.start);
+    // Tie-break on id so equal-start slots resolve the same for every caller.
+    .sort((a, b) => a.start - b.start || a.id.localeCompare(b.id));
 
   for (const match of matches) {
     if (!match.start_time) continue;

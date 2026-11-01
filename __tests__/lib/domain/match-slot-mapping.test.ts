@@ -149,4 +149,25 @@ describe("mapMatchesToSlots", () => {
       expect(result.get("m1130")).toBe("early");
     });
   });
+
+  it("resolves equal-start slots the same regardless of input order", () => {
+    const twins: PollSlot[] = [
+      {
+        id: "b",
+        poll_id: "p",
+        start_time: "2026-11-21T09:15:00Z",
+        end_time: "2026-11-21T11:15:00Z",
+      },
+      {
+        id: "a",
+        poll_id: "p",
+        start_time: "2026-11-21T09:15:00Z",
+        end_time: "2026-11-21T11:15:00Z",
+      },
+    ];
+    const match = [{ id: "m", start_time: "2026-11-21T09:45:00Z" }];
+    expect(mapMatchesToSlots(match, twins).get("m")).toBe(
+      mapMatchesToSlots(match, [...twins].reverse()).get("m"),
+    );
+  });
 });
