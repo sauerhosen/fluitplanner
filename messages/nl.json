@@ -276,6 +276,8 @@
     "shareHeader": "Delen",
     "statusOpen": "Open",
     "statusClosed": "Gesloten",
+    "closeSelected": "Geselecteerde sluiten",
+    "bulkCloseError": "Polls sluiten mislukt. Probeer het opnieuw.",
     "moreActions": "Meer acties",
     "viewDetails": "Details bekijken",
     "deleteConfirm": "Deze peiling verwijderen? Alle reacties gaan verloren.",

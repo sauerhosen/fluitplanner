@@ -659,6 +659,22 @@ export async function deletePolls(pollIds: string[]): Promise<void> {
   revalidatePath("/protected/polls");
 }
 
+export async function closePolls(pollIds: string[]): Promise<void> {
+  if (pollIds.length === 0) return;
+  if (pollIds.length > 500)
+    throw new Error("Cannot close more than 500 items at once");
+  const { supabase, tenantId } = await requirePlanner();
+
+  const { error } = await supabase
+    .from("polls")
+    .update({ status: "closed" })
+    .in("id", pollIds)
+    .eq("organization_id", tenantId)
+    .eq("status", "open");
+  if (error) throw new Error(error.message);
+  revalidatePath("/protected/polls");
+}
+
 /* ------------------------------------------------------------------ */
 /*  addMatchesToPoll                                                    */
 /* ------------------------------------------------------------------ */

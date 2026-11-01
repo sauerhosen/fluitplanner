@@ -276,6 +276,8 @@
     "shareHeader": "Share",
     "statusOpen": "Open",
     "statusClosed": "Closed",
+    "closeSelected": "Close selected",
+    "bulkCloseError": "Failed to close polls. Please try again.",
     "moreActions": "More actions",
     "viewDetails": "View Details",
     "deleteConfirm": "Delete this poll? All responses will be lost.",
