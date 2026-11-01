@@ -20,6 +20,14 @@ export type DateRangePreset = {
 };
 
 /**
+ * The "next two weeks" range: midnight bounds, so a range set from one place
+ * compares equal to the preset held by another.
+ */
+export function nextTwoWeeksRange(today = startOfDay(new Date())): DateRange {
+  return { from: today, to: addDays(today, 14) };
+}
+
+/**
  * The date shortcuts offered alongside the calendar.
  *
  * Shared, because a phone gets the presets on their own: the two-month
@@ -45,7 +53,7 @@ export function useDateRangePresets(): DateRangePreset[] {
       },
       {
         label: t("presetNextTwoWeeks"),
-        range: { from: today, to: addDays(today, 14) },
+        range: nextTwoWeeksRange(today),
       },
       {
         label: t("presetThisMonth"),
