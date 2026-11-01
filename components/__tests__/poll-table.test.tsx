@@ -8,6 +8,7 @@ import type { PollWithMeta } from "@/lib/actions/polls";
 vi.mock("@/lib/actions/polls", () => ({
   deletePoll: vi.fn(),
   deletePolls: vi.fn().mockResolvedValue(undefined),
+  closePolls: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -100,6 +101,19 @@ describe("PollTable", () => {
 
     expect(screen.getByText("Delete selected")).toBeInTheDocument();
     expect(screen.getByText("Clear selection")).toBeInTheDocument();
+  });
+
+  it("closes the selected polls from the selection toolbar", async () => {
+    const user = userEvent.setup();
+    const onDeleted = vi.fn();
+    render(<PollTable polls={mockPolls} onDeleted={onDeleted} />);
+
+    await user.click(screen.getByRole("checkbox", { name: "Weekend Feb 15" }));
+    await user.click(screen.getByText("Close selected"));
+
+    const { closePolls } = await import("@/lib/actions/polls");
+    expect(closePolls).toHaveBeenCalledWith(["p1"]);
+    expect(onDeleted).toHaveBeenCalled();
   });
 });
 

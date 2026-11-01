@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { PollWithMeta } from "@/lib/actions/polls";
-import { deletePoll, deletePolls } from "@/lib/actions/polls";
+import { deletePoll, deletePolls, closePolls } from "@/lib/actions/polls";
 import {
   Table,
   TableBody,
@@ -21,9 +21,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, Eye, Trash2, Inbox } from "lucide-react";
+import { MoreHorizontal, Eye, Trash2, Inbox, Lock } from "lucide-react";
 import { SharePollButton } from "./share-poll-button";
 import { useTranslations, useFormatter } from "next-intl";
+import { toast } from "sonner";
 import { useSelection } from "@/hooks/use-selection";
 import { useIsPlanner } from "@/components/shared/role-provider";
 import { SelectionToolbar } from "@/components/shared/selection-toolbar";
@@ -37,6 +38,7 @@ export function PollTable({
 }) {
   const router = useRouter();
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [closing, setClosing] = useState(false);
   const t = useTranslations("polls");
   const tCommon = useTranslations("common");
   const format = useFormatter();
@@ -85,6 +87,19 @@ export function PollTable({
     onDeleted();
   }
 
+  async function handleBulkClose() {
+    setClosing(true);
+    try {
+      await closePolls([...selectedIds]);
+      clearSelection();
+      onDeleted();
+    } catch {
+      toast.error(t("bulkCloseError"));
+    } finally {
+      setClosing(false);
+    }
+  }
+
   if (polls.length === 0) {
     return (
       <div className="flex flex-col items-center gap-3 py-12 text-center text-muted-foreground">
@@ -101,7 +116,17 @@ export function PollTable({
           selectedCount={selectedIds.size}
           onDelete={handleBulkDelete}
           onClearSelection={clearSelection}
-        />
+        >
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={closing}
+            onClick={handleBulkClose}
+          >
+            <Lock className="mr-2 h-4 w-4" />
+            {t("closeSelected")}
+          </Button>
+        </SelectionToolbar>
       )}
       <div className="overflow-x-auto">
         <Table>

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { gate } from "@/__tests__/helpers/auth-gate";
 
 const mockDelete = vi.fn();
+const mockUpdate = vi.fn();
 const mockIn = vi.fn();
 const mockEq = vi.fn();
 const mockGetUser = vi.fn();
@@ -9,6 +10,7 @@ const mockGetUser = vi.fn();
 function chainable() {
   return {
     delete: mockDelete,
+    update: mockUpdate,
     in: mockIn,
     eq: mockEq,
   };
@@ -38,7 +40,7 @@ vi.mock("next/cache", () => ({
 }));
 
 import { deleteMatches } from "@/lib/actions/matches";
-import { deletePolls } from "@/lib/actions/polls";
+import { deletePolls, closePolls } from "@/lib/actions/polls";
 import { deleteUmpires } from "@/lib/actions/umpires";
 import { revalidatePath } from "next/cache";
 
@@ -48,6 +50,7 @@ beforeEach(() => {
     data: { user: { id: "user-1" } },
   });
   mockDelete.mockReturnValue(chainable());
+  mockUpdate.mockReturnValue(chainable());
   mockIn.mockReturnValue(chainable());
   mockEq.mockReturnValue({ ...chainable(), error: null });
 });
@@ -159,5 +162,29 @@ describe("viewer role", () => {
     await expect(deleteMatches(["m1"])).rejects.toThrow("NOT_PLANNER");
     await expect(deletePolls(["p1"])).rejects.toThrow("NOT_PLANNER");
     await expect(deleteUmpires(["u1"])).rejects.toThrow("NOT_PLANNER");
+  });
+});
+
+describe("closePolls", () => {
+  it("returns early for empty array", async () => {
+    await closePolls([]);
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+
+  it("closes open polls scoped to organization", async () => {
+    await closePolls(["p1", "p2"]);
+    expect(mockFrom).toHaveBeenCalledWith("polls");
+    expect(mockUpdate).toHaveBeenCalledWith({ status: "closed" });
+    expect(mockIn).toHaveBeenCalledWith("id", ["p1", "p2"]);
+    expect(mockEq).toHaveBeenCalledWith("organization_id", "test-org-id");
+    expect(mockEq).toHaveBeenCalledWith("status", "open");
+    expect(revalidatePath).toHaveBeenCalledWith("/protected/polls");
+  });
+
+  it("rejects more than 500 items", async () => {
+    const ids = Array.from({ length: 501 }, (_, i) => `p${i}`);
+    await expect(closePolls(ids)).rejects.toThrow(
+      "Cannot close more than 500 items at once",
+    );
   });
 });
