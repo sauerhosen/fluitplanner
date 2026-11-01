@@ -36,6 +36,8 @@ export type PollDetail = Poll & {
   assignments: Assignment[];
   /** Matches whose details this poll reveals on the public page. */
   featuredMatchIds: string[];
+  /** Matches collapsed out of the planner's grid and left out of exports. */
+  hiddenMatchIds: string[];
 };
 
 /* ------------------------------------------------------------------ */
@@ -196,7 +198,7 @@ export async function getPoll(id: string): Promise<PollDetail> {
   // Fetch poll_matches junction
   const { data: pollMatches, error: pmError } = await supabase
     .from("poll_matches")
-    .select("match_id, featured")
+    .select("match_id, featured, hidden")
     .eq("poll_id", id);
 
   if (pmError) throw new Error(pmError.message);
@@ -206,6 +208,9 @@ export async function getPoll(id: string): Promise<PollDetail> {
   );
   const featuredMatchIds = (pollMatches ?? [])
     .filter((pm: { featured: boolean }) => pm.featured)
+    .map((pm: { match_id: string }) => pm.match_id);
+  const hiddenMatchIds = (pollMatches ?? [])
+    .filter((pm: { hidden: boolean }) => pm.hidden)
     .map((pm: { match_id: string }) => pm.match_id);
 
   // Fetch actual matches
@@ -255,6 +260,7 @@ export async function getPoll(id: string): Promise<PollDetail> {
     responses: responses ?? [],
     assignments: assignments ?? [],
     featuredMatchIds,
+    hiddenMatchIds,
   };
 }
 
@@ -514,7 +520,7 @@ export async function updatePollMatches(
   // by hand would be silently dropped on any edit to the match list.
   const { data: existingPollMatches, error: existingPmError } = await supabase
     .from("poll_matches")
-    .select("match_id, featured")
+    .select("match_id, featured, hidden")
     .eq("poll_id", pollId);
 
   if (existingPmError) throw new Error(existingPmError.message);
@@ -535,6 +541,14 @@ export async function updatePollMatches(
     ),
   );
 
+  // Hidden is a planner's own declutter, so a kept match keeps it; a newly
+  // added match starts visible.
+  const hiddenIds = new Set(
+    (existingPollMatches ?? [])
+      .filter((pm: { hidden?: boolean }) => pm.hidden)
+      .map((pm: { match_id: string }) => pm.match_id),
+  );
+
   // Replace poll_matches: delete old, insert new
   const { error: deleteError } = await supabase
     .from("poll_matches")
@@ -547,6 +561,7 @@ export async function updatePollMatches(
     poll_id: pollId,
     match_id: matchId,
     featured: resolvedFeatured.get(matchId) ?? false,
+    hidden: hiddenIds.has(matchId),
   }));
 
   const { error: insertError } = await supabase

@@ -731,3 +731,123 @@ describe("AssignmentGrid as a viewer", () => {
     expect(deleteAssignment).not.toHaveBeenCalled();
   });
 });
+
+describe("AssignmentGrid hidden matches", () => {
+  const props = {
+    pollId: "poll-1",
+    matches: mockMatches,
+    slots: mockSlots,
+    responses: mockResponses,
+    assignments: [] as Assignment[],
+    umpires: mockUmpires,
+  };
+
+  it("collapses a hidden match into a marker in the transposed view", () => {
+    render(<AssignmentGrid {...props} transposed hiddenMatchIds={["m1"]} />);
+
+    expect(screen.queryByText("HC Amsterdam")).not.toBeInTheDocument();
+    expect(screen.getByText("HC Utrecht")).toBeInTheDocument();
+    expect(screen.getByTestId("hidden-matches-marker")).toHaveAccessibleName(
+      "1 hidden match",
+    );
+    expect(screen.queryByTestId("cell-m1-u1")).not.toBeInTheDocument();
+  });
+
+  it("collapses a hidden match into a row marker in the match-per-row view", () => {
+    render(<AssignmentGrid {...props} hiddenMatchIds={["m1", "m2"]} />);
+
+    // Both on the same day and adjacent: one marker for the run.
+    expect(screen.getAllByTestId("hidden-matches-marker")).toHaveLength(1);
+    expect(screen.getByText("2 hidden matches")).toBeInTheDocument();
+  });
+
+  it("hides a match from its column header", async () => {
+    const onSetHidden = vi.fn();
+    render(<AssignmentGrid {...props} transposed onSetHidden={onSetHidden} />);
+
+    await userEvent.click(screen.getByTestId("hide-m2"));
+    expect(onSetHidden).toHaveBeenCalledWith(["m2"], true);
+  });
+
+  it("unhides one or all matches from the marker", async () => {
+    const onSetHidden = vi.fn();
+    render(
+      <AssignmentGrid
+        {...props}
+        transposed
+        hiddenMatchIds={["m1", "m2"]}
+        onSetHidden={onSetHidden}
+      />,
+    );
+
+    await userEvent.click(screen.getByTestId("hidden-matches-marker"));
+    await userEvent.click(await screen.findByTestId("unhide-m1"));
+    expect(onSetHidden).toHaveBeenCalledWith(["m1"], false);
+
+    await userEvent.click(screen.getByTestId("hidden-matches-marker"));
+    await userEvent.click(await screen.findByTestId("unhide-all"));
+    expect(onSetHidden).toHaveBeenLastCalledWith(["m1", "m2"], false);
+  });
+
+  it("offers viewers neither hiding nor unhiding", () => {
+    render(
+      <AssignmentGrid
+        {...props}
+        transposed
+        hiddenMatchIds={["m1"]}
+        onSetHidden={vi.fn()}
+      />,
+      { role: "viewer" },
+    );
+
+    expect(screen.queryByTestId("hide-m2")).not.toBeInTheDocument();
+    expect(screen.getByTestId("hidden-matches-marker").tagName).not.toBe(
+      "BUTTON",
+    );
+  });
+
+  it("flags a hidden run that still carries umpires", async () => {
+    const booked = [
+      {
+        id: "a1",
+        poll_id: "poll-1",
+        match_id: "m1",
+        umpire_id: "u1",
+        status: "confirmed",
+        created_at: "2026-01-01T00:00:00Z",
+      },
+      {
+        id: "a2",
+        poll_id: "poll-1",
+        match_id: "m2",
+        umpire_id: "u2",
+        status: "tentative",
+        created_at: "2026-01-01T00:00:00Z",
+      },
+    ] as Assignment[];
+    render(
+      <AssignmentGrid
+        {...props}
+        assignments={booked}
+        transposed
+        hiddenMatchIds={["m1", "m2"]}
+        onSetHidden={vi.fn()}
+      />,
+    );
+
+    const marker = screen.getByTestId("hidden-matches-marker");
+    expect(marker).toHaveAccessibleName(
+      "2 hidden matches · 1 confirmed, 1 tentative",
+    );
+    expect(screen.getByTestId("hidden-assigned-dot")).toBeInTheDocument();
+
+    await userEvent.click(marker);
+    expect(await screen.findByTestId("unhide-m1")).toHaveTextContent("1/2");
+    expect(screen.getByTestId("unhide-m2")).toHaveTextContent("0/2 (+1)");
+  });
+
+  it("shows no assignment flag on a hidden run with nobody on it", () => {
+    render(<AssignmentGrid {...props} transposed hiddenMatchIds={["m1"]} />);
+    expect(screen.queryByTestId("hidden-assigned-dot")).not.toBeInTheDocument();
+  });
+});

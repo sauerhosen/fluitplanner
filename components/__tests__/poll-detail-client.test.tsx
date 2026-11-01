@@ -30,9 +30,15 @@ vi.mock("@/lib/actions/poll-responses", () => ({
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
+vi.mock("@/lib/actions/hidden-matches", () => ({
+  setPollMatchesHidden: vi.fn(async () => ({ ok: true })),
+}));
+
 import { PollDetailClient } from "@/components/polls/poll-detail-client";
 import { getPoll } from "@/lib/actions/polls";
 import { getUmpiresForPoll } from "@/lib/actions/assignments";
+import { setPollMatchesHidden } from "@/lib/actions/hidden-matches";
+import { matchColumnDefaults } from "@/__tests__/helpers/fixtures";
 
 function umpire(id: string, name: string): RosteredUmpire {
   return {
@@ -81,6 +87,7 @@ const POLL: PollDetail = {
   ],
   assignments: [],
   featuredMatchIds: [],
+  hiddenMatchIds: [],
 };
 
 describe("PollDetailClient answering for a new respondent", () => {
@@ -138,5 +145,130 @@ describe("PollDetailClient answering for a new respondent", () => {
       screen.getByRole("button", { name: /bob.*if need be/i }),
     ).toBeInTheDocument();
     expect(getPoll).not.toHaveBeenCalled();
+  });
+});
+
+describe("PollDetailClient hiding a match", () => {
+  const MATCH = {
+    ...matchColumnDefaults,
+    id: "m1",
+    date: "2026-03-01",
+    start_time: "2026-03-01T10:30:00Z",
+    home_team: "Home",
+    away_team: "Away",
+    competition: null,
+    venue: null,
+    field: null,
+    notes: null,
+    required_level: 1,
+    created_by: "user-1",
+    created_at: "2026-01-01T00:00:00Z",
+    organization_id: "org-1",
+  } as PollDetail["matches"][number];
+
+  const withBooking = (status: "confirmed" | "tentative"): PollDetail => ({
+    ...POLL,
+    matches: [MATCH],
+    assignments: [
+      {
+        id: "a1",
+        poll_id: "poll-1",
+        match_id: "m1",
+        umpire_id: ALICE.id,
+        status,
+        created_at: "2026-03-01T00:00:00Z",
+      } as PollDetail["assignments"][number],
+    ],
+  });
+
+  beforeEach(() => {
+    vi.useFakeTimers({
+      toFake: ["Date"],
+      now: new Date("2026-02-27T12:00:00Z"),
+    });
+    vi.clearAllMocks();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  function renderPoll(poll: PollDetail) {
+    render(
+      <PollDetailClient
+        initialPoll={poll}
+        availableMatches={[]}
+        umpires={[ALICE]}
+        roster={[ALICE]}
+      />,
+    );
+  }
+
+  it("asks before hiding a match with a confirmed umpire, and stops on no", async () => {
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+    renderPoll(withBooking("confirmed"));
+
+    await userEvent.click(screen.getByTestId("hide-m1"));
+
+    expect(confirmSpy).toHaveBeenCalledWith(
+      expect.stringMatching(/confirmed umpire/),
+    );
+    expect(setPollMatchesHidden).not.toHaveBeenCalled();
+    expect(screen.getByTestId("hide-m1")).toBeInTheDocument();
+  });
+
+  it("hides it once the planner agrees", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    renderPoll(withBooking("confirmed"));
+
+    await userEvent.click(screen.getByTestId("hide-m1"));
+
+    expect(setPollMatchesHidden).toHaveBeenCalledWith("poll-1", ["m1"], true);
+    expect(screen.getByTestId("hidden-matches-marker")).toBeInTheDocument();
+  });
+
+  it("hides a match with only a tentative umpire without asking", async () => {
+    const confirmSpy = vi.spyOn(window, "confirm");
+    renderPoll(withBooking("tentative"));
+
+    await userEvent.click(screen.getByTestId("hide-m1"));
+
+    expect(confirmSpy).not.toHaveBeenCalled();
+    expect(setPollMatchesHidden).toHaveBeenCalledWith("poll-1", ["m1"], true);
+  });
+
+  it("reads the stored state back when a hide fails", async () => {
+    vi.mocked(setPollMatchesHidden).mockResolvedValueOnce({
+      ok: false,
+      reason: "not_in_poll",
+    });
+    vi.mocked(getPoll).mockResolvedValue({ ...POLL, matches: [MATCH] });
+    renderPoll({ ...POLL, matches: [MATCH] });
+
+    await userEvent.click(screen.getByTestId("hide-m1"));
+
+    await waitFor(() => expect(getPoll).toHaveBeenCalledWith("poll-1"));
+    expect(await screen.findByTestId("hide-m1")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("hidden-matches-marker"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("drops a match another editor removed when a hide is refused", async () => {
+    vi.mocked(setPollMatchesHidden).mockResolvedValueOnce({
+      ok: false,
+      reason: "not_in_poll",
+    });
+    vi.mocked(getPoll).mockResolvedValue({ ...POLL, matches: [] });
+    renderPoll({ ...POLL, matches: [MATCH] });
+
+    await userEvent.click(screen.getByTestId("hide-m1"));
+
+    await waitFor(() =>
+      expect(screen.queryByTestId("hide-m1")).not.toBeInTheDocument(),
+    );
+    expect(
+      screen.queryByTestId("hidden-matches-marker"),
+    ).not.toBeInTheDocument();
   });
 });
