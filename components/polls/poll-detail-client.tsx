@@ -18,6 +18,7 @@ import {
   deletePoll,
 } from "@/lib/actions/polls";
 import { groupMatchesIntoSlots } from "@/lib/domain/slots";
+import { mapMatchesToSlots } from "@/lib/domain/match-slot-mapping";
 import { countDiscardedResponses } from "@/lib/domain/carry-over-responses";
 import { MatchSelector } from "./match-selector";
 import { SlotPreview } from "./slot-preview";
@@ -160,6 +161,13 @@ export function PollDetailClient({
       return slotDate >= from && slotDate <= to;
     });
   }, [poll.slots, dateRange]);
+
+  // Slots overlap, so a kick-off falls inside several windows; list each
+  // match under the one slot it belongs to, as the grid and poll page do.
+  const slotByMatch = useMemo(
+    () => mapMatchesToSlots(poll.matches, poll.slots),
+    [poll.matches, poll.slots],
+  );
 
   const previewSlots = useMemo(() => {
     if (!editingMatches) return [];
@@ -635,13 +643,9 @@ export function PollDetailClient({
                       </div>
                       <div className="flex flex-col gap-2">
                         {group.slots.map((slot) => {
-                          const slotStart = new Date(slot.start_time).getTime();
-                          const slotEnd = new Date(slot.end_time).getTime();
-                          const slotMatches = filteredMatches.filter((m) => {
-                            if (!m.start_time) return false;
-                            const mt = new Date(m.start_time).getTime();
-                            return mt >= slotStart && mt < slotEnd;
-                          });
+                          const slotMatches = filteredMatches.filter(
+                            (m) => slotByMatch.get(m.id) === slot.id,
+                          );
                           return (
                             <div key={slot.id} className="rounded-lg border">
                               <div className="bg-muted px-3 py-2 text-sm font-medium">
