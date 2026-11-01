@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { render } from "@/__tests__/helpers/render";
@@ -84,6 +84,19 @@ const POLL: PollDetail = {
 };
 
 describe("PollDetailClient answering for a new respondent", () => {
+  // The page opens on the next two weeks; pin "today" next to the fixture's
+  // match so it stays inside that window. Only Date is faked, so user-event's
+  // timers keep running.
+  beforeEach(() => {
+    vi.useFakeTimers({
+      toFake: ["Date"],
+      now: new Date("2026-02-27T12:00:00Z"),
+    });
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
   });

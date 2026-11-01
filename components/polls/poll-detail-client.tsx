@@ -60,7 +60,7 @@ import { UmpireFocusMenu } from "./umpire-focus-menu";
 import { useTranslations, useFormatter } from "next-intl";
 import { DateRangePicker } from "@/components/shared/date-range-picker";
 import type { DateRange } from "react-day-picker";
-import { format as fnsFormat } from "date-fns";
+import { format as fnsFormat, startOfDay, addDays } from "date-fns";
 
 type Props = {
   initialPoll: PollDetail;
@@ -115,7 +115,12 @@ export function PollDetailClient({
   // Talking to one umpire: the grid narrows to their row alone, so a
   // screenshot of it is about them and not the whole roster.
   const [focusedUmpireId, setFocusedUmpireId] = useState<string | null>(null);
-  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
+  // Opens on the next two weeks, the same range as the "next two weeks" preset
+  // (midnight bounds, so the toolbar can tell the preset is active).
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(() => {
+    const today = startOfDay(new Date());
+    return { from: today, to: addDays(today, 14) };
+  });
   const [liveAssignments, setLiveAssignments] = useState<Assignment[]>(
     initialPoll.assignments,
   );
