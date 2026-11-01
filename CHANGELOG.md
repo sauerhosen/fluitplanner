@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.37.0](https://github.com/sauerhosen/fluitplanner/compare/v2.36.0...v2.37.0) (2026-11-01)
+
+
+### Features
+
+* hide and unhide matches in a poll's assignment grid ([6142739](https://github.com/sauerhosen/fluitplanner/commit/6142739d4409290eddd741b879d8dff63944acbe))
+* hide and unhide matches in a poll's assignment grid ([9f5a889](https://github.com/sauerhosen/fluitplanner/commit/9f5a889dbdb5b6e094adc8168aa51cf8760c6d20))
+
+
+### Bug Fixes
+
+* re-read poll matches when a hide is refused, reject partial bulk hides ([7e962b8](https://github.com/sauerhosen/fluitplanner/commit/7e962b8921193c23f94e92cd133992b0b39c592d))
+
 ## [2.36.0](https://github.com/sauerhosen/fluitplanner/compare/v2.35.1...v2.36.0) (2026-11-01)
 
 
