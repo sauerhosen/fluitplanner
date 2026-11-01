@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.35.1](https://github.com/sauerhosen/fluitplanner/compare/v2.35.0...v2.35.1) (2026-11-01)
+
+
+### Bug Fixes
+
+* break equal-start slot ties by id in match-slot mapping ([28c8165](https://github.com/sauerhosen/fluitplanner/commit/28c816520c500dae247841fcf1e42908ba5c574b))
+* map each match to its own poll slot when slots overlap ([7d81e66](https://github.com/sauerhosen/fluitplanner/commit/7d81e664c3c8d8336b2668d596995a19750c9ef6))
+* map each match to its own poll slot when slots overlap ([f42ee72](https://github.com/sauerhosen/fluitplanner/commit/f42ee72357b728eb6e94434561b0e3b4920fa8ec))
+
 ## [2.35.0](https://github.com/sauerhosen/fluitplanner/compare/v2.34.0...v2.35.0) (2026-11-01)
 
 
