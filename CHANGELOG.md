@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.36.0](https://github.com/sauerhosen/fluitplanner/compare/v2.35.1...v2.36.0) (2026-11-01)
+
+
+### Features
+
+* bulk close polls from the poll overview ([01229a5](https://github.com/sauerhosen/fluitplanner/commit/01229a5afae7140fa48a35d9b84ce97cdecc855d))
+
 ## [2.35.1](https://github.com/sauerhosen/fluitplanner/compare/v2.35.0...v2.35.1) (2026-11-01)
 
 
