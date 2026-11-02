@@ -14,7 +14,10 @@ import { useTranslations } from "next-intl";
 
 type Props = {
   umpires: { id: string; name: string }[];
-  /** Umpires the grid is narrowed to; empty shows everyone. */
+  /**
+   * Umpires the grid is narrowed to, already resolved against the roster by
+   * the page; empty shows everyone.
+   */
   focusedUmpireIds: string[];
   onFocusedUmpireIdsChange: (umpireIds: string[]) => void;
   hideSilentUmpires: boolean;
@@ -41,10 +44,7 @@ export function UmpireFilterMenu({
   className,
 }: Props) {
   const t = useTranslations("polls");
-  // Ids of umpires no longer on the roster do not count.
-  const picked = new Set(
-    focusedUmpireIds.filter((id) => umpires.some((u) => u.id === id)),
-  );
+  const picked = new Set(focusedUmpireIds);
   // Picking umpires overrides the responders filter, so it does not count as
   // an active filter while it has no effect.
   const activeCount = picked.size > 0 ? picked.size : hideSilentUmpires ? 1 : 0;

@@ -137,16 +137,7 @@ export function ExportMenuItems({
 
   function markdownFor(target: ExportTarget) {
     return target === "responses"
-      ? generateResponseMarkdown(
-          prepareResponseExport(
-            pollTitle,
-            slots,
-            responses,
-            formatDate,
-            formatTime,
-          ),
-          responseLabels,
-        )
+      ? generateResponseMarkdown(responseData(), responseLabels)
       : generateAssignmentMarkdown(assignmentData(), assignmentColumnLabels);
   }
 

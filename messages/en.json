@@ -382,7 +382,7 @@
     "matchesLink": "{count, plural, one {# match} other {# matches}}",
     "responsesLink": "{count, plural, one {# response} other {# responses}}",
     "umpireFilter": "Umpires",
-    "umpireFilterHint": "Show one umpire, or only those who answered",
+    "umpireFilterHint": "Show only some umpires, or only those who answered",
     "assignMode": "Assign as",
     "assignModeConfirmed": "Confirmed",
     "assignModeTentative": "Tentative",

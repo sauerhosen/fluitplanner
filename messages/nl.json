@@ -382,7 +382,7 @@
     "matchesLink": "{count, plural, one {# wedstrijd} other {# wedstrijden}}",
     "responsesLink": "{count, plural, one {# reactie} other {# reacties}}",
     "umpireFilter": "Scheidsrechters",
-    "umpireFilterHint": "Toon één scheidsrechter, of alleen wie heeft gereageerd",
+    "umpireFilterHint": "Toon alleen bepaalde scheidsrechters, of alleen wie heeft gereageerd",
     "assignMode": "Indelen als",
     "assignModeConfirmed": "Definitief",
     "assignModeTentative": "Voorlopig",

@@ -62,6 +62,8 @@ import {
   EyeOff,
 } from "lucide-react";
 import { DateRangeMenu } from "./date-range-menu";
+import { TentativeActions } from "./tentative-actions";
+import { useMediaQuery } from "@/hooks/use-media-query";
 import { UmpireFilterMenu } from "./umpire-filter-menu";
 import { cn } from "@/lib/utils";
 import { useTranslations, useFormatter } from "next-intl";
@@ -127,9 +129,9 @@ export function PollDetailClient({
   const [view, setView] = useState<PollView>(
     initialPoll.responses.length > 0 ? "assignments" : "matches",
   );
-  // The toolbar node the grid portals its tentative count and bulk actions
-  // into, so they sit beside the mode switch that creates them.
-  const [tentativeSlot, setTentativeSlot] = useState<HTMLElement | null>(null);
+  // A bulk confirm or clear of tentative appointments is in flight; the grid
+  // holds cell clicks until it lands.
+  const [bulkPending, setBulkPending] = useState(false);
   const [transposed, setTransposed] = useState(true);
   const [tentativeMode, setTentativeMode] = useState(false);
   // Talking to a few umpires: the grid narrows to their rows alone, so a
@@ -152,11 +154,12 @@ export function PollDetailClient({
   const t = useTranslations("polls");
   const tCommon = useTranslations("common");
   const format = useFormatter();
-  // Viewers get the poll to read: date range, exports, tabs and the grids in
+  // Viewers get the poll to read: date range, exports, views and the grids in
   // read mode. Everything that changes the poll — its title, status, matches,
   // featured matches, notes, share link — stays off the page. Server actions
   // enforce the role; this only keeps dead controls out of the way.
   const canEdit = useIsPlanner();
+  const isSmUp = useMediaQuery("(min-width: 640px)", true);
 
   const allSelectableMatches = useMemo(() => {
     const pollMatchIds = new Set(poll.matches.map((m) => m.id));
@@ -450,27 +453,27 @@ export function PollDetailClient({
     [umpires, refreshUmpires],
   );
 
-  const dateControls = (
-    <>
-      <DateRangeMenu
-        className="shrink-0 sm:hidden"
-        dateRange={dateRange}
-        onDateRangeChange={setDateRange}
-      />
-      <div className="hidden shrink-0 sm:block">
-        <DateRangePicker value={dateRange} onChange={setDateRange} />
-      </div>
-    </>
+  // One date control, never both: the picker's two-month calendar has nowhere
+  // to open on a phone, which gets the presets as a menu instead.
+  const dateControls = isSmUp ? (
+    <DateRangePicker value={dateRange} onChange={setDateRange} />
+  ) : (
+    <DateRangeMenu
+      className="shrink-0"
+      dateRange={dateRange}
+      onDateRangeChange={setDateRange}
+    />
   );
 
   function filterChip(
+    key: string,
     label: string,
     removeLabel: string,
     onRemove: () => void,
   ) {
     return (
       <span
-        key={label}
+        key={key}
         className="inline-flex h-7 shrink-0 items-center gap-1 rounded-full border bg-accent pl-2.5 pr-1 text-xs"
         data-testid="active-umpire-filter"
       >
@@ -658,7 +661,10 @@ export function PollDetailClient({
         }
       />
 
+      {/* Wraps on a phone rather than scrolling sideways, so the bulk
+          tentative actions never sit off-screen. */}
       <StickyToolbar
+        className="flex-wrap gap-y-2 sm:flex-nowrap"
         compact={
           <>
             <Link
@@ -710,23 +716,31 @@ export function PollDetailClient({
             {dateControls}
             {isFocused && focusedUmpires.length <= MAX_UMPIRE_CHIPS
               ? focusedUmpires.map((u) =>
-                  filterChip(u.name, `${t("removeFilter")}: ${u.name}`, () =>
-                    setFocusedUmpireIds((prev) =>
-                      prev.filter((id) => id !== u.id),
-                    ),
+                  filterChip(
+                    u.id,
+                    u.name,
+                    `${t("removeFilter")}: ${u.name}`,
+                    () =>
+                      setFocusedUmpireIds((prev) =>
+                        prev.filter((id) => id !== u.id),
+                      ),
                   ),
                 )
               : isFocused
                 ? // A long selection would push the mode switch off the bar;
                   // the corner menu still lists who is picked.
                   filterChip(
+                    "selected",
                     t("umpiresSelected", { count: focusedUmpires.length }),
                     t("removeFilter"),
                     () => setFocusedUmpireIds([]),
                   )
                 : hideSilentUmpires &&
-                  filterChip(t("hideSilentUmpires"), t("removeFilter"), () =>
-                    setHideSilentUmpires(false),
+                  filterChip(
+                    "responders",
+                    t("hideSilentUmpires"),
+                    t("removeFilter"),
+                    () => setHideSilentUmpires(false),
                   )}
             <div className="ml-auto flex shrink-0 items-center gap-3">
               {canEdit && (
@@ -767,7 +781,18 @@ export function PollDetailClient({
                   </button>
                 </div>
               )}
-              <div ref={setTentativeSlot} className="contents" />
+              {!isFocused && (
+                // Hidden while umpires are picked: it counts everyone's
+                // sketches and says they are hidden from umpires, which is
+                // not something to paste into a message to one of them.
+                <TentativeActions
+                  pollId={poll.id}
+                  assignments={liveAssignments}
+                  onAssignmentsChange={setLiveAssignments}
+                  pending={bulkPending}
+                  onPendingChange={setBulkPending}
+                />
+              )}
             </div>
           </>
         )}
@@ -989,10 +1014,9 @@ export function PollDetailClient({
             matches={filteredMatches}
             slots={filteredSlots}
             responses={liveResponses}
-            assignments={poll.assignments}
+            assignments={liveAssignments}
             umpires={gridUmpires}
             transposed={transposed}
-            focused={isFocused}
             tentativeMode={tentativeMode}
             clubName={clubName}
             onAssignmentsChange={setLiveAssignments}
@@ -1000,12 +1024,12 @@ export function PollDetailClient({
             onUmpireNoteSaved={refreshUmpires}
             hiddenMatchIds={poll.hiddenMatchIds}
             onSetHidden={canEdit ? handleSetHidden : undefined}
-            tentativeSlot={tentativeSlot}
+            bulkPending={bulkPending}
             corner={
               <div className="flex items-center gap-1">
                 <UmpireFilterMenu
                   umpires={umpires}
-                  focusedUmpireIds={focusedUmpireIds}
+                  focusedUmpireIds={focusedUmpires.map((u) => u.id)}
                   onFocusedUmpireIdsChange={setFocusedUmpireIds}
                   hideSilentUmpires={hideSilentUmpires}
                   onHideSilentUmpiresChange={setHideSilentUmpires}

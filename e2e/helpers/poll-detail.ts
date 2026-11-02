@@ -1,4 +1,4 @@
-import type { Page } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 
 /**
  * Close, reopen, rename and delete live behind the poll header's overflow
@@ -25,10 +25,17 @@ export function pollHeading(page: Page, title: string) {
  */
 export async function openAssignments(page: Page) {
   const back = page.getByTestId("back-to-assignments");
-  await page
-    .getByTestId("view-matches")
-    .waitFor({ state: "visible", timeout: 10000 });
-  if (await back.isVisible()) await back.click();
+  const confirmed = page.getByTestId("confirmed-mode-toggle");
+  // Either the grid's toolbar or the side view's back button shows up first.
+  await expect(back.or(confirmed).first()).toBeVisible({ timeout: 10000 });
+  if (await back.isVisible()) {
+    // The server-rendered button can be visible before hydration attaches its
+    // handler, so retry the click until the side view actually leaves.
+    await expect(async () => {
+      if (await back.isVisible()) await back.click();
+      await expect(back).toBeHidden({ timeout: 1000 });
+    }).toPass({ timeout: 10000 });
+  }
 }
 
 /**
