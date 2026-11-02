@@ -38,10 +38,13 @@ test.describe("Day sheet export", () => {
     expect(authUser).toBeTruthy();
     const userId = authUser!.id;
 
+    // The test user can belong to several clubs; global setup signs in on
+    // the `default` one, so seed there.
     const { data: membership } = await supabase
       .from("organization_members")
-      .select("organization_id")
+      .select("organization_id, organizations!inner(slug)")
       .eq("user_id", userId)
+      .eq("organizations.slug", "default")
       .single();
 
     expect(membership).toBeTruthy();
