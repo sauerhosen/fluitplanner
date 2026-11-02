@@ -5,6 +5,7 @@ import {
   CalendarIcon,
   PencilLine,
   ArrowRightLeft,
+  UserCheck,
 } from "lucide-react";
 import type { DateRange } from "react-day-picker";
 import { Button } from "@/components/ui/button";
@@ -47,6 +48,8 @@ type Props = {
   onSwapAxes: () => void;
   focusedUmpireId: string | null;
   onFocusedUmpireChange: (umpireId: string | null) => void;
+  hideSilentUmpires: boolean;
+  onHideSilentUmpiresChange: (next: boolean) => void;
   className?: string;
 };
 
@@ -73,6 +76,8 @@ export function PollToolbarMenu({
   onSwapAxes,
   focusedUmpireId,
   onFocusedUmpireChange,
+  hideSilentUmpires,
+  onHideSilentUmpiresChange,
   className,
 }: Props) {
   const t = useTranslations("polls");
@@ -154,6 +159,16 @@ export function PollToolbarMenu({
               focusedUmpireId={focusedUmpireId}
               onFocusedUmpireChange={onFocusedUmpireChange}
             />
+            <DropdownMenuCheckboxItem
+              checked={hideSilentUmpires}
+              onCheckedChange={onHideSilentUmpiresChange}
+              // Focusing one umpire overrides this filter.
+              disabled={umpires.some((u) => u.id === focusedUmpireId)}
+              data-testid="hide-silent-umpires-menu-item"
+            >
+              <UserCheck className="mr-2 h-4 w-4" />
+              {t("hideSilentUmpires")}
+            </DropdownMenuCheckboxItem>
           </>
         )}
       </DropdownMenuContent>

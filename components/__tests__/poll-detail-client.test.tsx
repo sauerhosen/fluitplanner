@@ -272,3 +272,106 @@ describe("PollDetailClient hiding a match", () => {
     ).not.toBeInTheDocument();
   });
 });
+
+describe("PollDetailClient hiding umpires who have not answered", () => {
+  const MATCH = {
+    ...matchColumnDefaults,
+    id: "m1",
+    date: "2026-03-01",
+    start_time: "2026-03-01T10:30:00Z",
+    home_team: "Home",
+    away_team: "Away",
+    competition: null,
+    venue: null,
+    field: null,
+    notes: null,
+    required_level: 1,
+    created_by: "user-1",
+    created_at: "2026-01-01T00:00:00Z",
+    organization_id: "org-1",
+  } as PollDetail["matches"][number];
+
+  beforeEach(() => {
+    vi.useFakeTimers({
+      toFake: ["Date"],
+      now: new Date("2026-02-27T12:00:00Z"),
+    });
+    vi.clearAllMocks();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("toggles the rows of umpires with no answer on the days shown", async () => {
+    const user = userEvent.setup();
+    render(
+      <PollDetailClient
+        initialPoll={{ ...POLL, matches: [MATCH] }}
+        availableMatches={[]}
+        umpires={[ALICE, BOB]}
+        roster={[ALICE, BOB]}
+      />,
+    );
+
+    expect(screen.getByTestId("cell-m1-umpire-2")).toBeInTheDocument();
+
+    const toggle = screen.getByTestId("hide-silent-umpires-toggle");
+    await user.click(toggle);
+
+    expect(toggle).toHaveAttribute("aria-pressed", "true");
+    expect(screen.queryByTestId("cell-m1-umpire-2")).not.toBeInTheDocument();
+    expect(screen.getByTestId("cell-m1-umpire-1")).toBeInTheDocument();
+
+    await user.click(toggle);
+    expect(screen.getByTestId("cell-m1-umpire-2")).toBeInTheDocument();
+  });
+
+  it("keeps a silent umpire's row after their appointment is cleared", async () => {
+    const user = userEvent.setup();
+    render(
+      <PollDetailClient
+        initialPoll={{
+          ...POLL,
+          matches: [MATCH],
+          assignments: [
+            {
+              id: "a1",
+              poll_id: "poll-1",
+              match_id: "m1",
+              umpire_id: BOB.id,
+              created_at: "2026-02-01T00:00:00Z",
+              organization_id: "org-1",
+              status: "confirmed",
+            },
+          ],
+        }}
+        availableMatches={[]}
+        umpires={[ALICE, BOB]}
+        roster={[ALICE, BOB]}
+      />,
+    );
+
+    await user.click(screen.getByTestId("hide-silent-umpires-toggle"));
+    const cell = screen.getByTestId("cell-m1-umpire-2");
+    await user.click(cell);
+
+    // The row stays, so the planner can click the cell again to undo.
+    expect(screen.getByTestId("cell-m1-umpire-2")).toBeInTheDocument();
+  });
+
+  it("says nobody answered the days shown rather than that nobody answered", async () => {
+    const user = userEvent.setup();
+    render(
+      <PollDetailClient
+        initialPoll={{ ...POLL, matches: [MATCH] }}
+        availableMatches={[]}
+        umpires={[BOB]}
+        roster={[ALICE, BOB]}
+      />,
+    );
+
+    await user.click(screen.getByTestId("hide-silent-umpires-toggle"));
+
+    expect(screen.getByTestId("no-responders-in-range")).toBeInTheDocument();
+  });
+});
