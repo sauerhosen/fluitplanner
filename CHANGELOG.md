@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.40.0](https://github.com/sauerhosen/fluitplanner/compare/v2.39.0...v2.40.0) (2026-11-02)
+
+
+### Features
+
+* add a "responders only" toggle to the assignment grid ([8cf66a4](https://github.com/sauerhosen/fluitplanner/commit/8cf66a4e1ac595ac508ddc65f6c953320a233e0e))
+* add a "responders only" toggle to the assignment grid ([695ea04](https://github.com/sauerhosen/fluitplanner/commit/695ea04cc6c62458a2b86dee05b77445d31d83c0))
+
 ## [2.39.0](https://github.com/sauerhosen/fluitplanner/compare/v2.38.0...v2.39.0) (2026-11-02)
 
 
