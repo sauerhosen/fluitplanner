@@ -110,9 +110,9 @@ export function AssignmentGrid({
   onSetHidden,
 }: Props) {
   const [assignments, setAssignments] = useState(initialAssignments);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const tableRef = useRef<HTMLTableElement>(null);
   const headRef = useRef<HTMLTableSectionElement>(null);
-  const headerOffset = usePinnedTableHeader(scrollRef, headRef);
+  usePinnedTableHeader(tableRef, headRef, transposed);
   const [saving, setSaving] = useState<string | null>(null);
   const [bulkPending, setBulkPending] = useState(false);
   const t = useTranslations("polls");
@@ -752,16 +752,12 @@ export function AssignmentGrid({
   return (
     <div className="flex flex-col gap-2">
       {renderTentativeBar()}
-      <div ref={scrollRef} className="scrollbar-visible overflow-x-auto pb-2">
-        <table className="min-w-full text-sm border-collapse">
+      <div className="scrollbar-visible overflow-x-auto pb-2">
+        <table ref={tableRef} className="min-w-full text-sm border-collapse">
           {/* Offset by hand rather than `sticky`, which cannot reach the page's
               scrollport from inside a horizontal scroller — see
-              `usePinnedTableHeader`. The offset is 0 above `sm`. */}
-          <thead
-            ref={headRef}
-            className="relative z-20"
-            style={{ top: headerOffset }}
-          >
+              `usePinnedTableHeader`. */}
+          <thead ref={headRef} className="relative z-20">
             <tr className="bg-background">
               <th
                 rowSpan={2}

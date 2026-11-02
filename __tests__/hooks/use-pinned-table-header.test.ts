@@ -10,88 +10,104 @@ function boxed(top: number, height: number): HTMLElement {
   return el;
 }
 
-function setup(containerTop: number, containerHeight = 700, headerHeight = 80) {
+function setup(tableTop: number, tableHeight = 700, headerHeight = 80) {
   return {
-    container: { current: boxed(containerTop, containerHeight) },
-    header: { current: boxed(containerTop, headerHeight) },
+    table: { current: boxed(tableTop, tableHeight) },
+    header: { current: boxed(tableTop, headerHeight) },
   };
 }
 
-describe("usePinnedTableHeader", () => {
-  const originalWidth = window.innerWidth;
+function scroll() {
+  act(() => {
+    window.dispatchEvent(new Event("scroll"));
+  });
+}
 
+describe("usePinnedTableHeader", () => {
   beforeEach(() => {
+    // Runs the frame at once. It returns 0, the "no frame pending" value the
+    // hook resets to, since the callback has already run by the time the id
+    // would be stored — a non-zero id would block every later frame.
     vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
       cb(0);
-      return 1;
+      return 0;
     });
     vi.stubGlobal("cancelAnimationFrame", () => {});
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
-    Object.defineProperty(window, "innerWidth", {
-      configurable: true,
-      value: originalWidth,
-    });
+    document.body.innerHTML = "";
   });
 
-  function width(value: number) {
-    Object.defineProperty(window, "innerWidth", {
-      configurable: true,
-      value,
-    });
-  }
-
   it("stays at zero while the header is still on screen", () => {
-    width(390);
-    const { container, header } = setup(120);
-    const { result } = renderHook(() =>
-      usePinnedTableHeader(container, header),
-    );
+    const { table, header } = setup(120);
+    renderHook(() => usePinnedTableHeader(table, header));
 
-    expect(result.current).toBe(0);
+    expect(header.current.style.top).toBe("0px");
   });
 
   it("follows the page once the header has scrolled past the top", () => {
-    width(390);
-    const { container, header } = setup(-200);
-    const { result } = renderHook(() =>
-      usePinnedTableHeader(container, header),
-    );
+    const { table, header } = setup(-200);
+    renderHook(() => usePinnedTableHeader(table, header));
+    scroll();
 
-    act(() => {
-      window.dispatchEvent(new Event("scroll"));
-    });
-
-    expect(result.current).toBe(200);
+    expect(header.current.style.top).toBe("200px");
   });
 
   it("never outruns the last row", () => {
-    width(390);
-    const { container, header } = setup(-5000, 700, 80);
-    const { result } = renderHook(() =>
-      usePinnedTableHeader(container, header),
-    );
+    const { table, header } = setup(-5000, 700, 80);
+    renderHook(() => usePinnedTableHeader(table, header));
+    scroll();
 
-    act(() => {
-      window.dispatchEvent(new Event("scroll"));
-    });
-
-    expect(result.current).toBe(620); // container height minus header height
+    expect(header.current.style.top).toBe("620px"); // table minus header
   });
 
-  it("does nothing above the sm breakpoint", () => {
-    width(1280);
-    const { container, header } = setup(-200);
-    const { result } = renderHook(() =>
-      usePinnedTableHeader(container, header),
+  it("pins on desktop too, where a long umpire list scrolls the page", () => {
+    vi.stubGlobal("innerWidth", 1280);
+    const { table, header } = setup(-200);
+    renderHook(() => usePinnedTableHeader(table, header));
+    scroll();
+
+    expect(header.current.style.top).toBe("200px");
+  });
+
+  it("starts under a stuck toolbar", () => {
+    const toolbar = boxed(0, 56);
+    toolbar.setAttribute("data-stuck", "");
+    document.body.appendChild(toolbar);
+    const { table, header } = setup(-200);
+    renderHook(() => usePinnedTableHeader(table, header));
+    scroll();
+
+    expect(header.current.style.top).toBe("256px");
+  });
+
+  it("re-measures when the toolbar becomes stuck after the scroll", async () => {
+    const toolbar = boxed(0, 56);
+    document.body.appendChild(toolbar);
+    const { table, header } = setup(-200);
+    renderHook(() => usePinnedTableHeader(table, header));
+    scroll();
+    expect(header.current.style.top).toBe("200px");
+
+    toolbar.setAttribute("data-stuck", "");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(header.current.style.top).toBe("256px");
+  });
+
+  it("leaves the header alone while disabled, and measures when enabled", () => {
+    const { table, header } = setup(-200);
+    const { rerender } = renderHook(
+      ({ enabled }) => usePinnedTableHeader(table, header, enabled),
+      { initialProps: { enabled: false } },
     );
+    scroll();
+    expect(header.current.style.top).toBe("");
 
-    act(() => {
-      window.dispatchEvent(new Event("scroll"));
-    });
+    rerender({ enabled: true });
 
-    expect(result.current).toBe(0);
+    expect(header.current.style.top).toBe("200px");
   });
 });
