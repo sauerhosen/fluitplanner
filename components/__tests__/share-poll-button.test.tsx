@@ -3,12 +3,22 @@ import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { render } from "@/__tests__/helpers/render";
 import { SharePollButton } from "@/components/polls/share-poll-button";
+import { PollShareMenu } from "@/components/polls/poll-share-menu";
 import {
   buildPollSharePath,
   pollTitleVersion,
 } from "@/lib/domain/poll-share-link";
 
 const writeText = vi.fn();
+
+const NO_EXPORT_DATA = {
+  pollTitle: "Herfst",
+  slots: [],
+  matches: [],
+  responses: [],
+  assignments: [],
+  umpires: [],
+};
 
 beforeEach(() => {
   writeText.mockReset();
@@ -53,13 +63,61 @@ describe("SharePollButton", () => {
   });
 
   it("points the open-poll-page link at the stamped URL too, so copying it out of the address bar still unfurls fresh", async () => {
-    render(<SharePollButton token="abc123" title="Herfst" variant="menu" />);
+    render(
+      <PollShareMenu
+        token="abc123"
+        title="Herfst"
+        canShareLink
+        exportData={NO_EXPORT_DATA}
+      />,
+    );
 
-    await userEvent.click(screen.getByRole("button", { name: /share/i }));
+    await userEvent.click(screen.getByTestId("poll-share-menu"));
 
     expect(
       screen.getByRole("menuitem", { name: /open poll page/i }),
     ).toHaveAttribute("href", buildPollSharePath("abc123", "Herfst"));
+  });
+
+  it("puts the exports in the same menu as the poll link", async () => {
+    render(
+      <PollShareMenu
+        token="abc123"
+        title="Herfst"
+        canShareLink
+        exportData={NO_EXPORT_DATA}
+      />,
+    );
+
+    await userEvent.click(screen.getByTestId("poll-share-menu"));
+
+    expect(
+      screen.getByRole("menuitem", { name: /export all assignments/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("menuitem", { name: /export responses/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("offers a viewer the exports without the poll link", async () => {
+    render(
+      <PollShareMenu
+        token="abc123"
+        title="Herfst"
+        canShareLink={false}
+        exportData={NO_EXPORT_DATA}
+      />,
+    );
+
+    await userEvent.click(screen.getByTestId("poll-share-menu"));
+
+    expect(screen.getByTestId("poll-share-menu")).toHaveTextContent(/export/i);
+    expect(
+      screen.queryByRole("menuitem", { name: /copy link/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("menuitem", { name: /export all assignments/i }),
+    ).toBeInTheDocument();
   });
 
   it("copies the bare link for an untitled poll", async () => {

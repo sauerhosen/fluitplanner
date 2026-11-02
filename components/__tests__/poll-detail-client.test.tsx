@@ -36,7 +36,7 @@ vi.mock("@/lib/actions/hidden-matches", () => ({
 
 import { PollDetailClient } from "@/components/polls/poll-detail-client";
 import { getPoll } from "@/lib/actions/polls";
-import { getUmpiresForPoll } from "@/lib/actions/assignments";
+import { createAssignment, getUmpiresForPoll } from "@/lib/actions/assignments";
 import { setPollMatchesHidden } from "@/lib/actions/hidden-matches";
 import { matchColumnDefaults } from "@/__tests__/helpers/fixtures";
 
@@ -108,7 +108,7 @@ describe("PollDetailClient answering for a new respondent", () => {
     vi.clearAllMocks();
   });
 
-  it("keeps answers entered after the first save across a tab switch", async () => {
+  it("keeps answers entered after the first save across a view switch", async () => {
     // The first answer for Bob brings him onto the respondent list. A second
     // answer entered while that refresh is in flight must survive it.
     let resolveUmpires: (u: RosteredUmpire[]) => void = () => {};
@@ -128,7 +128,7 @@ describe("PollDetailClient answering for a new respondent", () => {
       />,
     );
 
-    await user.click(screen.getByRole("tab", { name: /responses/i }));
+    await user.click(screen.getByTestId("view-responses"));
     await user.click(screen.getByTestId("add-respondent-menu"));
     await user.click(screen.getByRole("menuitem", { name: "Bob" }));
 
@@ -138,8 +138,8 @@ describe("PollDetailClient answering for a new respondent", () => {
     await user.click(screen.getByRole("button", { name: /bob/i }));
     resolveUmpires([ALICE, BOB]);
 
-    await user.click(screen.getByRole("tab", { name: /assignments/i }));
-    await user.click(screen.getByRole("tab", { name: /responses/i }));
+    await user.click(screen.getByTestId("back-to-assignments"));
+    await user.click(screen.getByTestId("view-responses"));
 
     expect(
       screen.getByRole("button", { name: /bob.*if need be/i }),
@@ -315,15 +315,48 @@ describe("PollDetailClient hiding umpires who have not answered", () => {
 
     expect(screen.getByTestId("cell-m1-umpire-2")).toBeInTheDocument();
 
+    await user.click(screen.getByTestId("umpire-filter-menu"));
     const toggle = screen.getByTestId("hide-silent-umpires-toggle");
     await user.click(toggle);
 
-    expect(toggle).toHaveAttribute("aria-pressed", "true");
+    expect(toggle).toHaveAttribute("aria-checked", "true");
     expect(screen.queryByTestId("cell-m1-umpire-2")).not.toBeInTheDocument();
     expect(screen.getByTestId("cell-m1-umpire-1")).toBeInTheDocument();
+    expect(screen.getByTestId("active-umpire-filter")).toHaveTextContent(
+      "Responders only",
+    );
 
     await user.click(toggle);
     expect(screen.getByTestId("cell-m1-umpire-2")).toBeInTheDocument();
+  });
+
+  it("narrows the grid to several picked umpires, with a chip for each", async () => {
+    const CAROL = umpire("umpire-3", "Carol");
+    const user = userEvent.setup();
+    render(
+      <PollDetailClient
+        initialPoll={{ ...POLL, matches: [MATCH] }}
+        availableMatches={[]}
+        umpires={[ALICE, BOB, CAROL]}
+        roster={[ALICE, BOB, CAROL]}
+      />,
+    );
+
+    await user.click(screen.getByTestId("umpire-filter-menu"));
+    await user.click(screen.getByRole("menuitemcheckbox", { name: "Alice" }));
+    await user.click(screen.getByRole("menuitemcheckbox", { name: "Carol" }));
+    await user.keyboard("{Escape}");
+
+    expect(screen.getByTestId("cell-m1-umpire-1")).toBeInTheDocument();
+    expect(screen.getByTestId("cell-m1-umpire-3")).toBeInTheDocument();
+    expect(screen.queryByTestId("cell-m1-umpire-2")).not.toBeInTheDocument();
+    expect(screen.getAllByTestId("active-umpire-filter")).toHaveLength(2);
+
+    await user.click(
+      screen.getByRole("button", { name: "Remove filter: Alice" }),
+    );
+    expect(screen.queryByTestId("cell-m1-umpire-1")).not.toBeInTheDocument();
+    expect(screen.getByTestId("cell-m1-umpire-3")).toBeInTheDocument();
   });
 
   it("keeps a silent umpire's row after their appointment is cleared", async () => {
@@ -351,7 +384,9 @@ describe("PollDetailClient hiding umpires who have not answered", () => {
       />,
     );
 
+    await user.click(screen.getByTestId("umpire-filter-menu"));
     await user.click(screen.getByTestId("hide-silent-umpires-toggle"));
+    await user.keyboard("{Escape}");
     const cell = screen.getByTestId("cell-m1-umpire-2");
     await user.click(cell);
 
@@ -370,8 +405,238 @@ describe("PollDetailClient hiding umpires who have not answered", () => {
       />,
     );
 
+    await user.click(screen.getByTestId("umpire-filter-menu"));
     await user.click(screen.getByTestId("hide-silent-umpires-toggle"));
+    await user.keyboard("{Escape}");
 
     expect(screen.getByTestId("no-responders-in-range")).toBeInTheDocument();
+
+    // The grid and its corner filter are gone, so the toolbar chip is the way
+    // back out.
+    await user.click(screen.getByRole("button", { name: "Remove filter" }));
+    expect(screen.getByTestId("cell-m1-umpire-2")).toBeInTheDocument();
+  });
+});
+
+describe("PollDetailClient views", () => {
+  beforeEach(() => {
+    vi.useFakeTimers({
+      toFake: ["Date"],
+      now: new Date("2026-02-27T12:00:00Z"),
+    });
+    vi.clearAllMocks();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("opens on the grid and reaches the side views from the counts by the title", async () => {
+    const user = userEvent.setup();
+    render(
+      <PollDetailClient
+        initialPoll={POLL}
+        availableMatches={[]}
+        umpires={[ALICE]}
+        roster={[ALICE]}
+      />,
+    );
+
+    expect(screen.queryByRole("tab")).not.toBeInTheDocument();
+    expect(screen.getByTestId("view-matches")).toHaveTextContent("0 matches");
+    expect(screen.getByTestId("view-responses")).toHaveTextContent(
+      "1 response",
+    );
+
+    await user.click(screen.getByTestId("view-matches"));
+    expect(screen.getByTestId("view-matches")).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByRole("button", { name: /edit matches/i })).toBeVisible();
+
+    // Clicking the open view again goes back to the grid.
+    await user.click(screen.getByTestId("view-matches"));
+    expect(screen.getByTestId("tentative-mode-toggle")).toBeInTheDocument();
+  });
+
+  it("switches between confirmed and tentative assigning", async () => {
+    const user = userEvent.setup();
+    render(
+      <PollDetailClient
+        initialPoll={POLL}
+        availableMatches={[]}
+        umpires={[ALICE]}
+        roster={[ALICE]}
+      />,
+    );
+
+    const confirmed = screen.getByTestId("confirmed-mode-toggle");
+    const tentative = screen.getByTestId("tentative-mode-toggle");
+    expect(confirmed).toHaveAttribute("aria-pressed", "true");
+
+    await user.click(tentative);
+    expect(tentative).toHaveAttribute("aria-pressed", "true");
+    expect(confirmed).toHaveAttribute("aria-pressed", "false");
+  });
+});
+
+describe("PollDetailClient keeps the poll's assignments across the page", () => {
+  const MATCH = {
+    ...matchColumnDefaults,
+    id: "m1",
+    date: "2026-03-01",
+    start_time: "2026-03-01T10:30:00Z",
+    home_team: "Home",
+    away_team: "Away",
+    competition: null,
+    venue: null,
+    field: null,
+    notes: null,
+    required_level: 1,
+    created_by: "user-1",
+    created_at: "2026-01-01T00:00:00Z",
+    organization_id: "org-1",
+  } as PollDetail["matches"][number];
+
+  const tentativeFor = (umpireId: string) =>
+    ({
+      id: `a-${umpireId}`,
+      poll_id: "poll-1",
+      match_id: "m1",
+      umpire_id: umpireId,
+      status: "tentative",
+      created_at: "2026-03-01T00:00:00Z",
+      organization_id: "org-1",
+    }) as PollDetail["assignments"][number];
+
+  beforeEach(() => {
+    vi.useFakeTimers({
+      toFake: ["Date"],
+      now: new Date("2026-02-27T12:00:00Z"),
+    });
+    vi.clearAllMocks();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("brings the grid back from a side view with the assignments made before it", async () => {
+    vi.mocked(createAssignment).mockResolvedValue({
+      id: "a-new",
+      poll_id: "poll-1",
+      match_id: "m1",
+      umpire_id: ALICE.id,
+      status: "confirmed",
+      created_at: "2026-03-01T00:00:00Z",
+      organization_id: "org-1",
+    });
+    const user = userEvent.setup();
+    render(
+      <PollDetailClient
+        initialPoll={{ ...POLL, matches: [MATCH] }}
+        availableMatches={[]}
+        umpires={[ALICE]}
+        roster={[ALICE]}
+      />,
+    );
+
+    await user.click(screen.getByTestId("cell-m1-umpire-1"));
+    await waitFor(() =>
+      expect(screen.getByTestId("cell-m1-umpire-1")).toHaveAttribute(
+        "data-status",
+        "confirmed",
+      ),
+    );
+
+    await user.click(screen.getByTestId("view-responses"));
+    await user.click(screen.getByTestId("back-to-assignments"));
+
+    expect(screen.getByTestId("cell-m1-umpire-1")).toHaveAttribute(
+      "data-status",
+      "confirmed",
+    );
+  });
+
+  it("keeps the tentative count in the toolbar when a filter empties the grid", async () => {
+    const user = userEvent.setup();
+    render(
+      <PollDetailClient
+        initialPoll={{
+          ...POLL,
+          matches: [MATCH],
+          // Alice's sketch counts poll-wide but is not on Bob's row.
+          assignments: [tentativeFor(ALICE.id)],
+        }}
+        availableMatches={[]}
+        umpires={[BOB]}
+        roster={[ALICE, BOB]}
+      />,
+    );
+
+    expect(screen.getByTestId("tentative-summary")).toHaveTextContent("1");
+
+    await user.click(screen.getByTestId("umpire-filter-menu"));
+    await user.click(screen.getByTestId("hide-silent-umpires-toggle"));
+    await user.keyboard("{Escape}");
+
+    // Bob never answered, so the filter leaves the grid empty.
+    expect(screen.getByTestId("no-responders-in-range")).toBeInTheDocument();
+    expect(screen.getByTestId("tentative-summary")).toHaveTextContent("1");
+    expect(screen.getByTestId("confirm-tentative")).toBeInTheDocument();
+  });
+
+  it("leaves the poll-wide tentative count out while umpires are picked", async () => {
+    const user = userEvent.setup();
+    render(
+      <PollDetailClient
+        initialPoll={{
+          ...POLL,
+          matches: [MATCH],
+          assignments: [tentativeFor(ALICE.id)],
+        }}
+        availableMatches={[]}
+        umpires={[ALICE, BOB]}
+        roster={[ALICE, BOB]}
+      />,
+    );
+
+    await user.click(screen.getByTestId("umpire-filter-menu"));
+    await user.click(screen.getByRole("menuitemcheckbox", { name: "Bob" }));
+    await user.keyboard("{Escape}");
+
+    // It counts everyone's sketches and says they are hidden from umpires —
+    // not something to paste into a message to one of them.
+    expect(screen.queryByTestId("tentative-summary")).not.toBeInTheDocument();
+  });
+
+  it("tells apart two picked umpires who share a name", async () => {
+    const JAN_1 = umpire("jan-1", "Jan de Vries");
+    const JAN_2 = umpire("jan-2", "Jan de Vries");
+    const user = userEvent.setup();
+    render(
+      <PollDetailClient
+        initialPoll={{ ...POLL, matches: [MATCH] }}
+        availableMatches={[]}
+        umpires={[JAN_1, JAN_2]}
+        roster={[JAN_1, JAN_2]}
+      />,
+    );
+
+    await user.click(screen.getByTestId("umpire-filter-menu"));
+    const items = screen.getAllByRole("menuitemcheckbox", {
+      name: "Jan de Vries",
+    });
+    await user.click(items[0]);
+    await user.click(items[1]);
+    await user.keyboard("{Escape}");
+
+    const removes = screen.getAllByRole("button", {
+      name: "Remove filter: Jan de Vries",
+    });
+    expect(removes).toHaveLength(2);
+    await user.click(removes[1]);
+
+    expect(screen.getByTestId("cell-m1-jan-1")).toBeInTheDocument();
+    expect(screen.queryByTestId("cell-m1-jan-2")).not.toBeInTheDocument();
   });
 });

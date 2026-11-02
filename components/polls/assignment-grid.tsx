@@ -5,19 +5,18 @@ import {
   useState,
   useMemo,
   useCallback,
-  useEffect,
   useRef,
+  type Dispatch,
+  type ReactNode,
+  type SetStateAction,
 } from "react";
 import { Check, Ban, AlertTriangle, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
   createAssignment,
   deleteAssignment,
   setAssignmentStatus,
-  confirmTentativeAssignments,
-  clearTentativeAssignments,
 } from "@/lib/actions/assignments";
 import { mapMatchesToSlots } from "@/lib/domain/match-slot-mapping";
 import { collapseHiddenMatches } from "@/lib/domain/hidden-matches";
@@ -51,13 +50,6 @@ type Props = {
   umpires: RosteredUmpire[];
   transposed?: boolean;
   /**
-   * The roster has been narrowed to one umpire for a screenshot. Poll-wide
-   * chrome steps aside: the tentative summary counts everyone's sketches and
-   * says out loud that they are hidden from umpires, which is not something to
-   * paste into a message to one of them.
-   */
-  focused?: boolean;
-  /**
    * While on, a click sketches a tentative appointment instead of a real one.
    * Owned by the page so the switch can live in the poll's toolbar row rather
    * than in a strip of its own above the grid.
@@ -65,7 +57,12 @@ type Props = {
   tentativeMode?: boolean;
   /** Own club name, stripped from home team labels so columns stay narrow. */
   clubName?: string | null;
-  onAssignmentsChange?: (assignments: Assignment[]) => void;
+  /**
+   * The page owns the assignments, so they survive the grid leaving the page
+   * (a side view, an empty filter) and the toolbar's tentative actions and the
+   * exports read the same list. Takes functional updates.
+   */
+  onAssignmentsChange: Dispatch<SetStateAction<Assignment[]>>;
   /** Called after a match note is saved so the parent can refetch. */
   onNoteSaved?: () => void;
   /** Called after an umpire note is saved so the parent can refetch. */
@@ -77,6 +74,17 @@ type Props = {
   hiddenMatchIds?: string[];
   /** Hide or unhide matches; absent means the grid offers no such control. */
   onSetHidden?: (matchIds: string[], hidden: boolean) => void;
+  /**
+   * Controls for the grid's view (umpire filter, swap axes), shown in the
+   * sticky top-left corner cell in place of the axis label, so they sit on the
+   * grid they change and stay in reach while it scrolls.
+   */
+  corner?: ReactNode;
+  /**
+   * A bulk confirm or clear is in flight in the toolbar: cell clicks wait for
+   * it, so a single click cannot race the whole-poll write.
+   */
+  bulkPending?: boolean;
 };
 
 const NO_HIDDEN: string[] = [];
@@ -97,10 +105,9 @@ export function AssignmentGrid({
   matches,
   slots,
   responses,
-  assignments: initialAssignments,
+  assignments,
   umpires,
   transposed = false,
-  focused = false,
   tentativeMode = false,
   clubName,
   onAssignmentsChange,
@@ -108,22 +115,19 @@ export function AssignmentGrid({
   onUmpireNoteSaved,
   hiddenMatchIds = NO_HIDDEN,
   onSetHidden,
+  corner,
+  bulkPending = false,
 }: Props) {
-  const [assignments, setAssignments] = useState(initialAssignments);
+  const setAssignments = onAssignmentsChange;
   const tableRef = useRef<HTMLTableElement>(null);
   const headRef = useRef<HTMLTableSectionElement>(null);
   usePinnedTableHeader(tableRef, headRef, transposed);
   const [saving, setSaving] = useState<string | null>(null);
-  const [bulkPending, setBulkPending] = useState(false);
   const t = useTranslations("polls");
   const format = useFormatter();
   // A viewer reads the grid: cells keep their state and styling but are not
   // buttons, the bulk tentative actions are gone, and notes only show.
   const canEdit = useIsPlanner();
-
-  useEffect(() => {
-    onAssignmentsChange?.(assignments);
-  }, [assignments, onAssignmentsChange]);
 
   const matchSlotMap = useMemo(
     () => mapMatchesToSlots(matches, slots),
@@ -234,9 +238,7 @@ export function AssignmentGrid({
               umpire_id: umpireId,
               created_at: new Date().toISOString(),
               organization_id:
-                match?.organization_id ??
-                initialAssignments[0]?.organization_id ??
-                "",
+                match?.organization_id ?? assignments[0]?.organization_id ?? "",
               status: target,
             },
           ]);
@@ -285,45 +287,9 @@ export function AssignmentGrid({
       pollId,
       t,
       matches,
-      initialAssignments,
+      setAssignments,
     ],
   );
-
-  const handleConfirmAllTentative = useCallback(async () => {
-    if (saving || bulkPending) return;
-    const snapshot = assignments;
-    setBulkPending(true);
-    setAssignments((prev) =>
-      prev.map((a) =>
-        a.status === "tentative" ? { ...a, status: "confirmed" } : a,
-      ),
-    );
-    try {
-      const count = await confirmTentativeAssignments(pollId);
-      toast.success(t("tentativeConfirmed", { count }));
-    } catch {
-      setAssignments(snapshot);
-      toast.error(t("failedToSaveAssignment"));
-    } finally {
-      setBulkPending(false);
-    }
-  }, [saving, bulkPending, assignments, pollId, t]);
-
-  const handleClearTentative = useCallback(async () => {
-    if (saving || bulkPending) return;
-    const snapshot = assignments;
-    setBulkPending(true);
-    setAssignments((prev) => prev.filter((a) => a.status !== "tentative"));
-    try {
-      const count = await clearTentativeAssignments(pollId);
-      toast.success(t("tentativeCleared", { count }));
-    } catch {
-      setAssignments(snapshot);
-      toast.error(t("failedToSaveAssignment"));
-    } finally {
-      setBulkPending(false);
-    }
-  }, [saving, bulkPending, assignments, pollId, t]);
 
   const sortedMatches = useMemo(
     () =>
@@ -577,56 +543,6 @@ export function AssignmentGrid({
     );
   }
 
-  /**
-   * Only rendered once something tentative exists: an always-present strip was
-   * a row of empty space above the grid, and the mode switch itself lives in
-   * the page toolbar next to the other grid controls.
-   */
-  function renderTentativeBar() {
-    const tentativeCount = counts.tentativeTotal;
-    if (tentativeCount === 0 || focused) return null;
-
-    return (
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-        <span
-          className="flex items-center gap-1.5"
-          data-testid="tentative-summary"
-        >
-          <span className="flex h-4 w-4 items-center justify-center rounded outline-2 outline-dashed outline-primary/70 -outline-offset-2">
-            <Check className={`h-3 w-3 text-primary/60 ${DASHED_STROKE}`} />
-          </span>
-          {t("tentativeSummary", { count: tentativeCount })}
-        </span>
-        {canEdit && (
-          <span className="ml-auto flex items-center gap-1">
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              className="h-7 px-2"
-              data-testid="confirm-tentative"
-              disabled={bulkPending}
-              onClick={handleConfirmAllTentative}
-            >
-              {t("confirmAllTentative")}
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              className="h-7 px-2"
-              data-testid="clear-tentative"
-              disabled={bulkPending}
-              onClick={handleClearTentative}
-            >
-              {t("clearTentative")}
-            </Button>
-          </span>
-        )}
-      </div>
-    );
-  }
-
   function renderMatchRow(match: Match) {
     return (
       <tr key={match.id} className="group/match border-b border-border/50">
@@ -668,13 +584,12 @@ export function AssignmentGrid({
   if (!transposed) {
     return (
       <div className="flex flex-col gap-2">
-        {renderTentativeBar()}
         <div className="overflow-auto max-h-[70vh] pb-2">
           <table className="min-w-full text-sm border-collapse">
             <thead className="sticky top-0 z-20">
               <tr className="bg-background">
                 <th className="text-left p-2 font-medium sticky left-0 z-30 bg-background max-w-[40vw]">
-                  {t("matchColumnHeader")}
+                  {corner ?? t("matchColumnHeader")}
                 </th>
                 <th className="p-2 text-center font-medium min-w-12 bg-background" />
                 {umpires.map((u) => (
@@ -751,7 +666,6 @@ export function AssignmentGrid({
 
   return (
     <div className="flex flex-col gap-2">
-      {renderTentativeBar()}
       <div className="scrollbar-visible overflow-x-auto pb-2">
         <table ref={tableRef} className="min-w-full text-sm border-collapse">
           {/* Offset by hand rather than `sticky`, which cannot reach the page's
@@ -763,7 +677,7 @@ export function AssignmentGrid({
                 rowSpan={2}
                 className="text-left p-1 sm:p-2 font-medium sticky left-0 z-30 bg-background min-w-24 sm:min-w-32 align-bottom"
               >
-                {t("umpireColumnHeader")}
+                {corner ?? t("umpireColumnHeader")}
               </th>
               {dateSegments.map((group, gi) => (
                 <th

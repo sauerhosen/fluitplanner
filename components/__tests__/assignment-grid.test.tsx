@@ -2,7 +2,8 @@ import { screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { render } from "@/__tests__/helpers/render";
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
-import { AssignmentGrid } from "@/components/polls/assignment-grid";
+import { useState, type ComponentProps } from "react";
+import { AssignmentGrid as ControlledGrid } from "@/components/polls/assignment-grid";
 import {
   createAssignment,
   deleteAssignment,
@@ -16,6 +17,23 @@ import type {
   RosteredUmpire,
 } from "@/lib/types/domain";
 import { matchColumnDefaults } from "@/__tests__/helpers/fixtures";
+
+/**
+ * The grid is controlled by the poll page; this harness plays the page, so a
+ * test can render it with initial assignments and watch clicks change them.
+ */
+function AssignmentGrid(
+  props: Omit<ComponentProps<typeof ControlledGrid>, "onAssignmentsChange">,
+) {
+  const [assignments, setAssignments] = useState(props.assignments);
+  return (
+    <ControlledGrid
+      {...props}
+      assignments={assignments}
+      onAssignmentsChange={setAssignments}
+    />
+  );
+}
 
 // Mock server actions
 vi.mock("@/lib/actions/matches", () => ({
@@ -572,109 +590,6 @@ describe("AssignmentGrid", () => {
 
     expect(mockDelete).toHaveBeenCalledWith("poll-1", "m1", "u1");
   });
-
-  it("keeps the tentative bar out of the way until there is something in it", () => {
-    render(
-      <AssignmentGrid
-        {...defaultProps}
-        assignments={[makeAssignment({ match_id: "m1", umpire_id: "u1" })]}
-      />,
-    );
-
-    expect(screen.queryByTestId("confirm-tentative")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("clear-tentative")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("tentative-summary")).not.toBeInTheDocument();
-  });
-
-  it("summarises the sketches once there are some", () => {
-    render(
-      <AssignmentGrid
-        {...defaultProps}
-        assignments={[
-          makeAssignment({
-            match_id: "m1",
-            umpire_id: "u1",
-            status: "tentative",
-          }),
-          makeAssignment({
-            match_id: "m1",
-            umpire_id: "u2",
-            status: "tentative",
-          }),
-        ]}
-      />,
-    );
-
-    // Assert the count the bar reports, not the sentence around it — the copy
-    // lives in messages/en.json and may be reworded without a behaviour change.
-    expect(screen.getByTestId("tentative-summary")).toHaveTextContent("2");
-    expect(screen.getByTestId("confirm-tentative")).toBeInTheDocument();
-  });
-
-  it("keeps the poll-wide sketch summary out of a one-umpire screenshot", () => {
-    render(
-      <AssignmentGrid
-        {...defaultProps}
-        focused
-        assignments={[
-          makeAssignment({
-            match_id: "m1",
-            umpire_id: "u1",
-            status: "tentative",
-          }),
-          makeAssignment({
-            match_id: "m1",
-            umpire_id: "u2",
-            status: "tentative",
-          }),
-        ]}
-      />,
-    );
-
-    // It counts everyone's sketches and says they are hidden from umpires —
-    // not something to paste into a message to one of them.
-    expect(screen.queryByTestId("tentative-summary")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("confirm-tentative")).not.toBeInTheDocument();
-  });
-
-  it("confirms every tentative appointment at once", async () => {
-    const { confirmTentativeAssignments } =
-      await import("@/lib/actions/assignments");
-    const mockConfirmAll = vi.mocked(confirmTentativeAssignments);
-    mockConfirmAll.mockResolvedValue(2);
-
-    const assignments = [
-      makeAssignment({ match_id: "m1", umpire_id: "u1", status: "tentative" }),
-      makeAssignment({ match_id: "m1", umpire_id: "u2", status: "tentative" }),
-    ];
-
-    render(<AssignmentGrid {...defaultProps} assignments={assignments} />);
-
-    fireEvent.click(screen.getByTestId("confirm-tentative"));
-
-    expect(mockConfirmAll).toHaveBeenCalledWith("poll-1");
-    await screen.findByText("2/2");
-  });
-
-  it("discards every tentative appointment at once", async () => {
-    const { clearTentativeAssignments } =
-      await import("@/lib/actions/assignments");
-    const mockClear = vi.mocked(clearTentativeAssignments);
-    mockClear.mockResolvedValue(1);
-
-    const assignments = [
-      makeAssignment({ match_id: "m1", umpire_id: "u1", status: "tentative" }),
-    ];
-
-    render(<AssignmentGrid {...defaultProps} assignments={assignments} />);
-    fireEvent.click(screen.getByTestId("clear-tentative"));
-
-    expect(mockClear).toHaveBeenCalledWith("poll-1");
-    expect(screen.getByTestId("cell-m1-u1")).toHaveAttribute(
-      "data-status",
-      "none",
-    );
-  });
 });
 
 describe("AssignmentGrid as a viewer", () => {
@@ -699,14 +614,6 @@ describe("AssignmentGrid as a viewer", () => {
     assignments: [tentative],
     umpires: mockUmpires,
   };
-
-  it("shows the assignments but offers no bulk tentative actions", () => {
-    render(<AssignmentGrid {...viewerProps} />, { role: "viewer" });
-
-    expect(screen.getByTestId("tentative-summary")).toHaveTextContent("1");
-    expect(screen.queryByTestId("confirm-tentative")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("clear-tentative")).not.toBeInTheDocument();
-  });
 
   it("renders cells with their state, but not as buttons", () => {
     render(<AssignmentGrid {...viewerProps} />, { role: "viewer" });
