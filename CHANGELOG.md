@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.41.0](https://github.com/sauerhosen/fluitplanner/compare/v2.40.0...v2.41.0) (2026-11-02)
+
+
+### Features
+
+* grid-first poll page with one toolbar ([5369198](https://github.com/sauerhosen/fluitplanner/commit/5369198f044ba15effe6730f0c319265bf304228))
+* replace poll page tabs and crowded toolbar with one grid-first toolbar ([f499c24](https://github.com/sauerhosen/fluitplanner/commit/f499c241739b88c67b0019f0c519f8507437e4fa))
+
+
+### Bug Fixes
+
+* keep poll assignments on the page and address review findings ([75523d1](https://github.com/sauerhosen/fluitplanner/commit/75523d16e20a9d3ef9f6fa496743ba435d5ff9e1))
+
 ## [2.40.0](https://github.com/sauerhosen/fluitplanner/compare/v2.39.0...v2.40.0) (2026-11-02)
 
 
