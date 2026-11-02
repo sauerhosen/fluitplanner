@@ -11,6 +11,11 @@ type Props = {
   title: ReactNode;
   /** A quiet state pill: open/closed, draft/published. Never a button. */
   status?: ReactNode;
+  /**
+   * Quiet facts about the record after the status, such as counts. May be
+   * links to a secondary view of the record; never a primary action.
+   */
+  meta?: ReactNode;
   /** One primary action plus an overflow menu. Keep it to two controls. */
   actions?: ReactNode;
 };
@@ -28,6 +33,7 @@ export function PageHeader({
   backLabel,
   title,
   status,
+  meta,
   actions,
 }: Props) {
   return (
@@ -42,9 +48,10 @@ export function PageHeader({
         </Link>
       )}
 
-      <div className="flex min-w-0 flex-1 items-center gap-2">
+      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
         {title}
         {status}
+        {meta}
       </div>
 
       {actions && <div className="flex items-center gap-2">{actions}</div>}

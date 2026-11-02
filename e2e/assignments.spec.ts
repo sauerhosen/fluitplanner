@@ -1,5 +1,9 @@
 import { test, expect } from "@playwright/test";
-import { pollHeading, pollOverflowAction } from "./helpers/poll-detail";
+import {
+  openAssignments,
+  pollHeading,
+  pollOverflowAction,
+} from "./helpers/poll-detail";
 
 test.describe("Umpire Assignment", () => {
   test("planner can view assignment grid on poll detail page", async ({
@@ -20,10 +24,8 @@ test.describe("Umpire Assignment", () => {
     await rows.first().locator("td").nth(1).click();
     await page.waitForURL(/\/protected\/polls\//);
 
-    // Click Assignments tab
-    const assignmentsTab = page.getByRole("tab", { name: /assignments/i });
-    await expect(assignmentsTab).toBeVisible({ timeout: 10000 });
-    await assignmentsTab.click();
+    // A poll without responses opens on its match list; go to the grid.
+    await openAssignments(page);
 
     // The assignment grid should now be visible (either with cells or empty message)
     const hasCells = await page
@@ -74,10 +76,7 @@ test.describe("Umpire Assignment", () => {
       // Navigate to the poll we just created (owned by E2E test user)
       await page.goto(pollUrl);
 
-      // Click Assignments tab
-      await page
-        .getByRole("tab", { name: /assignments/i })
-        .click({ timeout: 10000 });
+      await openAssignments(page);
 
       // Check if there are any assignment cells
       const firstCell = page.locator('[data-testid^="cell-"]').first();
@@ -107,9 +106,7 @@ test.describe("Umpire Assignment", () => {
       test.skip(!pollCreated, "Poll was not created");
 
       await page.goto(pollUrl);
-      await page
-        .getByRole("tab", { name: /assignments/i })
-        .click({ timeout: 10000 });
+      await openAssignments(page);
 
       const firstCell = page.locator('[data-testid^="cell-"]').first();
       const hasCells = await firstCell.isVisible().catch(() => false);
@@ -131,7 +128,7 @@ test.describe("Umpire Assignment", () => {
       await expect(page.getByTestId("confirm-tentative")).toBeHidden();
 
       // Leave the grid as we found it.
-      await page.getByTestId("tentative-mode-toggle").click();
+      await page.getByTestId("confirmed-mode-toggle").click();
       await firstCell.click();
       await expect(firstCell).toHaveAttribute("data-status", "none");
     });

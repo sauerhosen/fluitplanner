@@ -29,7 +29,7 @@ import { SlotPreview } from "./slot-preview";
 import { DiscardedAnswersWarning } from "./discarded-answers-warning";
 import { ResponseSummary } from "./response-summary";
 import { AssignmentGrid } from "./assignment-grid";
-import { SharePollButton } from "./share-poll-button";
+import { PollShareMenu } from "./poll-share-menu";
 import { PageHeader } from "@/components/shared/page-header";
 import { StickyToolbar } from "@/components/shared/sticky-toolbar";
 import { useIsPlanner } from "@/components/shared/role-provider";
@@ -43,7 +43,6 @@ import {
 import { MatchNoteButton } from "@/components/matches/match-note-button";
 import { FeatureMatchButton } from "./feature-match-button";
 import { getUmpiresForPoll } from "@/lib/actions/assignments";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -51,8 +50,8 @@ import { Badge } from "@/components/ui/badge";
 import {
   Pencil,
   PencilLine,
-  UserCheck,
   Check,
+  X,
   Trash2,
   ArrowRightLeft,
   MoreHorizontal,
@@ -62,9 +61,9 @@ import {
   Eye,
   EyeOff,
 } from "lucide-react";
-import { ExportDropdown } from "./export-dropdown";
-import { PollToolbarMenu } from "./poll-toolbar-menu";
-import { UmpireFocusMenu } from "./umpire-focus-menu";
+import { DateRangeMenu } from "./date-range-menu";
+import { UmpireFilterMenu } from "./umpire-filter-menu";
+import { cn } from "@/lib/utils";
 import { useTranslations, useFormatter } from "next-intl";
 import { DateRangePicker } from "@/components/shared/date-range-picker";
 import type { DateRange } from "react-day-picker";
@@ -88,8 +87,14 @@ type Props = {
 // callback that depends on it on each render.
 const NO_UMPIRES: RosteredUmpire[] = [];
 
+type PollView = "matches" | "responses" | "assignments";
+
+/** Beyond this many picked umpires the toolbar shows one summary chip. */
+const MAX_UMPIRE_CHIPS = 3;
+
 /**
- * Render a client-side poll detail editor and viewer with tabs for matches, responses, and assignments.
+ * Render a client-side poll detail editor and viewer. The assignment grid is the page; the match
+ * list and the responses are secondary views reached from the counts beside the title.
  *
  * Provides UI and controls to view and edit the poll title and selected matches, toggle poll status,
  * delete the poll, preview and group time slots, share the poll link, and inspect responses and assignments.
@@ -118,15 +123,18 @@ export function PollDetailClient({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Once umpires have answered, the assignment grid is what a planner opens the
-  // poll for, so it becomes the landing tab.
-  const [activeTab, setActiveTab] = useState(
+  // poll for, so it is the page; the match list and responses are side views.
+  const [view, setView] = useState<PollView>(
     initialPoll.responses.length > 0 ? "assignments" : "matches",
   );
+  // The toolbar node the grid portals its tentative count and bulk actions
+  // into, so they sit beside the mode switch that creates them.
+  const [tentativeSlot, setTentativeSlot] = useState<HTMLElement | null>(null);
   const [transposed, setTransposed] = useState(true);
   const [tentativeMode, setTentativeMode] = useState(false);
-  // Talking to one umpire: the grid narrows to their row alone, so a
+  // Talking to a few umpires: the grid narrows to their rows alone, so a
   // screenshot of it is about them and not the whole roster.
-  const [focusedUmpireId, setFocusedUmpireId] = useState<string | null>(null);
+  const [focusedUmpireIds, setFocusedUmpireIds] = useState<string[]>([]);
   // Hide the rows of umpires who left the days in view blank, so the grid
   // shows only the people a planner can actually plan with.
   const [hideSilentUmpires, setHideSilentUmpires] = useState(false);
@@ -302,17 +310,19 @@ export function PollDetailClient({
   // Only the grid narrows. Exports, counts and conflicts keep the whole
   // roster, so a focused grid still reports honestly how full a match is.
   // An umpire that disappears from the roster (a merge, a refetch) silently
-  // gives the grid back rather than leaving it empty — hence the lookup rather
-  // than trusting `focusedUmpireId` on its own.
-  const focusedUmpire = useMemo(
-    () => umpires.find((u) => u.id === focusedUmpireId) ?? null,
-    [umpires, focusedUmpireId],
-  );
+  // drops out of the selection rather than leaving an empty row — hence the
+  // lookup rather than trusting `focusedUmpireIds` on its own. Roster order,
+  // not click order, so the grid reads the same however they were picked.
+  const focusedUmpires = useMemo(() => {
+    const ids = new Set(focusedUmpireIds);
+    return umpires.filter((u) => ids.has(u.id));
+  }, [umpires, focusedUmpireIds]);
+  const isFocused = focusedUmpires.length > 0;
   // The loaded assignments count too, not only the live ones: a silent umpire
   // kept for an appointment must not lose their row the moment it is cleared,
   // or the planner cannot click the cell again to undo it.
   const gridUmpires = useMemo(() => {
-    if (focusedUmpire) return [focusedUmpire];
+    if (isFocused) return focusedUmpires;
     if (!hideSilentUmpires) return umpires;
     return onlyRespondingUmpires(
       umpires,
@@ -322,7 +332,8 @@ export function PollDetailClient({
       filteredMatches.map((m) => m.id),
     );
   }, [
-    focusedUmpire,
+    isFocused,
+    focusedUmpires,
     hideSilentUmpires,
     umpires,
     filteredSlots,
@@ -439,6 +450,62 @@ export function PollDetailClient({
     [umpires, refreshUmpires],
   );
 
+  const dateControls = (
+    <>
+      <DateRangeMenu
+        className="shrink-0 sm:hidden"
+        dateRange={dateRange}
+        onDateRangeChange={setDateRange}
+      />
+      <div className="hidden shrink-0 sm:block">
+        <DateRangePicker value={dateRange} onChange={setDateRange} />
+      </div>
+    </>
+  );
+
+  function filterChip(
+    label: string,
+    removeLabel: string,
+    onRemove: () => void,
+  ) {
+    return (
+      <span
+        key={label}
+        className="inline-flex h-7 shrink-0 items-center gap-1 rounded-full border bg-accent pl-2.5 pr-1 text-xs"
+        data-testid="active-umpire-filter"
+      >
+        <span className="max-w-40 truncate">{label}</span>
+        <button
+          type="button"
+          aria-label={removeLabel}
+          title={removeLabel}
+          onClick={onRemove}
+          className="rounded-full p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+        >
+          <X className="h-3 w-3" />
+        </button>
+      </span>
+    );
+  }
+
+  function viewLink(target: Exclude<PollView, "assignments">, label: string) {
+    const active = view === target;
+    return (
+      <button
+        type="button"
+        aria-pressed={active}
+        data-testid={`view-${target}`}
+        onClick={() => setView(active ? "assignments" : target)}
+        className={cn(
+          "rounded px-1 py-0.5 tabular-nums underline decoration-border underline-offset-4 transition-colors hover:text-foreground hover:decoration-current",
+          active && "bg-accent font-medium text-foreground no-underline",
+        )}
+      >
+        {label}
+      </button>
+    );
+  }
+
   // Count umpires, not names: two umpires can share a name.
   const uniqueRespondentCount = [
     ...new Set(liveResponses.map((r) => r.umpire_id ?? r.participant_name)),
@@ -464,6 +531,21 @@ export function PollDetailClient({
           >
             {poll.status === "open" ? t("statusOpen") : t("statusClosed")}
           </Badge>
+        }
+        meta={
+          // The match list and responses are side views of the grid, reached
+          // from their counts. Clicking the open one goes back to the grid.
+          <span className="flex shrink-0 items-center gap-0.5 text-sm text-muted-foreground">
+            {viewLink(
+              "matches",
+              t("matchesLink", { count: filteredMatches.length }),
+            )}
+            <span aria-hidden>·</span>
+            {viewLink(
+              "responses",
+              t("responsesLink", { count: uniqueRespondentCount }),
+            )}
+          </span>
         }
         title={
           !canEdit ? (
@@ -513,13 +595,21 @@ export function PollDetailClient({
           )
         }
         actions={
-          canEdit ? (
-            <>
-              <SharePollButton
-                token={poll.token}
-                title={poll.title}
-                variant="menu"
-              />
+          <>
+            <PollShareMenu
+              token={poll.token}
+              title={poll.title}
+              canShareLink={canEdit}
+              exportData={{
+                pollTitle: poll.title ?? "",
+                slots: filteredSlots,
+                matches: exportMatches,
+                responses: liveResponses,
+                assignments: liveAssignments,
+                umpires,
+              }}
+            />
+            {canEdit && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
@@ -563,376 +653,377 @@ export function PollDetailClient({
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-            </>
-          ) : undefined
+            )}
+          </>
         }
       />
 
-      {/* Matches, Responses & Assignments */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <StickyToolbar
-          compact={
-            <>
-              <Link
-                href="/protected/polls"
-                className="flex min-w-0 items-center gap-1 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+      <StickyToolbar
+        compact={
+          <>
+            <Link
+              href="/protected/polls"
+              className="flex min-w-0 items-center gap-1 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <ChevronLeft className="h-4 w-4 shrink-0" />
+              <span className="truncate">{poll.title}</span>
+            </Link>
+            <span aria-hidden className="mx-3 h-4 w-px shrink-0 bg-border" />
+          </>
+        }
+      >
+        {view !== "assignments" ? (
+          <>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="shrink-0 px-2"
+              onClick={() => setView("assignments")}
+              data-testid="back-to-assignments"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              {t("assignmentsTab")}
+            </Button>
+            <span aria-hidden className="h-4 w-px shrink-0 bg-border" />
+            <span className="shrink-0 text-sm font-medium">
+              {view === "matches"
+                ? t("matchesTabShort")
+                : t("responsesTabShort")}
+            </span>
+            {dateControls}
+            {view === "matches" && canEdit && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="ml-auto shrink-0"
+                onClick={() => {
+                  setSelectedMatchIds(poll.matches.map((m) => m.id));
+                  setEditingMatches((prev) => !prev);
+                }}
               >
-                <ChevronLeft className="h-4 w-4 shrink-0" />
-                <span className="truncate">{poll.title}</span>
-              </Link>
-              <span aria-hidden className="mx-3 h-4 w-px shrink-0 bg-border" />
-            </>
-          }
-          className="justify-between"
-        >
-          <TabsList>
-            {/* The counts are the widest part of the row and the least urgent,
-                so a phone gets the bare labels and the tools keep their seat. */}
-            <TabsTrigger value="matches">
-              <span className="sm:hidden">{t("matchesTabShort")}</span>
-              <span className="hidden sm:inline">
-                {t("matchesTab", { count: filteredMatches.length })}
-              </span>
-            </TabsTrigger>
-            <TabsTrigger value="responses">
-              <span className="sm:hidden">{t("responsesTabShort")}</span>
-              <span className="hidden sm:inline">
-                {t("responsesTab", { count: uniqueRespondentCount })}
-              </span>
-            </TabsTrigger>
-            <TabsTrigger value="assignments">{t("assignmentsTab")}</TabsTrigger>
-          </TabsList>
-          <PollToolbarMenu
-            className="sm:hidden"
-            pollTitle={poll.title ?? ""}
-            slots={filteredSlots}
-            matches={exportMatches}
-            responses={liveResponses}
-            assignments={liveAssignments}
-            umpires={umpires}
-            activeTab={activeTab}
-            dateRange={dateRange}
-            onDateRangeChange={setDateRange}
-            tentativeMode={tentativeMode}
-            onTentativeModeChange={setTentativeMode}
-            onSwapAxes={() => setTransposed((prev) => !prev)}
-            focusedUmpireId={focusedUmpireId}
-            onFocusedUmpireChange={setFocusedUmpireId}
-            hideSilentUmpires={hideSilentUmpires}
-            onHideSilentUmpiresChange={setHideSilentUmpires}
-          />
-          <div className="hidden items-center gap-2 sm:flex">
-            <DateRangePicker value={dateRange} onChange={setDateRange} />
-            <ExportDropdown
-              pollTitle={poll.title ?? ""}
-              slots={filteredSlots}
-              matches={exportMatches}
-              responses={liveResponses}
-              assignments={liveAssignments}
-              umpires={umpires}
-              activeTab={activeTab}
-            />
-            {activeTab === "assignments" && (
-              <>
-                <UmpireFocusMenu
-                  umpires={umpires}
-                  focusedUmpireId={focusedUmpireId}
-                  onFocusedUmpireChange={setFocusedUmpireId}
-                />
-                <Button
-                  variant={hideSilentUmpires ? "default" : "outline"}
-                  size="sm"
-                  aria-pressed={hideSilentUmpires}
-                  // Focusing one umpire overrides this filter, so the switch
-                  // steps aside rather than claiming an effect it lacks.
-                  disabled={focusedUmpire !== null}
-                  data-testid="hide-silent-umpires-toggle"
-                  title={t("hideSilentUmpiresHint")}
-                  onClick={() => setHideSilentUmpires((prev) => !prev)}
+                {editingMatches ? tCommon("cancel") : t("editMatches")}
+              </Button>
+            )}
+          </>
+        ) : (
+          <>
+            {dateControls}
+            {isFocused && focusedUmpires.length <= MAX_UMPIRE_CHIPS
+              ? focusedUmpires.map((u) =>
+                  filterChip(u.name, `${t("removeFilter")}: ${u.name}`, () =>
+                    setFocusedUmpireIds((prev) =>
+                      prev.filter((id) => id !== u.id),
+                    ),
+                  ),
+                )
+              : isFocused
+                ? // A long selection would push the mode switch off the bar;
+                  // the corner menu still lists who is picked.
+                  filterChip(
+                    t("umpiresSelected", { count: focusedUmpires.length }),
+                    t("removeFilter"),
+                    () => setFocusedUmpireIds([]),
+                  )
+                : hideSilentUmpires &&
+                  filterChip(t("hideSilentUmpires"), t("removeFilter"), () =>
+                    setHideSilentUmpires(false),
+                  )}
+            <div className="ml-auto flex shrink-0 items-center gap-3">
+              {canEdit && (
+                <div
+                  role="group"
+                  aria-label={t("assignMode")}
+                  title={t("tentativeModeHint")}
+                  className="inline-flex shrink-0 overflow-hidden rounded-md border bg-background"
                 >
-                  <UserCheck className="mr-2 h-4 w-4" />
-                  {t("hideSilentUmpires")}
-                </Button>
-                {canEdit && (
-                  <Button
-                    variant={tentativeMode ? "default" : "outline"}
-                    size="sm"
+                  <button
+                    type="button"
+                    aria-pressed={!tentativeMode}
+                    data-testid="confirmed-mode-toggle"
+                    onClick={() => setTentativeMode(false)}
+                    className={cn(
+                      "h-8 px-2.5 text-xs transition-colors",
+                      !tentativeMode
+                        ? "bg-accent font-semibold text-foreground"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    {t("assignModeConfirmed")}
+                  </button>
+                  <button
+                    type="button"
                     aria-pressed={tentativeMode}
                     data-testid="tentative-mode-toggle"
-                    title={t("tentativeModeHint")}
-                    onClick={() => setTentativeMode((prev) => !prev)}
+                    onClick={() => setTentativeMode(true)}
+                    className={cn(
+                      "flex h-8 items-center gap-1.5 border-l px-2.5 text-xs transition-colors",
+                      tentativeMode
+                        ? "bg-accent font-semibold text-foreground"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
                   >
-                    <PencilLine className="mr-2 h-4 w-4" />
-                    {t("tentativeMode")}
-                  </Button>
-                )}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setTransposed((prev) => !prev)}
-                  aria-label={t("swapRowsAndColumns")}
-                >
-                  <ArrowRightLeft className="mr-2 h-4 w-4" />
-                  {t("swapAxes")}
-                </Button>
-              </>
-            )}
-          </div>
-        </StickyToolbar>
-        <TabsContent value="matches">
-          <div className="flex flex-col gap-4">
-            <div className="flex items-center justify-between">
-              <Label>{t("slotsLabel", { count: filteredSlots.length })}</Label>
-              {canEdit && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    if (editingMatches) {
-                      setSelectedMatchIds(poll.matches.map((m) => m.id));
-                      setEditingMatches(false);
-                    } else {
-                      setSelectedMatchIds(poll.matches.map((m) => m.id));
-                      setEditingMatches(true);
-                    }
-                  }}
-                >
-                  {editingMatches ? tCommon("cancel") : t("editMatches")}
-                </Button>
-              )}
-            </div>
-
-            {canEdit && editingMatches ? (
-              <div className="flex flex-col gap-4">
-                <MatchSelector
-                  matches={allSelectableMatches}
-                  selectedIds={selectedMatchIds}
-                  onSelectionChange={setSelectedMatchIds}
-                />
-                <div className="flex flex-col gap-2">
-                  <Label>{t("updatedSlotsPreview")}</Label>
-                  <SlotPreview slots={previewSlots} />
+                    <PencilLine className="h-3.5 w-3.5" />
+                    {t("assignModeTentative")}
+                  </button>
                 </div>
-                <DiscardedAnswersWarning count={discardedAnswerCount} />
-                <Button onClick={handleSaveMatches} disabled={saving}>
-                  {saving ? t("saving") : t("saveMatchChanges")}
-                </Button>
+              )}
+              <div ref={setTentativeSlot} className="contents" />
+            </div>
+          </>
+        )}
+      </StickyToolbar>
+
+      {view === "matches" && (
+        <div className="flex flex-col gap-4">
+          <Label>{t("slotsLabel", { count: filteredSlots.length })}</Label>
+          {canEdit && editingMatches ? (
+            <div className="flex flex-col gap-4">
+              <MatchSelector
+                matches={allSelectableMatches}
+                selectedIds={selectedMatchIds}
+                onSelectionChange={setSelectedMatchIds}
+              />
+              <div className="flex flex-col gap-2">
+                <Label>{t("updatedSlotsPreview")}</Label>
+                <SlotPreview slots={previewSlots} />
               </div>
-            ) : (
-              <div className="flex flex-col gap-4">
-                {(() => {
-                  const sortedSlots = filteredSlots
-                    .slice()
-                    .sort(
-                      (a, b) =>
-                        new Date(a.start_time).getTime() -
-                        new Date(b.start_time).getTime(),
-                    );
-                  const dateGroups: {
-                    dateKey: string;
-                    label: string;
-                    slots: typeof sortedSlots;
-                  }[] = [];
-                  for (const slot of sortedSlots) {
-                    const dateKey = new Date(slot.start_time).toDateString();
-                    const last = dateGroups[dateGroups.length - 1];
-                    if (last && last.dateKey === dateKey) {
-                      last.slots.push(slot);
-                    } else {
-                      dateGroups.push({
-                        dateKey,
-                        label: format.dateTime(new Date(slot.start_time), {
-                          weekday: "long",
-                          day: "numeric",
-                          month: "long",
-                        }),
-                        slots: [slot],
-                      });
-                    }
+              <DiscardedAnswersWarning count={discardedAnswerCount} />
+              <Button onClick={handleSaveMatches} disabled={saving}>
+                {saving ? t("saving") : t("saveMatchChanges")}
+              </Button>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-4">
+              {(() => {
+                const sortedSlots = filteredSlots
+                  .slice()
+                  .sort(
+                    (a, b) =>
+                      new Date(a.start_time).getTime() -
+                      new Date(b.start_time).getTime(),
+                  );
+                const dateGroups: {
+                  dateKey: string;
+                  label: string;
+                  slots: typeof sortedSlots;
+                }[] = [];
+                for (const slot of sortedSlots) {
+                  const dateKey = new Date(slot.start_time).toDateString();
+                  const last = dateGroups[dateGroups.length - 1];
+                  if (last && last.dateKey === dateKey) {
+                    last.slots.push(slot);
+                  } else {
+                    dateGroups.push({
+                      dateKey,
+                      label: format.dateTime(new Date(slot.start_time), {
+                        weekday: "long",
+                        day: "numeric",
+                        month: "long",
+                      }),
+                      slots: [slot],
+                    });
                   }
-                  return dateGroups.map((group) => (
-                    <div key={group.dateKey}>
-                      <div className="text-muted-foreground mb-2 text-xs font-semibold uppercase tracking-wide">
-                        {group.label}
-                      </div>
-                      <div className="flex flex-col gap-2">
-                        {group.slots.map((slot) => {
-                          const slotMatches = filteredMatches.filter(
-                            (m) => slotByMatch.get(m.id) === slot.id,
-                          );
-                          return (
-                            <div key={slot.id} className="rounded-lg border">
-                              <div className="bg-muted px-3 py-2 text-sm font-medium">
-                                {format.dateTime(new Date(slot.start_time), {
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                  hour12: false,
-                                })}
-                                {" – "}
-                                {format.dateTime(new Date(slot.end_time), {
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                  hour12: false,
-                                })}
-                              </div>
-                              {slotMatches.length > 0 ? (
-                                <div className="divide-y px-3">
-                                  {slotMatches.map((match) => {
-                                    const isHidden = hiddenMatchIds.has(
-                                      match.id,
-                                    );
-                                    const toggleHiddenLabel = isHidden
-                                      ? t("unhideMatch")
-                                      : t("hideMatch");
-                                    return (
-                                      <div
-                                        key={match.id}
-                                        data-hidden={isHidden || undefined}
-                                        className="flex items-center justify-between gap-2 py-1.5 text-sm"
+                }
+                return dateGroups.map((group) => (
+                  <div key={group.dateKey}>
+                    <div className="text-muted-foreground mb-2 text-xs font-semibold uppercase tracking-wide">
+                      {group.label}
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      {group.slots.map((slot) => {
+                        const slotMatches = filteredMatches.filter(
+                          (m) => slotByMatch.get(m.id) === slot.id,
+                        );
+                        return (
+                          <div key={slot.id} className="rounded-lg border">
+                            <div className="bg-muted px-3 py-2 text-sm font-medium">
+                              {format.dateTime(new Date(slot.start_time), {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                                hour12: false,
+                              })}
+                              {" – "}
+                              {format.dateTime(new Date(slot.end_time), {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                                hour12: false,
+                              })}
+                            </div>
+                            {slotMatches.length > 0 ? (
+                              <div className="divide-y px-3">
+                                {slotMatches.map((match) => {
+                                  const isHidden = hiddenMatchIds.has(match.id);
+                                  const toggleHiddenLabel = isHidden
+                                    ? t("unhideMatch")
+                                    : t("hideMatch");
+                                  return (
+                                    <div
+                                      key={match.id}
+                                      data-hidden={isHidden || undefined}
+                                      className="flex items-center justify-between gap-2 py-1.5 text-sm"
+                                    >
+                                      <span
+                                        className={
+                                          isHidden
+                                            ? "flex items-center gap-2 text-muted-foreground"
+                                            : undefined
+                                        }
                                       >
                                         <span
                                           className={
                                             isHidden
-                                              ? "flex items-center gap-2 text-muted-foreground"
+                                              ? "line-through"
                                               : undefined
                                           }
                                         >
-                                          <span
-                                            className={
-                                              isHidden
-                                                ? "line-through"
-                                                : undefined
+                                          {match.home_team} – {match.away_team}
+                                        </span>
+                                        {isHidden && (
+                                          <Badge
+                                            variant="outline"
+                                            className="font-normal"
+                                          >
+                                            {t("hiddenBadge")}
+                                          </Badge>
+                                        )}
+                                      </span>
+                                      <div className="flex items-center gap-1">
+                                        {match.start_time && (
+                                          <span className="text-muted-foreground text-xs">
+                                            {format.dateTime(
+                                              new Date(match.start_time),
+                                              {
+                                                hour: "2-digit",
+                                                minute: "2-digit",
+                                                hour12: false,
+                                              },
+                                            )}
+                                          </span>
+                                        )}
+                                        {canEdit && (
+                                          <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-7 w-7"
+                                            aria-pressed={isHidden}
+                                            aria-label={toggleHiddenLabel}
+                                            title={toggleHiddenLabel}
+                                            data-testid={`toggle-hidden-${match.id}`}
+                                            onClick={() =>
+                                              handleSetHidden(
+                                                [match.id],
+                                                !isHidden,
+                                              )
                                             }
                                           >
-                                            {match.home_team} –{" "}
-                                            {match.away_team}
-                                          </span>
-                                          {isHidden && (
-                                            <Badge
-                                              variant="outline"
-                                              className="font-normal"
-                                            >
-                                              {t("hiddenBadge")}
-                                            </Badge>
-                                          )}
-                                        </span>
-                                        <div className="flex items-center gap-1">
-                                          {match.start_time && (
-                                            <span className="text-muted-foreground text-xs">
-                                              {format.dateTime(
-                                                new Date(match.start_time),
-                                                {
-                                                  hour: "2-digit",
-                                                  minute: "2-digit",
-                                                  hour12: false,
-                                                },
-                                              )}
-                                            </span>
-                                          )}
-                                          {canEdit && (
-                                            <Button
-                                              type="button"
-                                              variant="ghost"
-                                              size="icon"
-                                              className="h-7 w-7"
-                                              aria-pressed={isHidden}
-                                              aria-label={toggleHiddenLabel}
-                                              title={toggleHiddenLabel}
-                                              data-testid={`toggle-hidden-${match.id}`}
-                                              onClick={() =>
-                                                handleSetHidden(
-                                                  [match.id],
-                                                  !isHidden,
-                                                )
-                                              }
-                                            >
-                                              {isHidden ? (
-                                                <Eye className="h-3.5 w-3.5 text-muted-foreground" />
-                                              ) : (
-                                                <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />
-                                              )}
-                                            </Button>
-                                          )}
-                                          <FeatureMatchButton
-                                            pollId={poll.id}
-                                            matchId={match.id}
-                                            featured={featuredMatchIds.has(
-                                              match.id,
+                                            {isHidden ? (
+                                              <Eye className="h-3.5 w-3.5 text-muted-foreground" />
+                                            ) : (
+                                              <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />
                                             )}
-                                            disabled={!match.start_time}
-                                            onToggled={handleFeatureToggled}
-                                          />
-                                          <MatchNoteButton
-                                            match={match}
-                                            variant={
-                                              canEdit ? "editor" : "indicator"
-                                            }
-                                            readOnly={!canEdit}
-                                            onSaved={refreshPoll}
-                                          />
-                                        </div>
+                                          </Button>
+                                        )}
+                                        <FeatureMatchButton
+                                          pollId={poll.id}
+                                          matchId={match.id}
+                                          featured={featuredMatchIds.has(
+                                            match.id,
+                                          )}
+                                          disabled={!match.start_time}
+                                          onToggled={handleFeatureToggled}
+                                        />
+                                        <MatchNoteButton
+                                          match={match}
+                                          variant={
+                                            canEdit ? "editor" : "indicator"
+                                          }
+                                          readOnly={!canEdit}
+                                          onSaved={refreshPoll}
+                                        />
                                       </div>
-                                    );
-                                  })}
-                                </div>
-                              ) : (
-                                <div className="text-muted-foreground px-3 py-1.5 text-sm">
-                                  {t("noMatchesInSlot")}
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            ) : (
+                              <div className="text-muted-foreground px-3 py-1.5 text-sm">
+                                {t("noMatchesInSlot")}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
-                  ));
-                })()}
-              </div>
-            )}
-          </div>
-        </TabsContent>
-        <TabsContent value="responses">
-          <ResponseSummary
+                  </div>
+                ));
+              })()}
+            </div>
+          )}
+        </div>
+      )}
+      {view === "responses" && (
+        <ResponseSummary
+          pollId={poll.id}
+          slots={filteredSlots}
+          responses={liveResponses}
+          roster={roster}
+          onResponseChange={handleResponseChange}
+          onResponseSaved={handleResponseSaved}
+        />
+      )}
+      {view === "assignments" &&
+        (hideSilentUmpires &&
+        !isFocused &&
+        umpires.length > 0 &&
+        gridUmpires.length === 0 ? (
+          <p
+            className="py-4 text-sm text-muted-foreground"
+            data-testid="no-responders-in-range"
+          >
+            {t("noRespondersInRange")}
+          </p>
+        ) : (
+          <AssignmentGrid
             pollId={poll.id}
+            matches={filteredMatches}
             slots={filteredSlots}
             responses={liveResponses}
-            roster={roster}
-            onResponseChange={handleResponseChange}
-            onResponseSaved={handleResponseSaved}
+            assignments={poll.assignments}
+            umpires={gridUmpires}
+            transposed={transposed}
+            focused={isFocused}
+            tentativeMode={tentativeMode}
+            clubName={clubName}
+            onAssignmentsChange={setLiveAssignments}
+            onNoteSaved={refreshPoll}
+            onUmpireNoteSaved={refreshUmpires}
+            hiddenMatchIds={poll.hiddenMatchIds}
+            onSetHidden={canEdit ? handleSetHidden : undefined}
+            tentativeSlot={tentativeSlot}
+            corner={
+              <div className="flex items-center gap-1">
+                <UmpireFilterMenu
+                  umpires={umpires}
+                  focusedUmpireIds={focusedUmpireIds}
+                  onFocusedUmpireIdsChange={setFocusedUmpireIds}
+                  hideSilentUmpires={hideSilentUmpires}
+                  onHideSilentUmpiresChange={setHideSilentUmpires}
+                />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-7 text-muted-foreground"
+                  onClick={() => setTransposed((prev) => !prev)}
+                  aria-label={t("swapRowsAndColumns")}
+                  title={t("swapAxes")}
+                >
+                  <ArrowRightLeft className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            }
           />
-        </TabsContent>
-        <TabsContent value="assignments">
-          {hideSilentUmpires &&
-          !focusedUmpire &&
-          umpires.length > 0 &&
-          gridUmpires.length === 0 ? (
-            <p
-              className="py-4 text-sm text-muted-foreground"
-              data-testid="no-responders-in-range"
-            >
-              {t("noRespondersInRange")}
-            </p>
-          ) : (
-            <AssignmentGrid
-              pollId={poll.id}
-              matches={filteredMatches}
-              slots={filteredSlots}
-              responses={liveResponses}
-              assignments={poll.assignments}
-              umpires={gridUmpires}
-              transposed={transposed}
-              focused={focusedUmpire !== null}
-              tentativeMode={tentativeMode}
-              clubName={clubName}
-              onAssignmentsChange={setLiveAssignments}
-              onNoteSaved={refreshPoll}
-              onUmpireNoteSaved={refreshUmpires}
-              hiddenMatchIds={poll.hiddenMatchIds}
-              onSetHidden={canEdit ? handleSetHidden : undefined}
-            />
-          )}
-        </TabsContent>
-      </Tabs>
+        ))}
     </div>
   );
 }

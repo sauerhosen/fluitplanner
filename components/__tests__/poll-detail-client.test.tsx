@@ -108,7 +108,7 @@ describe("PollDetailClient answering for a new respondent", () => {
     vi.clearAllMocks();
   });
 
-  it("keeps answers entered after the first save across a tab switch", async () => {
+  it("keeps answers entered after the first save across a view switch", async () => {
     // The first answer for Bob brings him onto the respondent list. A second
     // answer entered while that refresh is in flight must survive it.
     let resolveUmpires: (u: RosteredUmpire[]) => void = () => {};
@@ -128,7 +128,7 @@ describe("PollDetailClient answering for a new respondent", () => {
       />,
     );
 
-    await user.click(screen.getByRole("tab", { name: /responses/i }));
+    await user.click(screen.getByTestId("view-responses"));
     await user.click(screen.getByTestId("add-respondent-menu"));
     await user.click(screen.getByRole("menuitem", { name: "Bob" }));
 
@@ -138,8 +138,8 @@ describe("PollDetailClient answering for a new respondent", () => {
     await user.click(screen.getByRole("button", { name: /bob/i }));
     resolveUmpires([ALICE, BOB]);
 
-    await user.click(screen.getByRole("tab", { name: /assignments/i }));
-    await user.click(screen.getByRole("tab", { name: /responses/i }));
+    await user.click(screen.getByTestId("back-to-assignments"));
+    await user.click(screen.getByTestId("view-responses"));
 
     expect(
       screen.getByRole("button", { name: /bob.*if need be/i }),
@@ -315,15 +315,48 @@ describe("PollDetailClient hiding umpires who have not answered", () => {
 
     expect(screen.getByTestId("cell-m1-umpire-2")).toBeInTheDocument();
 
+    await user.click(screen.getByTestId("umpire-filter-menu"));
     const toggle = screen.getByTestId("hide-silent-umpires-toggle");
     await user.click(toggle);
 
-    expect(toggle).toHaveAttribute("aria-pressed", "true");
+    expect(toggle).toHaveAttribute("aria-checked", "true");
     expect(screen.queryByTestId("cell-m1-umpire-2")).not.toBeInTheDocument();
     expect(screen.getByTestId("cell-m1-umpire-1")).toBeInTheDocument();
+    expect(screen.getByTestId("active-umpire-filter")).toHaveTextContent(
+      "Responders only",
+    );
 
     await user.click(toggle);
     expect(screen.getByTestId("cell-m1-umpire-2")).toBeInTheDocument();
+  });
+
+  it("narrows the grid to several picked umpires, with a chip for each", async () => {
+    const CAROL = umpire("umpire-3", "Carol");
+    const user = userEvent.setup();
+    render(
+      <PollDetailClient
+        initialPoll={{ ...POLL, matches: [MATCH] }}
+        availableMatches={[]}
+        umpires={[ALICE, BOB, CAROL]}
+        roster={[ALICE, BOB, CAROL]}
+      />,
+    );
+
+    await user.click(screen.getByTestId("umpire-filter-menu"));
+    await user.click(screen.getByRole("menuitemcheckbox", { name: "Alice" }));
+    await user.click(screen.getByRole("menuitemcheckbox", { name: "Carol" }));
+    await user.keyboard("{Escape}");
+
+    expect(screen.getByTestId("cell-m1-umpire-1")).toBeInTheDocument();
+    expect(screen.getByTestId("cell-m1-umpire-3")).toBeInTheDocument();
+    expect(screen.queryByTestId("cell-m1-umpire-2")).not.toBeInTheDocument();
+    expect(screen.getAllByTestId("active-umpire-filter")).toHaveLength(2);
+
+    await user.click(
+      screen.getByRole("button", { name: "Remove filter: Alice" }),
+    );
+    expect(screen.queryByTestId("cell-m1-umpire-1")).not.toBeInTheDocument();
+    expect(screen.getByTestId("cell-m1-umpire-3")).toBeInTheDocument();
   });
 
   it("keeps a silent umpire's row after their appointment is cleared", async () => {
@@ -351,7 +384,9 @@ describe("PollDetailClient hiding umpires who have not answered", () => {
       />,
     );
 
+    await user.click(screen.getByTestId("umpire-filter-menu"));
     await user.click(screen.getByTestId("hide-silent-umpires-toggle"));
+    await user.keyboard("{Escape}");
     const cell = screen.getByTestId("cell-m1-umpire-2");
     await user.click(cell);
 
@@ -370,8 +405,77 @@ describe("PollDetailClient hiding umpires who have not answered", () => {
       />,
     );
 
+    await user.click(screen.getByTestId("umpire-filter-menu"));
     await user.click(screen.getByTestId("hide-silent-umpires-toggle"));
+    await user.keyboard("{Escape}");
 
     expect(screen.getByTestId("no-responders-in-range")).toBeInTheDocument();
+
+    // The grid and its corner filter are gone, so the toolbar chip is the way
+    // back out.
+    await user.click(screen.getByRole("button", { name: "Remove filter" }));
+    expect(screen.getByTestId("cell-m1-umpire-2")).toBeInTheDocument();
+  });
+});
+
+describe("PollDetailClient views", () => {
+  beforeEach(() => {
+    vi.useFakeTimers({
+      toFake: ["Date"],
+      now: new Date("2026-02-27T12:00:00Z"),
+    });
+    vi.clearAllMocks();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("opens on the grid and reaches the side views from the counts by the title", async () => {
+    const user = userEvent.setup();
+    render(
+      <PollDetailClient
+        initialPoll={POLL}
+        availableMatches={[]}
+        umpires={[ALICE]}
+        roster={[ALICE]}
+      />,
+    );
+
+    expect(screen.queryByRole("tab")).not.toBeInTheDocument();
+    expect(screen.getByTestId("view-matches")).toHaveTextContent("0 matches");
+    expect(screen.getByTestId("view-responses")).toHaveTextContent(
+      "1 response",
+    );
+
+    await user.click(screen.getByTestId("view-matches"));
+    expect(screen.getByTestId("view-matches")).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByRole("button", { name: /edit matches/i })).toBeVisible();
+
+    // Clicking the open view again goes back to the grid.
+    await user.click(screen.getByTestId("view-matches"));
+    expect(screen.getByTestId("tentative-mode-toggle")).toBeInTheDocument();
+  });
+
+  it("switches between confirmed and tentative assigning", async () => {
+    const user = userEvent.setup();
+    render(
+      <PollDetailClient
+        initialPoll={POLL}
+        availableMatches={[]}
+        umpires={[ALICE]}
+        roster={[ALICE]}
+      />,
+    );
+
+    const confirmed = screen.getByTestId("confirmed-mode-toggle");
+    const tentative = screen.getByTestId("tentative-mode-toggle");
+    expect(confirmed).toHaveAttribute("aria-pressed", "true");
+
+    await user.click(tentative);
+    expect(tentative).toHaveAttribute("aria-pressed", "true");
+    expect(confirmed).toHaveAttribute("aria-pressed", "false");
   });
 });

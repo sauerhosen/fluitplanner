@@ -23,8 +23,8 @@ the layout change below, the first grid row moved from 362 px down the window to
 Two rows, and only two:
 
 ```
-‹ Polls   Seizoen '26-'27 - tot herfstvakantie  (Open)          [Share ▾] [⋯]
-[ Matches (11) | Responses (15) | Assignments ]     [All] [Export] [tools…]
+‹ Polls   Seizoen '26-'27 - tot herfstvakantie  (Open)  11 matches · 15 responses   [Share ▾] [⋯]
+[📅 Next 2 weeks] [Responders only ×]          [Confirmed | Tentative]  3 tentative [Confirm all] [Clear]
 ```
 
 **Row 1 — identity.** Where you are, what state it is in, and the one action you
@@ -35,17 +35,30 @@ came to take. Built with `components/shared/page-header.tsx`:
 | `backHref` / `backLabel` | Chevron to the list this record belongs to       | Always, on a detail page. Label hides below `sm`                                    |
 | `title`                  | The record's name                                | A node, so it can be inline-editable. Click it to edit; the pencil appears on hover |
 | `status`                 | A quiet pill: open/closed, draft/published       | State only — never a button                                                         |
+| `meta`                   | Quiet facts after the status, such as counts     | May link to a secondary view of the record; never a primary action                  |
 | `actions`                | **One** primary button and **one** overflow menu | If a third control wants in, it belongs in the menu                                 |
 
-**Row 2 — the toolbar.** What you operate the page's content with: tabs, date
-filters, export, view toggles. Built with
+**Row 2 — the toolbar.** What you operate the page's content with: date
+filters, modes, active-filter chips. Built with
 `components/shared/sticky-toolbar.tsx`. It sticks to the top of the viewport
 once you scroll past it, and grows a compact identity — back chevron plus
 truncated title — on the same line while it is stuck, so scrolling never costs
 you the knowledge of which record you are in.
 
-Everything else that used to live up here goes into one of two places: the
-primary action's dropdown, or the overflow menu.
+Everything else that used to live up here goes into one of three places: the
+primary action's dropdown, the overflow menu, or the content it changes.
+
+**Put a control on the thing it changes.** A control that only reshapes one
+table — which rows it shows, which way round it is — lives in that table's
+sticky corner cell, not in the toolbar. The poll grid's umpire filter and its
+swap-axes icon sit there, so they stay in reach while the grid scrolls and
+survive the swap. The toolbar shows the filter as a removable chip while it is
+active, which is also the way out when the filter leaves the grid empty.
+
+**Prefer one main view over tabs.** When a page is opened for one view almost
+every time, make that view the page and reach the others from quiet `meta`
+links in the header, as the poll page does with its match list and responses.
+The secondary view's toolbar starts with a back button to the main view.
 
 ## Rules
 
@@ -85,20 +98,20 @@ import { StickyToolbar } from "@/components/shared/sticky-toolbar";
       </h1>
     }
     status={<Badge variant="default">{t("statusOpen")}</Badge>}
+    meta={<span>…match and response count links…</span>}
     actions={
       <>
-        <SharePollButton token={poll.token} variant="menu" />
+        <PollShareMenu token={poll.token} title={poll.title} canShareLink exportData={…} />
         <DropdownMenu>…</DropdownMenu>
       </>
     }
   />
 
   <StickyToolbar
-    className="justify-between"
     compact={<Link href="/protected/polls">‹ {poll.title}</Link>}
   >
-    <TabsList>…</TabsList>
-    <div className="flex items-center gap-2">…tools…</div>
+    <DateRangePicker … />
+    <div className="ml-auto flex items-center gap-3">…mode, tentative…</div>
   </StickyToolbar>
 </div>;
 ```
@@ -142,15 +155,15 @@ that is not `visible` or `clip`.
 
 Every authenticated page now uses the same two rows.
 
-| Page                         | Back to | Primary action | Behind `⋯`                   | Toolbar                               |
-| ---------------------------- | ------- | -------------- | ---------------------------- | ------------------------------------- |
-| Poll detail                  | Polls   | Share ▾        | Rename, close/reopen, delete | Tabs, date range, export, grid tools  |
-| Matches                      | —       | Add match      | Import matches               | Search, level, poll, date range, sync |
-| Umpires                      | —       | Add umpire     | —                            | Search, level                         |
-| Poll list                    | —       | New poll       | —                            | — (nothing to filter yet)             |
-| Dashboard                    | —       | —              | —                            | —                                     |
-| Settings                     | —       | —              | —                            | —                                     |
-| Organizations, Users (admin) | —       | —              | —                            | —                                     |
+| Page                         | Back to | Primary action      | Behind `⋯`                   | Toolbar                                                 |
+| ---------------------------- | ------- | ------------------- | ---------------------------- | ------------------------------------------------------- |
+| Poll detail                  | Polls   | Share ▾ (+ exports) | Rename, close/reopen, delete | Date range, filter chip, assign mode, tentative actions |
+| Matches                      | —       | Add match           | Import matches               | Search, level, poll, date range, sync                   |
+| Umpires                      | —       | Add umpire          | —                            | Search, level                                           |
+| Poll list                    | —       | New poll            | —                            | — (nothing to filter yet)                               |
+| Dashboard                    | —       | —                   | —                            | —                                                       |
+| Settings                     | —       | —                   | —                            | —                                                       |
+| Organizations, Users (admin) | —       | —                   | —                            | —                                                       |
 
 Top-level pages have no `backHref`, so their header is title plus whatever
 actions they have. A page with nothing to filter simply has no toolbar — the

@@ -7,7 +7,9 @@ import {
   useCallback,
   useEffect,
   useRef,
+  type ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
 import { Check, Ban, AlertTriangle, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -77,6 +79,17 @@ type Props = {
   hiddenMatchIds?: string[];
   /** Hide or unhide matches; absent means the grid offers no such control. */
   onSetHidden?: (matchIds: string[], hidden: boolean) => void;
+  /**
+   * Controls for the grid's view (umpire filter, swap axes), shown in the
+   * sticky top-left corner cell in place of the axis label, so they sit on the
+   * grid they change and stay in reach while it scrolls.
+   */
+  corner?: ReactNode;
+  /**
+   * Where the tentative count and its bulk actions render: the page toolbar,
+   * next to the mode switch that creates them. Absent, they sit above the grid.
+   */
+  tentativeSlot?: HTMLElement | null;
 };
 
 const NO_HIDDEN: string[] = [];
@@ -108,6 +121,8 @@ export function AssignmentGrid({
   onUmpireNoteSaved,
   hiddenMatchIds = NO_HIDDEN,
   onSetHidden,
+  corner,
+  tentativeSlot,
 }: Props) {
   const [assignments, setAssignments] = useState(initialAssignments);
   const tableRef = useRef<HTMLTableElement>(null);
@@ -578,31 +593,33 @@ export function AssignmentGrid({
   }
 
   /**
-   * Only rendered once something tentative exists: an always-present strip was
-   * a row of empty space above the grid, and the mode switch itself lives in
-   * the page toolbar next to the other grid controls.
+   * Only rendered once something tentative exists: the mode switch itself
+   * lives in the page toolbar, and this follows it there when given a slot.
    */
   function renderTentativeBar() {
     const tentativeCount = counts.tentativeTotal;
     if (tentativeCount === 0 || focused) return null;
 
-    return (
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+    const bar = (
+      <div className="flex shrink-0 items-center gap-x-2 text-xs text-muted-foreground">
         <span
-          className="flex items-center gap-1.5"
+          className="flex items-center gap-1.5 whitespace-nowrap tabular-nums"
           data-testid="tentative-summary"
+          title={t("tentativeSummary", { count: tentativeCount })}
         >
           <span className="flex h-4 w-4 items-center justify-center rounded outline-2 outline-dashed outline-primary/70 -outline-offset-2">
             <Check className={`h-3 w-3 text-primary/60 ${DASHED_STROKE}`} />
           </span>
-          {t("tentativeSummary", { count: tentativeCount })}
+          {tentativeSlot
+            ? t("tentativeCount", { count: tentativeCount })
+            : t("tentativeSummary", { count: tentativeCount })}
         </span>
         {canEdit && (
           <span className="ml-auto flex items-center gap-1">
             <Button
               type="button"
               size="sm"
-              variant="ghost"
+              variant={tentativeSlot ? "outline" : "ghost"}
               className="h-7 px-2"
               data-testid="confirm-tentative"
               disabled={bulkPending}
@@ -625,6 +642,8 @@ export function AssignmentGrid({
         )}
       </div>
     );
+
+    return tentativeSlot ? createPortal(bar, tentativeSlot) : bar;
   }
 
   function renderMatchRow(match: Match) {
@@ -674,7 +693,7 @@ export function AssignmentGrid({
             <thead className="sticky top-0 z-20">
               <tr className="bg-background">
                 <th className="text-left p-2 font-medium sticky left-0 z-30 bg-background max-w-[40vw]">
-                  {t("matchColumnHeader")}
+                  {corner ?? t("matchColumnHeader")}
                 </th>
                 <th className="p-2 text-center font-medium min-w-12 bg-background" />
                 {umpires.map((u) => (
@@ -763,7 +782,7 @@ export function AssignmentGrid({
                 rowSpan={2}
                 className="text-left p-1 sm:p-2 font-medium sticky left-0 z-30 bg-background min-w-24 sm:min-w-32 align-bottom"
               >
-                {t("umpireColumnHeader")}
+                {corner ?? t("umpireColumnHeader")}
               </th>
               {dateSegments.map((group, gi) => (
                 <th

@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
 import { loadEnvConfig } from "@next/env";
+import { openShareMenu } from "./helpers/poll-detail";
 
 // Load env so Supabase vars are available
 loadEnvConfig(process.cwd());
@@ -172,25 +173,15 @@ test.describe("Day sheet export", () => {
     setupDone = true;
   });
 
-  test("assignments tab shows export dropdown with day sheet section", async ({
-    page,
-  }) => {
+  test("share menu offers a day sheet per match day", async ({ page }) => {
     test.skip(!setupDone, "Setup failed");
 
     await page.goto(pollUrl);
+    await openShareMenu(page);
 
-    // Switch to assignments tab
-    const assignmentsTab = page.getByRole("tab", { name: /assignments/i });
-    await expect(assignmentsTab).toBeVisible({ timeout: 10000 });
-    await assignmentsTab.click();
-
-    // Open the export dropdown
-    const exportButton = page.getByRole("button", { name: /export/i });
-    await expect(exportButton).toBeVisible();
-    await exportButton.click();
-
-    // Verify "Day sheet" label appears in the dropdown
-    await expect(page.getByText("Day sheet", { exact: true })).toBeVisible();
+    await expect(
+      page.locator('[data-testid^="day-sheet-"]').first(),
+    ).toBeVisible();
   });
 
   test("day sheet sub-menu shows date entries with format options", async ({
@@ -199,12 +190,10 @@ test.describe("Day sheet export", () => {
     test.skip(!setupDone, "Setup failed");
 
     await page.goto(pollUrl);
-    await page.getByRole("tab", { name: /assignments/i }).click();
-    await page.getByRole("button", { name: /export/i }).click();
-    await expect(page.getByText("Day sheet", { exact: true })).toBeVisible();
+    await openShareMenu(page);
 
     // Hover over the first date sub-trigger
-    const subTriggers = page.locator("[role='menuitem'][data-state]");
+    const subTriggers = page.locator('[data-testid^="day-sheet-"]');
     const subTriggerCount = await subTriggers.count();
     expect(subTriggerCount).toBeGreaterThan(0);
     await subTriggers.first().hover();
@@ -223,11 +212,9 @@ test.describe("Day sheet export", () => {
     test.skip(!setupDone, "Setup failed");
 
     await page.goto(pollUrl);
-    await page.getByRole("tab", { name: /assignments/i }).click();
-    await page.getByRole("button", { name: /export/i }).click();
-    await expect(page.getByText("Day sheet", { exact: true })).toBeVisible();
+    await openShareMenu(page);
 
-    const subTriggers = page.locator("[role='menuitem'][data-state]");
+    const subTriggers = page.locator('[data-testid^="day-sheet-"]');
     await subTriggers.first().hover();
 
     // Wait for sub-menu to fully render
@@ -266,10 +253,9 @@ test.describe("Day sheet export", () => {
     test.skip(!setupDone, "Setup failed");
 
     await page.goto(pollUrl);
-    await page.getByRole("tab", { name: /assignments/i }).click();
-    await page.getByRole("button", { name: /export/i }).click();
+    await openShareMenu(page);
 
-    const subTriggers = page.locator("[role='menuitem'][data-state]");
+    const subTriggers = page.locator('[data-testid^="day-sheet-"]');
     await subTriggers.first().hover();
     await page.waitForTimeout(300);
 
