@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.39.0](https://github.com/sauerhosen/fluitplanner/compare/v2.38.0...v2.39.0) (2026-11-02)
+
+
+### Features
+
+* add an "upcoming" date preset ([df5cec2](https://github.com/sauerhosen/fluitplanner/commit/df5cec296954f3fa31485c63f3bb104f9aadf8bf))
+* add an "upcoming" date preset showing everything from today on ([1f9b9f6](https://github.com/sauerhosen/fluitplanner/commit/1f9b9f6635e7d37b153bae18775bd0156f6a59e8))
+
 ## [2.38.0](https://github.com/sauerhosen/fluitplanner/compare/v2.37.0...v2.38.0) (2026-11-02)
 
 
