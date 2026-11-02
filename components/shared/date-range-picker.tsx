@@ -58,7 +58,9 @@ export function DateRangePicker({ value, onChange }: Props) {
   }
 
   const buttonText = value?.from
-    ? `${formatDate(value.from)} – ${value.to ? formatDate(value.to) : "..."}`
+    ? value.to
+      ? `${formatDate(value.from)} – ${formatDate(value.to)}`
+      : t("rangeFrom", { date: formatDate(value.from) })
     : t("presetAll");
 
   return (
