@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.38.0](https://github.com/sauerhosen/fluitplanner/compare/v2.37.0...v2.38.0) (2026-11-02)
+
+
+### Features
+
+* keep the assignment grid header pinned on desktop ([dd4ec7b](https://github.com/sauerhosen/fluitplanner/commit/dd4ec7b5f1ec52449210dc29b6ec87253d1be9c6))
+* keep the assignment grid header pinned on desktop ([da67c40](https://github.com/sauerhosen/fluitplanner/commit/da67c40f6b68b5d2c71482e65889ea59d996cd08))
+
 ## [2.37.0](https://github.com/sauerhosen/fluitplanner/compare/v2.36.0...v2.37.0) (2026-11-01)
 
 
