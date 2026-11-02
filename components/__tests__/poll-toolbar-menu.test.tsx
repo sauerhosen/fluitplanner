@@ -14,6 +14,7 @@ const baseProps = {
   dateRange: undefined,
   tentativeMode: false,
   focusedUmpireId: null,
+  hideSilentUmpires: false,
 };
 
 function setup(
@@ -23,6 +24,7 @@ function setup(
   const onTentativeModeChange = vi.fn();
   const onSwapAxes = vi.fn();
   const onFocusedUmpireChange = vi.fn();
+  const onHideSilentUmpiresChange = vi.fn();
   render(
     <PollToolbarMenu
       {...baseProps}
@@ -31,6 +33,7 @@ function setup(
       onTentativeModeChange={onTentativeModeChange}
       onSwapAxes={onSwapAxes}
       onFocusedUmpireChange={onFocusedUmpireChange}
+      onHideSilentUmpiresChange={onHideSilentUmpiresChange}
       {...overrides}
     />,
   );
@@ -73,6 +76,17 @@ describe("PollToolbarMenu", () => {
     expect(screen.getByTestId("umpire-focus-menu-item")).toHaveTextContent(
       "Caroline Michels",
     );
+  });
+
+  it("toggles hiding umpires who have not answered", async () => {
+    const user = userEvent.setup();
+    const onHideSilentUmpiresChange = vi.fn();
+    setup({ onHideSilentUmpiresChange });
+
+    await user.click(screen.getByTestId("poll-tools-menu"));
+    await user.click(screen.getByTestId("hide-silent-umpires-menu-item"));
+
+    expect(onHideSilentUmpiresChange).toHaveBeenCalledWith(true);
   });
 
   it("leaves out the assignment tools on the other tabs", async () => {

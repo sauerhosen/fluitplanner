@@ -21,6 +21,7 @@ import { groupMatchesIntoSlots } from "@/lib/domain/slots";
 import { mapMatchesToSlots } from "@/lib/domain/match-slot-mapping";
 import { countDiscardedResponses } from "@/lib/domain/carry-over-responses";
 import { withoutHidden } from "@/lib/domain/hidden-matches";
+import { onlyRespondingUmpires } from "@/lib/domain/responding-umpires";
 import { setPollMatchesHidden } from "@/lib/actions/hidden-matches";
 import { toast } from "sonner";
 import { MatchSelector } from "./match-selector";
@@ -50,6 +51,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Pencil,
   PencilLine,
+  UserCheck,
   Check,
   Trash2,
   ArrowRightLeft,
@@ -125,6 +127,9 @@ export function PollDetailClient({
   // Talking to one umpire: the grid narrows to their row alone, so a
   // screenshot of it is about them and not the whole roster.
   const [focusedUmpireId, setFocusedUmpireId] = useState<string | null>(null);
+  // Hide the rows of umpires who left the days in view blank, so the grid
+  // shows only the people a planner can actually plan with.
+  const [hideSilentUmpires, setHideSilentUmpires] = useState(false);
   // Opens on the next two weeks, the same range as the "next two weeks" preset
   // (midnight bounds, so the toolbar can tell the preset is active).
   const [dateRange, setDateRange] = useState<DateRange | undefined>(() =>
@@ -303,10 +308,29 @@ export function PollDetailClient({
     () => umpires.find((u) => u.id === focusedUmpireId) ?? null,
     [umpires, focusedUmpireId],
   );
-  const gridUmpires = useMemo(
-    () => (focusedUmpire ? [focusedUmpire] : umpires),
-    [focusedUmpire, umpires],
-  );
+  // The loaded assignments count too, not only the live ones: a silent umpire
+  // kept for an appointment must not lose their row the moment it is cleared,
+  // or the planner cannot click the cell again to undo it.
+  const gridUmpires = useMemo(() => {
+    if (focusedUmpire) return [focusedUmpire];
+    if (!hideSilentUmpires) return umpires;
+    return onlyRespondingUmpires(
+      umpires,
+      filteredSlots.map((s) => s.id),
+      liveResponses,
+      [...poll.assignments, ...liveAssignments],
+      filteredMatches.map((m) => m.id),
+    );
+  }, [
+    focusedUmpire,
+    hideSilentUmpires,
+    umpires,
+    filteredSlots,
+    liveResponses,
+    poll.assignments,
+    liveAssignments,
+    filteredMatches,
+  ]);
 
   async function handleSaveTitle() {
     setSaving(true);
@@ -594,6 +618,8 @@ export function PollDetailClient({
             onSwapAxes={() => setTransposed((prev) => !prev)}
             focusedUmpireId={focusedUmpireId}
             onFocusedUmpireChange={setFocusedUmpireId}
+            hideSilentUmpires={hideSilentUmpires}
+            onHideSilentUmpiresChange={setHideSilentUmpires}
           />
           <div className="hidden items-center gap-2 sm:flex">
             <DateRangePicker value={dateRange} onChange={setDateRange} />
@@ -613,6 +639,20 @@ export function PollDetailClient({
                   focusedUmpireId={focusedUmpireId}
                   onFocusedUmpireChange={setFocusedUmpireId}
                 />
+                <Button
+                  variant={hideSilentUmpires ? "default" : "outline"}
+                  size="sm"
+                  aria-pressed={hideSilentUmpires}
+                  // Focusing one umpire overrides this filter, so the switch
+                  // steps aside rather than claiming an effect it lacks.
+                  disabled={focusedUmpire !== null}
+                  data-testid="hide-silent-umpires-toggle"
+                  title={t("hideSilentUmpiresHint")}
+                  onClick={() => setHideSilentUmpires((prev) => !prev)}
+                >
+                  <UserCheck className="mr-2 h-4 w-4" />
+                  {t("hideSilentUmpires")}
+                </Button>
                 {canEdit && (
                   <Button
                     variant={tentativeMode ? "default" : "outline"}
@@ -862,23 +902,35 @@ export function PollDetailClient({
           />
         </TabsContent>
         <TabsContent value="assignments">
-          <AssignmentGrid
-            pollId={poll.id}
-            matches={filteredMatches}
-            slots={filteredSlots}
-            responses={liveResponses}
-            assignments={poll.assignments}
-            umpires={gridUmpires}
-            transposed={transposed}
-            focused={focusedUmpire !== null}
-            tentativeMode={tentativeMode}
-            clubName={clubName}
-            onAssignmentsChange={setLiveAssignments}
-            onNoteSaved={refreshPoll}
-            onUmpireNoteSaved={refreshUmpires}
-            hiddenMatchIds={poll.hiddenMatchIds}
-            onSetHidden={canEdit ? handleSetHidden : undefined}
-          />
+          {hideSilentUmpires &&
+          !focusedUmpire &&
+          umpires.length > 0 &&
+          gridUmpires.length === 0 ? (
+            <p
+              className="py-4 text-sm text-muted-foreground"
+              data-testid="no-responders-in-range"
+            >
+              {t("noRespondersInRange")}
+            </p>
+          ) : (
+            <AssignmentGrid
+              pollId={poll.id}
+              matches={filteredMatches}
+              slots={filteredSlots}
+              responses={liveResponses}
+              assignments={poll.assignments}
+              umpires={gridUmpires}
+              transposed={transposed}
+              focused={focusedUmpire !== null}
+              tentativeMode={tentativeMode}
+              clubName={clubName}
+              onAssignmentsChange={setLiveAssignments}
+              onNoteSaved={refreshPoll}
+              onUmpireNoteSaved={refreshUmpires}
+              hiddenMatchIds={poll.hiddenMatchIds}
+              onSetHidden={canEdit ? handleSetHidden : undefined}
+            />
+          )}
         </TabsContent>
       </Tabs>
     </div>
