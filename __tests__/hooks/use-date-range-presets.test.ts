@@ -1,6 +1,9 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { renderHook } from "@testing-library/react";
-import { useDateRangePresets } from "@/hooks/use-date-range-presets";
+import {
+  dayRangePredicate,
+  useDateRangePresets,
+} from "@/hooks/use-date-range-presets";
 
 vi.mock("next-intl", () => ({
   useTranslations: () => (key: string) => key,
@@ -45,5 +48,41 @@ describe("useDateRangePresets", () => {
       expect(preset.range.from.getSeconds()).toBe(0);
       expect(preset.range.from.getMilliseconds()).toBe(0);
     }
+  });
+
+  it("offers an open-ended range from today for everything still to come", () => {
+    vi.useFakeTimers();
+    const upcoming = presetsAt(
+      new Date("2026-11-02T14:47:11.900Z").getTime(),
+    ).find((preset) => preset.label === "presetUpcoming");
+
+    expect(upcoming?.range?.from?.getTime()).toBe(
+      new Date(2026, 10, 2).getTime(),
+    );
+    expect(upcoming?.range?.to).toBeUndefined();
+  });
+});
+
+describe("dayRangePredicate", () => {
+  const nov2 = new Date(2026, 10, 2);
+  const nov16 = new Date(2026, 10, 16);
+
+  it("keeps every day when no range is picked", () => {
+    expect(dayRangePredicate(undefined)("2020-01-01")).toBe(true);
+  });
+
+  it("keeps both ends of a closed range and nothing outside it", () => {
+    const inRange = dayRangePredicate({ from: nov2, to: nov16 });
+    expect(inRange("2026-11-01")).toBe(false);
+    expect(inRange("2026-11-02")).toBe(true);
+    expect(inRange("2026-11-16")).toBe(true);
+    expect(inRange("2026-11-17")).toBe(false);
+  });
+
+  it("runs a range without an end open-ended, not as its first day alone", () => {
+    const inRange = dayRangePredicate({ from: nov2, to: undefined });
+    expect(inRange("2026-11-01")).toBe(false);
+    expect(inRange("2026-11-02")).toBe(true);
+    expect(inRange("2027-03-15")).toBe(true);
   });
 });

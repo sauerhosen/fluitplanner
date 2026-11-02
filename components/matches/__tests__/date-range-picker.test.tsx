@@ -67,4 +67,16 @@ describe("DateRangePicker", () => {
     const button = screen.getByRole("button", { name: /date range/i });
     expect(button).toHaveTextContent(/^all$/i);
   });
+
+  it("labels a range without an end as running from its first day", () => {
+    render(
+      <DateRangePicker
+        value={{ from: new Date(2026, 10, 2), to: undefined }}
+        onChange={onChange}
+      />,
+    );
+    expect(
+      screen.getByRole("button", { name: /date range/i }),
+    ).toHaveTextContent(/^From Nov 2$/);
+  });
 });

@@ -10,6 +10,7 @@ import {
   addDays,
   addMonths,
   subMonths,
+  format,
 } from "date-fns";
 import { useTranslations } from "next-intl";
 import type { DateRange } from "react-day-picker";
@@ -25,6 +26,20 @@ export type DateRangePreset = {
  */
 export function nextTwoWeeksRange(today = startOfDay(new Date())): DateRange {
   return { from: today, to: addDays(today, 14) };
+}
+
+/**
+ * A test for `yyyy-MM-dd` days against a picked range, bounds formatted once.
+ * No range means every day; a range without an end is open-ended (the
+ * "upcoming" preset), not a single day.
+ */
+export function dayRangePredicate(
+  range: DateRange | undefined,
+): (day: string) => boolean {
+  if (!range?.from) return () => true;
+  const from = format(range.from, "yyyy-MM-dd");
+  const to = range.to ? format(range.to, "yyyy-MM-dd") : null;
+  return (day) => day >= from && (to === null || day <= to);
 }
 
 /**
@@ -62,6 +77,12 @@ export function useDateRangePresets(): DateRangePreset[] {
       {
         label: t("presetNextTwoMonths"),
         range: { from: today, to: addMonths(today, 2) },
+      },
+      {
+        // Open-ended: no `to` means "and everything after". The calendar
+        // never yields that shape itself (a first click sets both ends).
+        label: t("presetUpcoming"),
+        range: { from: today, to: undefined },
       },
       {
         label: t("presetPastMonth"),

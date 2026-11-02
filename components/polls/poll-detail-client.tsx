@@ -67,7 +67,10 @@ import { useTranslations, useFormatter } from "next-intl";
 import { DateRangePicker } from "@/components/shared/date-range-picker";
 import type { DateRange } from "react-day-picker";
 import { format as fnsFormat } from "date-fns";
-import { nextTwoWeeksRange } from "@/hooks/use-date-range-presets";
+import {
+  dayRangePredicate,
+  nextTwoWeeksRange,
+} from "@/hooks/use-date-range-presets";
 
 type Props = {
   initialPoll: PollDetail;
@@ -157,19 +160,16 @@ export function PollDetailClient({
 
   const filteredMatches = useMemo(() => {
     if (!dateRange?.from) return poll.matches;
-    const from = fnsFormat(dateRange.from, "yyyy-MM-dd");
-    const to = dateRange.to ? fnsFormat(dateRange.to, "yyyy-MM-dd") : from;
-    return poll.matches.filter((m) => m.date >= from && m.date <= to);
+    const inRange = dayRangePredicate(dateRange);
+    return poll.matches.filter((m) => inRange(m.date));
   }, [poll.matches, dateRange]);
 
   const filteredSlots = useMemo(() => {
     if (!dateRange?.from) return poll.slots;
-    const from = fnsFormat(dateRange.from, "yyyy-MM-dd");
-    const to = dateRange.to ? fnsFormat(dateRange.to, "yyyy-MM-dd") : from;
-    return poll.slots.filter((s) => {
-      const slotDate = fnsFormat(new Date(s.start_time), "yyyy-MM-dd");
-      return slotDate >= from && slotDate <= to;
-    });
+    const inRange = dayRangePredicate(dateRange);
+    return poll.slots.filter((s) =>
+      inRange(fnsFormat(new Date(s.start_time), "yyyy-MM-dd")),
+    );
   }, [poll.slots, dateRange]);
 
   // Slots overlap, so a kick-off falls inside several windows; list each
