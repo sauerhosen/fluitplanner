@@ -509,7 +509,7 @@ export function registerMcpTools(server: McpServer, ctx: McpPlannerContext) {
     {
       title: "Update match",
       description:
-        "Correct fields on an existing match — move a kick-off, fix a venue, change the required level. Only the provided fields change; date and time stay consistent with each other. Poll slots are not recalculated automatically.",
+        "Correct fields on an existing match — move a kick-off, fix a venue, change the required level. Only the provided fields change; date and time stay consistent with each other. Moving a kick-off recalculates the time slots of open polls holding the match; the result says what changed and whether any umpire answers were discarded.",
       inputSchema: z.object({
         match_id: matchId,
         date: dateString.optional(),

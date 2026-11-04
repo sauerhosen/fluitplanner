@@ -6,6 +6,17 @@ const mockGetUser = vi.fn();
 const mockInsert = vi.fn();
 const mockUpdate = vi.fn();
 const mockUpsertLookup = vi.fn();
+const { mockReslotPollsForMatches } = vi.hoisted(() => ({
+  mockReslotPollsForMatches: vi.fn(async () => []),
+}));
+
+vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+
+vi.mock("@/lib/polls/reslot", () => ({
+  reslotPollsForMatches: mockReslotPollsForMatches,
+  findOpenPollsForMatches: vi.fn(async () => []),
+  reslotOpenPolls: vi.fn(async () => []),
+}));
 
 // The write actions gate through requirePlanner(); flip `gate.role` to
 // "viewer" to make the caller read-only for one test.
@@ -106,6 +117,17 @@ describe("updateMatch", () => {
     });
   });
 
+  it("recomputes the slots of open polls holding a match whose kick-off is written", async () => {
+    const { updateMatch } = await import("@/lib/actions/matches");
+    await updateMatch("m-1", { start_time: "2026-09-27T14:00:00+02:00" });
+
+    expect(mockReslotPollsForMatches).toHaveBeenCalledWith(
+      expect.anything(),
+      "test-org-id",
+      ["m-1"],
+    );
+  });
+
   it("accepts notes as an editable form field", async () => {
     const { updateMatch } = await import("@/lib/actions/matches");
     await updateMatch("m-1", { notes: "Umpire X would like to be assigned" });
@@ -113,6 +135,7 @@ describe("updateMatch", () => {
     expect(mockUpdate).toHaveBeenCalledWith({
       notes: "Umpire X would like to be assigned",
     });
+    expect(mockReslotPollsForMatches).not.toHaveBeenCalled();
   });
 });
 
@@ -207,6 +230,11 @@ describe("upsertMatches", () => {
       competition: parsed.competition,
     });
     expect(result).toEqual({ inserted: 0, updated: 1 });
+    expect(mockReslotPollsForMatches).toHaveBeenCalledWith(
+      expect.anything(),
+      "test-org-id",
+      ["m-1"],
+    );
   });
 
   it("only updates required_level on sync-owned rows so imports cannot flap with the sync engine", async () => {
@@ -221,6 +249,11 @@ describe("upsertMatches", () => {
     await upsertMatches([parsed]);
 
     expect(mockUpdate).toHaveBeenCalledWith({ required_level: 2 });
+    expect(mockReslotPollsForMatches).toHaveBeenCalledWith(
+      expect.anything(),
+      "test-org-id",
+      [],
+    );
   });
 });
 

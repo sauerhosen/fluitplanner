@@ -6,6 +6,16 @@ const mockUpdate = vi.fn();
 const mockIn = vi.fn();
 const mockEq = vi.fn();
 const mockGetUser = vi.fn();
+const { mockFindOpenPolls, mockReslotOpenPolls } = vi.hoisted(() => ({
+  mockFindOpenPolls: vi.fn(async (): Promise<string[]> => []),
+  mockReslotOpenPolls: vi.fn(async () => []),
+}));
+
+vi.mock("@/lib/polls/reslot", () => ({
+  findOpenPollsForMatches: mockFindOpenPolls,
+  reslotOpenPolls: mockReslotOpenPolls,
+  reslotPollsForMatches: vi.fn(async () => []),
+}));
 
 function chainable() {
   return {
@@ -72,6 +82,22 @@ describe("deleteMatches", () => {
   it("calls revalidatePath", async () => {
     await deleteMatches(["m1"]);
     expect(revalidatePath).toHaveBeenCalledWith("/protected/matches");
+  });
+
+  it("recomputes the slots of the open polls that held the deleted matches", async () => {
+    mockFindOpenPolls.mockResolvedValueOnce(["poll-1"]);
+    await deleteMatches(["m1", "m2"]);
+    expect(mockFindOpenPolls).toHaveBeenCalledWith(
+      expect.anything(),
+      "test-org-id",
+      ["m1", "m2"],
+    );
+    expect(mockReslotOpenPolls).toHaveBeenCalledWith(
+      expect.anything(),
+      "test-org-id",
+      ["poll-1"],
+    );
+    expect(revalidatePath).toHaveBeenCalledWith("/protected/polls");
   });
 
   it("throws on auth failure", async () => {
