@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { McpPlannerContext } from "@/lib/mcp/auth";
 
-const { mockReslot, row } = vi.hoisted(() => ({
+const { mockReslot, pollLinks, row } = vi.hoisted(() => ({
   mockReslot: vi.fn(),
+  pollLinks: [] as Array<{ poll_id: string }>,
   row: {
     id: "m-1",
     organization_id: "org-1",
@@ -25,7 +26,16 @@ vi.mock("@/lib/polls/reslot", async (importActual) => ({
 
 vi.mock("@/lib/supabase/service", () => ({
   createServiceClient: () => ({
-    from: () => {
+    from: (table: string) => {
+      if (table === "poll_matches") {
+        const links: Record<string, unknown> = {
+          select: () => links,
+          eq: () => links,
+          then: (ok: (v: unknown) => unknown) =>
+            Promise.resolve({ data: pollLinks, error: null }).then(ok),
+        };
+        return links;
+      }
       let updates: Record<string, unknown> | null = null;
       const builder = {
         select: () => builder,
@@ -48,6 +58,7 @@ const ctx = { organizationId: "org-1" } as McpPlannerContext;
 
 beforeEach(() => {
   mockReslot.mockReset();
+  pollLinks.length = 0;
 });
 
 describe("updateMatchForPlanner — poll slots", () => {
@@ -80,6 +91,33 @@ describe("updateMatchForPlanner — poll slots", () => {
     const result = await updateMatchForPlanner(ctx, "m-1", { time: "15:50" });
 
     expect(result.caution).toMatch(/left unchanged/);
+  });
+
+  it("names the match's own missing kick-off when the move cleared it", async () => {
+    mockReslot.mockResolvedValue([
+      { pollId: "poll-1", skipped: "match_without_time" },
+    ]);
+
+    const result = await updateMatchForPlanner(ctx, "m-1", { time: "" });
+
+    expect(result.caution).toMatch(/This match no longer has a kick-off/);
+  });
+
+  it("warns when the match is only in closed polls, which are not recomputed", async () => {
+    mockReslot.mockResolvedValue([]);
+    pollLinks.push({ poll_id: "closed-poll" });
+
+    const result = await updateMatchForPlanner(ctx, "m-1", { time: "15:50" });
+
+    expect(result.caution).toMatch(/only in closed polls/);
+  });
+
+  it("says nothing when the match is in no poll", async () => {
+    mockReslot.mockResolvedValue([]);
+
+    const result = await updateMatchForPlanner(ctx, "m-1", { time: "15:50" });
+
+    expect(result.caution).toBeUndefined();
   });
 
   it("does not touch polls for a change that is not the schedule", async () => {

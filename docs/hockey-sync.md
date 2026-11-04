@@ -206,8 +206,8 @@ quarter hour; answers on a window that disappeared are discarded. Closed polls a
 alone, and so is a poll holding a match without a kick-off — a retraction is not a move, and
 recomputing then would drop that match's slot and its answers until the time returns. A
 failed recompute is one entry in `errors`; `pollsReslotted` counts the polls whose slots
-changed. The match form, file import, match deletes and MCP `update_match` recompute the
-same way.
+changed. The match form, file import, the one-off Match Center import, match deletes and MCP
+`update_match` recompute the same way.
 
 Matching an upstream fixture to an existing row goes by `external_id` first, then by the
 natural key `date | home_team | away_team`. The natural key is what lets the sync **adopt**

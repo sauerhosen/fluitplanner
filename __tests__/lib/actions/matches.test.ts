@@ -237,6 +237,24 @@ describe("upsertMatches", () => {
     );
   });
 
+  it("does not reslot polls for a row whose kick-off the import left unchanged", async () => {
+    mockUpsertLookup.mockResolvedValue({
+      data: { id: "m-1", source: "file_import", start_time: parsed.start_time },
+      error: null,
+    });
+    const eqId = vi.fn().mockResolvedValue({ error: null });
+    mockUpdate.mockReturnValue({ eq: eqId });
+
+    const { upsertMatches } = await import("@/lib/actions/matches");
+    await upsertMatches([parsed]);
+
+    expect(mockReslotPollsForMatches).toHaveBeenCalledWith(
+      expect.anything(),
+      "test-org-id",
+      [],
+    );
+  });
+
   it("only updates required_level on sync-owned rows so imports cannot flap with the sync engine", async () => {
     mockUpsertLookup.mockResolvedValue({
       data: { id: "m-1", source: "hockey_sync" },

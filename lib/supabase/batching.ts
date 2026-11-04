@@ -3,7 +3,7 @@
  * lists and result sets past the server's row cap.
  */
 
-function throwDb(error: { message: string } | null): void {
+export function throwDb(error: { message: string } | null): void {
   if (error) throw new Error(error.message);
 }
 

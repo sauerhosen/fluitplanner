@@ -10,6 +10,7 @@ import {
   deleteInBatches,
   selectAllPages,
   selectInBatches,
+  throwDb,
 } from "@/lib/supabase/batching";
 import type { AvailabilityResponse, PollSlot } from "@/lib/types/domain";
 
@@ -20,10 +21,6 @@ import type { AvailabilityResponse, PollSlot } from "@/lib/types/domain";
  * match is deleted. Works on either client — the planner's RLS-bound one or
  * the service client — and always filters by organization explicitly.
  */
-
-function throwDb(error: { message: string } | null): void {
-  if (error) throw new Error(error.message);
-}
 
 export type SlotReconcileResult = {
   matchesWithTime: Set<string>;
@@ -52,20 +49,36 @@ export async function reconcilePollSlots(
   pollId: string,
   matchIds: string[],
 ): Promise<SlotReconcileResult> {
-  const matchRows = await selectInBatches<{
+  const matchRows = await loadMatchTimes(client, organizationId, matchIds);
+  const withTime = matchRows.filter((m) => m.start_time !== null) as {
     id: string;
-    start_time: string | null;
-  }>(matchIds, (batch) =>
+    start_time: string;
+  }[];
+  return applySlots(client, pollId, withTime);
+}
+
+type MatchTime = { id: string; start_time: string | null };
+
+function loadMatchTimes(
+  client: SupabaseClient,
+  organizationId: string,
+  matchIds: string[],
+): Promise<MatchTime[]> {
+  return selectInBatches<MatchTime>(matchIds, (batch) =>
     client
       .from("matches")
       .select("id, start_time")
       .in("id", batch)
       .eq("organization_id", organizationId),
   );
-  const withTime = matchRows.filter((m) => m.start_time !== null) as {
-    id: string;
-    start_time: string;
-  }[];
+}
+
+/** Diff-apply the slot set the timed matches call for (see reconcilePollSlots). */
+async function applySlots(
+  client: SupabaseClient,
+  pollId: string,
+  withTime: { id: string; start_time: string }[],
+): Promise<SlotReconcileResult> {
   const desiredSlots = groupMatchesIntoSlots(withTime);
 
   const { data: existingSlots, error: slotError } = await client
@@ -166,7 +179,7 @@ export type PollReslot =
       SlotReconcileResult,
       "matchesWithTime"
     >)
-  | { pollId: string; skipped: "no_matches" | "match_without_time" };
+  | { pollId: string; skipped: "match_without_time" };
 
 /** The open polls of this organization that contain any of the matches. */
 export async function findOpenPollsForMatches(
@@ -218,39 +231,42 @@ export async function reslotOpenPolls(
       .eq("organization_id", organizationId)
       .eq("status", "open"),
   );
+  return reslotPolls(
+    client,
+    organizationId,
+    open.map((p) => p.id),
+  );
+}
 
+/** reslotOpenPolls over ids already known to be this organization's open polls. */
+async function reslotPolls(
+  client: SupabaseClient,
+  organizationId: string,
+  openPollIds: string[],
+): Promise<PollReslot[]> {
   const results: PollReslot[] = [];
-  for (const { id: pollId } of open) {
+  for (const pollId of openPollIds) {
     const { data: links, error: linkError } = await client
       .from("poll_matches")
       .select("match_id")
       .eq("poll_id", pollId);
     throwDb(linkError);
     const matchIds = (links ?? []).map((l: { match_id: string }) => l.match_id);
-    if (matchIds.length === 0) {
-      results.push({ pollId, skipped: "no_matches" });
-      continue;
-    }
-    const matches = await selectInBatches<{
-      id: string;
-      start_time: string | null;
-    }>(matchIds, (batch) =>
-      client
-        .from("matches")
-        .select("id, start_time")
-        .in("id", batch)
-        .eq("organization_id", organizationId),
-    );
+    // A poll whose last match is gone asks about nothing: every slot goes,
+    // as when a planner removes the poll's last match by hand.
+    const matches =
+      matchIds.length === 0
+        ? []
+        : await loadMatchTimes(client, organizationId, matchIds);
     if (matches.some((m) => m.start_time === null)) {
       results.push({ pollId, skipped: "match_without_time" });
       continue;
     }
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { matchesWithTime, ...counts } = await reconcilePollSlots(
+    const { matchesWithTime, ...counts } = await applySlots(
       client,
-      organizationId,
       pollId,
-      matchIds,
+      matches as { id: string; start_time: string }[],
     );
     results.push({ pollId, ...counts });
   }
@@ -268,12 +284,16 @@ export async function reslotPollsForMatches(
     organizationId,
     matchIds,
   );
-  return reslotOpenPolls(client, organizationId, pollIds);
+  // findOpenPollsForMatches already kept only this organization's open polls.
+  return reslotPolls(client, organizationId, pollIds);
 }
 
+type AppliedReslot = Extract<PollReslot, { skipped?: undefined }>;
+
 /** Polls whose slot set actually changed. */
-export function changedPolls(results: PollReslot[]): PollReslot[] {
+export function changedPolls(results: PollReslot[]): AppliedReslot[] {
   return results.filter(
-    (r) => !r.skipped && (r.slotsAdded > 0 || r.slotsRemoved > 0),
+    (r): r is AppliedReslot =>
+      !r.skipped && (r.slotsAdded > 0 || r.slotsRemoved > 0),
   );
 }

@@ -100,6 +100,14 @@ describe("deleteMatches", () => {
     expect(revalidatePath).toHaveBeenCalledWith("/protected/polls");
   });
 
+  it("still revalidates after a committed delete when the poll recompute fails", async () => {
+    mockFindOpenPolls.mockResolvedValueOnce(["poll-1"]);
+    mockReslotOpenPolls.mockRejectedValueOnce(new Error("boom"));
+    await expect(deleteMatches(["m1"])).rejects.toThrow("boom");
+    expect(revalidatePath).toHaveBeenCalledWith("/protected/matches");
+    expect(revalidatePath).toHaveBeenCalledWith("/protected/polls");
+  });
+
   it("throws on auth failure", async () => {
     mockGetUser.mockResolvedValue({ data: { user: null } });
     await expect(deleteMatches(["m1"])).rejects.toThrow("Not authenticated");

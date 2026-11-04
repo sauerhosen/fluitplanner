@@ -260,13 +260,13 @@ describe("reslotOpenPolls", () => {
     );
   });
 
-  it("keeps the slots of a poll whose matches are all gone", async () => {
+  it("clears the slots of a poll whose matches are all gone", async () => {
     tables.poll_matches = [];
-    const before = windows();
 
-    expect(await reslotOpenPolls(fakeClient(), ORG, [POLL])).toEqual([
-      { pollId: POLL, skipped: "no_matches" },
-    ]);
-    expect(windows()).toEqual(before);
+    const [result] = await reslotOpenPolls(fakeClient(), ORG, [POLL]);
+
+    expect(result).toMatchObject({ slotsAdded: 0, slotsRemoved: 5 });
+    expect(tables.poll_slots).toEqual([]);
+    expect(tables.availability_responses).toEqual([]);
   });
 });

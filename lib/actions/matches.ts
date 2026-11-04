@@ -7,6 +7,7 @@ import { requirePlanner } from "@/lib/auth";
 import type { Match } from "@/lib/types/domain";
 import type { ParsedMatch } from "@/lib/parsers/types";
 import { normalizeNote } from "@/lib/domain/notes";
+import { sameInstant } from "@/lib/hockey/normalize";
 import {
   findOpenPollsForMatches,
   reslotOpenPolls,
@@ -39,7 +40,7 @@ export async function upsertMatches(
 
     const { data: existing } = await supabase
       .from("matches")
-      .select("id, source")
+      .select("id, source, start_time")
       .eq("date", match.date)
       .eq("home_team", match.home_team)
       .eq("away_team", match.away_team)
@@ -66,7 +67,12 @@ export async function upsertMatches(
         .eq("id", existing.id);
       if (error) throw new Error(error.message);
       updated++;
-      if ("start_time" in updates) retimedIds.push(existing.id);
+      if (
+        "start_time" in updates &&
+        !sameInstant(existing.start_time ?? null, row.start_time)
+      ) {
+        retimedIds.push(existing.id);
+      }
     } else {
       const { error } = await supabase
         .from("matches")
@@ -260,8 +266,11 @@ export async function updateMatch(
   // A moved kick-off moves the slot umpires are asked about. Recomputing is
   // a no-op when the time did not actually change.
   if ("start_time" in fields || "date" in fields) {
-    await reslotPollsForMatches(supabase, tenantId, [id]);
-    revalidatePath("/protected/polls");
+    try {
+      await reslotPollsForMatches(supabase, tenantId, [id]);
+    } finally {
+      revalidatePath("/protected/polls");
+    }
   }
   return data;
 }
@@ -300,7 +309,11 @@ export async function deleteMatches(ids: string[]): Promise<void> {
     .in("id", ids)
     .eq("organization_id", tenantId);
   if (error) throw new Error(error.message);
-  await reslotOpenPolls(supabase, tenantId, pollIds);
-  revalidatePath("/protected/matches");
-  if (pollIds.length > 0) revalidatePath("/protected/polls");
+  // The delete is committed: refresh the pages even if the recompute fails.
+  try {
+    await reslotOpenPolls(supabase, tenantId, pollIds);
+  } finally {
+    revalidatePath("/protected/matches");
+    if (pollIds.length > 0) revalidatePath("/protected/polls");
+  }
 }

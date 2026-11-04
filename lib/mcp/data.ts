@@ -5,6 +5,7 @@ import {
   batches,
   selectAllPages,
   selectInBatches,
+  throwDb,
 } from "@/lib/supabase/batching";
 import {
   changedPolls,
@@ -60,10 +61,6 @@ type Db = SupabaseClient;
 
 function db(): Db {
   return createServiceClient();
-}
-
-function throwDb(error: { message: string } | null): void {
-  if (error) throw new Error(error.message);
 }
 
 const TIME_ZONE = "Europe/Amsterdam";
@@ -1517,20 +1514,21 @@ export async function createMatchForPlanner(
 }
 
 /** What a kick-off change did to the open polls holding the match. */
-function describeReslots(results: PollReslot[]): string | undefined {
+function describeReslots(
+  results: PollReslot[],
+  matchHasTime: boolean,
+): string | undefined {
   const notes: string[] = [];
   const changed = changedPolls(results);
   if (changed.length > 0) {
-    const added = changed.reduce(
-      (n, r) => n + (r.skipped ? 0 : r.slotsAdded),
-      0,
-    );
-    const discarded = changed.reduce(
-      (n, r) => n + (r.skipped ? 0 : r.discardedResponses),
-      0,
-    );
+    const added = changed.reduce((n, r) => n + r.slotsAdded, 0);
+    const carried = changed.reduce((n, r) => n + r.carriedResponses, 0);
+    const discarded = changed.reduce((n, r) => n + r.discardedResponses, 0);
     notes.push(
-      `Time slots were recalculated in ${changed.length} open poll(s): ${added} new slot(s) umpires have not answered yet` +
+      `Time slots were recalculated in ${changed.length} open poll(s): ${added} new slot(s)` +
+        (carried > 0
+          ? `, ${carried} answer(s) carried over onto a slot that only shifted`
+          : "") +
         (discarded > 0
           ? `, and ${discarded} answer(s) on slots that no longer apply were discarded.`
           : ".") +
@@ -1539,7 +1537,9 @@ function describeReslots(results: PollReslot[]): string | undefined {
   }
   if (results.some((r) => r.skipped === "match_without_time")) {
     notes.push(
-      "An open poll holding this match also has a match without a kick-off, so its slots were left unchanged until that time is known.",
+      matchHasTime
+        ? "An open poll holding this match also has a match without a kick-off, so its slots were left unchanged until that time is known."
+        : "This match no longer has a kick-off, so the open poll(s) holding it were left unchanged until a time is set.",
     );
   }
   return notes.length > 0 ? notes.join(" ") : undefined;
@@ -1626,7 +1626,19 @@ export async function updateMatchForPlanner(
     const reslotted = await reslotPollsForMatches(client, ctx.organizationId, [
       matchId,
     ]);
-    caution = describeReslots(reslotted);
+    caution = describeReslots(reslotted, match.start_time !== null);
+    if (reslotted.length === 0) {
+      // Closed polls are never recomputed: say so rather than nothing.
+      const { data: links, error: linkError } = await client
+        .from("poll_matches")
+        .select("poll_id")
+        .eq("match_id", matchId);
+      throwDb(linkError);
+      if ((links ?? []).length > 0) {
+        caution =
+          "This match is only in closed polls; their time slots are not recalculated. Review the poll in the app.";
+      }
+    }
   }
   return { updated: matchSummary(match), caution };
 }
