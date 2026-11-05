@@ -34,10 +34,15 @@ vi.mock("@/lib/actions/hidden-matches", () => ({
   setPollMatchesHidden: vi.fn(async () => ({ ok: true })),
 }));
 
+vi.mock("@/lib/actions/closed-days", () => ({
+  setPollDayClosed: vi.fn(async () => ({ ok: true })),
+}));
+
 import { PollDetailClient } from "@/components/polls/poll-detail-client";
 import { getPoll } from "@/lib/actions/polls";
 import { createAssignment, getUmpiresForPoll } from "@/lib/actions/assignments";
 import { setPollMatchesHidden } from "@/lib/actions/hidden-matches";
+import { setPollDayClosed } from "@/lib/actions/closed-days";
 import { matchColumnDefaults } from "@/__tests__/helpers/fixtures";
 
 function umpire(id: string, name: string): RosteredUmpire {
@@ -88,6 +93,7 @@ const POLL: PollDetail = {
   assignments: [],
   featuredMatchIds: [],
   hiddenMatchIds: [],
+  closedDays: [],
 };
 
 describe("PollDetailClient answering for a new respondent", () => {
@@ -638,5 +644,77 @@ describe("PollDetailClient keeps the poll's assignments across the page", () => 
 
     expect(screen.getByTestId("cell-m1-jan-1")).toBeInTheDocument();
     expect(screen.queryByTestId("cell-m1-jan-2")).not.toBeInTheDocument();
+  });
+});
+
+describe("PollDetailClient closing a day", () => {
+  beforeEach(() => {
+    vi.useFakeTimers({
+      toFake: ["Date"],
+      now: new Date("2026-02-27T12:00:00Z"),
+    });
+    vi.clearAllMocks();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  function renderMatchesView(poll: PollDetail = POLL) {
+    const user = userEvent.setup();
+    render(
+      <PollDetailClient
+        initialPoll={poll}
+        availableMatches={[]}
+        umpires={[ALICE]}
+      />,
+    );
+    return user;
+  }
+
+  it("closes a day from the match view", async () => {
+    const user = renderMatchesView();
+    await user.click(screen.getByTestId("view-matches"));
+    await user.click(screen.getByTestId("toggle-day-closed-2026-03-01"));
+
+    expect(setPollDayClosed).toHaveBeenCalledWith("poll-1", "2026-03-01", true);
+    expect(screen.getByTestId("day-2026-03-01")).toHaveAttribute(
+      "data-closed",
+      "true",
+    );
+    expect(
+      screen.getByTestId("toggle-day-closed-2026-03-01"),
+    ).toHaveTextContent("Reopen day");
+  });
+
+  it("reopens a closed day", async () => {
+    const user = renderMatchesView({ ...POLL, closedDays: ["2026-03-01"] });
+    await user.click(screen.getByTestId("view-matches"));
+    expect(screen.getByText("Closed")).toBeInTheDocument();
+
+    await user.click(screen.getByTestId("toggle-day-closed-2026-03-01"));
+
+    expect(setPollDayClosed).toHaveBeenCalledWith(
+      "poll-1",
+      "2026-03-01",
+      false,
+    );
+    expect(screen.getByTestId("day-2026-03-01")).not.toHaveAttribute(
+      "data-closed",
+    );
+  });
+
+  it("reads the stored state back when the write fails", async () => {
+    vi.mocked(setPollDayClosed).mockRejectedValueOnce(new Error("boom"));
+    vi.mocked(getPoll).mockResolvedValueOnce(POLL);
+
+    const user = renderMatchesView();
+    await user.click(screen.getByTestId("view-matches"));
+    await user.click(screen.getByTestId("toggle-day-closed-2026-03-01"));
+
+    await waitFor(() =>
+      expect(screen.getByTestId("day-2026-03-01")).not.toHaveAttribute(
+        "data-closed",
+      ),
+    );
   });
 });

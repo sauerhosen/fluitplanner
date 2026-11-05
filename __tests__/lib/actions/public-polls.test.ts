@@ -157,6 +157,50 @@ describe("getPollByToken", () => {
   });
 });
 
+describe("getPollByToken with closed days", () => {
+  it("leaves out the slots of a closed day and says days were closed", async () => {
+    const poll = { id: "poll-1", token: "abc123", status: "open" };
+    const slots = [
+      // Saturday 5 Sep and Sunday 6 Sep, Amsterdam time.
+      { id: "sat", poll_id: "poll-1", start_time: "2026-09-05T08:00:00Z" },
+      { id: "sun", poll_id: "poll-1", start_time: "2026-09-06T08:00:00Z" },
+    ];
+
+    mockFrom.mockImplementation(((table: string) => {
+      if (table === "polls") {
+        const q = {
+          select: () => q,
+          eq: () => q,
+          single: async () => ({ data: poll, error: null }),
+        };
+        return q;
+      }
+      if (table === "poll_slots") {
+        const q = {
+          select: () => q,
+          eq: () => q,
+          order: async () => ({ data: slots, error: null }),
+        };
+        return q;
+      }
+      if (table === "poll_closed_days") {
+        return {
+          select: () => ({
+            eq: async () => ({ data: [{ day: "2026-09-05" }], error: null }),
+          }),
+        };
+      }
+      return chainable();
+    }) as never);
+
+    const { getPollByToken } = await import("@/lib/actions/public-polls");
+    const result = await getPollByToken("closed-days-token");
+
+    expect(result!.slots.map((s) => s.id)).toEqual(["sun"]);
+    expect(result!.hasClosedDays).toBe(true);
+  });
+});
+
 /* ================================================================== */
 /*  findOrCreateUmpire                                                 */
 /* ================================================================== */
@@ -387,6 +431,60 @@ describe("submitResponses", () => {
     const result = await submitResponses("poll-1", "ump-1", "Jan", []);
     expect(result).toEqual({ status: "saved" });
     expect(mockFrom).not.toHaveBeenCalled();
+  });
+
+  it("drops answers for slots on a closed day", async () => {
+    const upserted: unknown[] = [];
+    mockFrom.mockImplementation(((table: string) => {
+      if (table === "polls") {
+        const q = {
+          select: () => q,
+          eq: () => q,
+          single: async () => ({ data: { status: "open" }, error: null }),
+        };
+        return q;
+      }
+      if (table === "poll_closed_days") {
+        return {
+          select: () => ({
+            eq: async () => ({ data: [{ day: "2026-09-05" }], error: null }),
+          }),
+        };
+      }
+      if (table === "poll_slots") {
+        return {
+          select: () => ({
+            eq: async () => ({
+              data: [
+                { id: "sat", start_time: "2026-09-05T08:00:00Z" },
+                { id: "sun", start_time: "2026-09-06T08:00:00Z" },
+              ],
+              error: null,
+            }),
+          }),
+        };
+      }
+      if (table === "availability_responses") {
+        return {
+          upsert: async (rows: unknown[]) => {
+            upserted.push(...rows);
+            return { error: null };
+          },
+        };
+      }
+      return chainable();
+    }) as never);
+
+    const { submitResponses } = await import("@/lib/actions/public-polls");
+    const result = await submitResponses("poll-1", "ump-1", "Jan", [
+      { slotId: "sat", response: "yes" },
+      { slotId: "sun", response: "no" },
+    ]);
+
+    expect(result).toEqual({ status: "saved" });
+    expect(upserted).toEqual([
+      expect.objectContaining({ slot_id: "sun", response: "no" }),
+    ]);
   });
 
   it("upserts responses and returns { status: 'saved' } for an open poll", async () => {

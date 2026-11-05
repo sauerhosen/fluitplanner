@@ -52,6 +52,8 @@ function deleteCookie(name: string) {
 type Props = {
   poll: Poll;
   slots: PollSlot[];
+  /** The planner closed some days; with no slots left, say so. */
+  hasClosedDays?: boolean;
   featuredMatches?: FeaturedMatch[];
   pollToken: string;
   verifyToken?: string;
@@ -60,6 +62,7 @@ type Props = {
 export function PollResponsePage({
   poll,
   slots,
+  hasClosedDays = false,
   featuredMatches,
   pollToken,
   verifyToken,
@@ -187,7 +190,11 @@ export function PollResponsePage({
         <h1 className="text-2xl font-bold">
           {poll.title ?? t("defaultPollTitle")}
         </h1>
-        <p className="text-muted-foreground mt-2">{t("noSlotsDescription")}</p>
+        <p className="text-muted-foreground mt-2">
+          {hasClosedDays
+            ? t("allDaysClosedDescription")
+            : t("noSlotsDescription")}
+        </p>
       </div>
     );
   }

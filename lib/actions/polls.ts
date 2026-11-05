@@ -38,6 +38,8 @@ export type PollDetail = Poll & {
   featuredMatchIds: string[];
   /** Matches collapsed out of the planner's grid and left out of exports. */
   hiddenMatchIds: string[];
+  /** Days ("YYYY-MM-DD", Amsterdam) closed to answers; off the public page. */
+  closedDays: string[];
 };
 
 /* ------------------------------------------------------------------ */
@@ -253,6 +255,15 @@ export async function getPoll(id: string): Promise<PollDetail> {
 
   if (assignError) throw new Error(assignError.message);
 
+  // Fetch closed days
+  const { data: closedDayRows, error: closedError } = await supabase
+    .from("poll_closed_days")
+    .select("day")
+    .eq("poll_id", id)
+    .order("day");
+
+  if (closedError) throw new Error(closedError.message);
+
   return {
     ...poll,
     matches,
@@ -261,6 +272,7 @@ export async function getPoll(id: string): Promise<PollDetail> {
     assignments: assignments ?? [],
     featuredMatchIds,
     hiddenMatchIds,
+    closedDays: (closedDayRows ?? []).map((r: { day: string }) => r.day),
   };
 }
 

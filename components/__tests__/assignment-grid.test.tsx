@@ -758,3 +758,38 @@ describe("AssignmentGrid hidden matches", () => {
     expect(screen.queryByTestId("hidden-assigned-dot")).not.toBeInTheDocument();
   });
 });
+
+describe("AssignmentGrid closed days", () => {
+  const props = {
+    pollId: "poll-1",
+    matches: mockMatches,
+    slots: mockSlots,
+    responses: mockResponses,
+    assignments: [] as Assignment[],
+    umpires: mockUmpires,
+  };
+
+  it.each([true, false])(
+    "marks a closed day in its date header (transposed: %s)",
+    (transposed) => {
+      render(
+        <AssignmentGrid
+          {...props}
+          transposed={transposed}
+          closedDays={["2026-03-15"]}
+        />,
+      );
+
+      expect(screen.getByTestId("closed-day-2026-03-15")).toHaveAccessibleName(
+        "Closed",
+      );
+      // Still plannable: the day's cells stay in the grid.
+      expect(screen.getByTestId("cell-m1-u1")).toBeInTheDocument();
+    },
+  );
+
+  it("marks nothing when no day is closed", () => {
+    render(<AssignmentGrid {...props} />);
+    expect(screen.queryByTestId("closed-day-2026-03-15")).toBeNull();
+  });
+});
