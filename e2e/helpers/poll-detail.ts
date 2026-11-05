@@ -45,3 +45,18 @@ export async function openAssignments(page: Page) {
 export async function openShareMenu(page: Page) {
   await page.getByTestId("poll-share-menu").click();
 }
+
+/**
+ * Opens the poll's match list, from the grid or wherever the page landed.
+ * The counts by the title toggle their view, so clicking "matches" while it is
+ * already open would go back to the grid: only click from the grid.
+ */
+export async function openMatchList(page: Page) {
+  await openAssignments(page);
+  const link = page.getByTestId("view-matches");
+  const back = page.getByTestId("back-to-assignments");
+  await expect(async () => {
+    if (!(await back.isVisible())) await link.click();
+    await expect(back).toBeVisible({ timeout: 1000 });
+  }).toPass({ timeout: 10000 });
+}
