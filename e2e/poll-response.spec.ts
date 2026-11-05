@@ -1,5 +1,11 @@
 import { test, expect, type BrowserContext, type Page } from "@playwright/test";
 import { pollHeading, pollOverflowAction } from "./helpers/poll-detail";
+import {
+  createMatch,
+  daysFromToday,
+  deleteMatch,
+  selectMatch,
+} from "./helpers/matches";
 
 test.describe("Poll response page", () => {
   test("shows not found for invalid token", async ({ browser }) => {
@@ -20,7 +26,9 @@ test.describe("Poll response page", () => {
     const pollTitle = `E2E Response Poll ${uniqueId}`;
     const umpireEmail = `e2e-${uniqueId}@test.com`;
     const umpireName = `E2E Umpire ${uniqueId}`;
+    const homeTeam = `E2E Response Home ${uniqueId}`;
     let pollToken = "";
+    let matchCreated = false;
     let pollCreated = false;
 
     // Shared unauthenticated context for umpire tests (preserves cookies)
@@ -28,17 +36,16 @@ test.describe("Poll response page", () => {
     let umpirePage: Page;
 
     test("planner creates a poll and gets share link", async ({ page }) => {
+      await createMatch(page, {
+        date: daysFromToday(1),
+        home: homeTeam,
+        away: `E2E Response Away ${uniqueId}`,
+      });
+      matchCreated = true;
+
       await page.goto("/protected/polls/new");
       await page.getByLabel("Poll Title").fill(pollTitle);
-
-      const checkboxes = page.getByRole("checkbox");
-      const count = await checkboxes.count();
-      if (count === 0) {
-        test.skip(true, "No matches available to create a poll");
-        return;
-      }
-
-      await checkboxes.first().click();
+      await selectMatch(page, homeTeam);
       await page.getByRole("button", { name: "Create Poll" }).click();
 
       // Should redirect to detail page
@@ -136,6 +143,11 @@ test.describe("Poll response page", () => {
       page.on("dialog", (dialog) => dialog.accept());
       await pollOverflowAction(page, /delete/i);
       await page.waitForURL(/\/protected\/polls$/);
+    });
+
+    test("cleanup: delete the test match", async ({ page }) => {
+      test.skip(!matchCreated, "Match was not created");
+      await deleteMatch(page, homeTeam);
     });
   });
 });

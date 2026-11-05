@@ -4,6 +4,12 @@ import {
   pollHeading,
   pollOverflowAction,
 } from "./helpers/poll-detail";
+import {
+  createMatch,
+  daysFromToday,
+  deleteMatch,
+  selectMatch,
+} from "./helpers/matches";
 
 test.describe("Umpire Assignment", () => {
   test("planner can view assignment grid on poll detail page", async ({
@@ -46,22 +52,22 @@ test.describe("Umpire Assignment", () => {
 
     const uniqueId = Date.now();
     const pollTitle = `E2E Assignment Poll ${uniqueId}`;
+    const homeTeam = `E2E Assignment Home ${uniqueId}`;
     let pollUrl = "";
+    let matchCreated = false;
     let pollCreated = false;
 
     test("create a poll owned by test user", async ({ page }) => {
+      await createMatch(page, {
+        date: daysFromToday(1),
+        home: homeTeam,
+        away: `E2E Assignment Away ${uniqueId}`,
+      });
+      matchCreated = true;
+
       await page.goto("/protected/polls/new");
       await page.getByLabel("Poll Title").fill(pollTitle);
-
-      const checkboxes = page.getByRole("checkbox");
-      const count = await checkboxes.count();
-      if (count === 0) {
-        test.skip(true, "No matches available to create a poll");
-        return;
-      }
-
-      // Select first match
-      await checkboxes.first().click();
+      await selectMatch(page, homeTeam);
       await page.getByRole("button", { name: "Create Poll" }).click();
 
       // Should redirect to detail page
@@ -140,6 +146,11 @@ test.describe("Umpire Assignment", () => {
       page.on("dialog", (dialog) => dialog.accept());
       await pollOverflowAction(page, /delete/i);
       await page.waitForURL(/\/protected\/polls$/);
+    });
+
+    test("cleanup: delete the test match", async ({ page }) => {
+      test.skip(!matchCreated, "Match was not created");
+      await deleteMatch(page, homeTeam);
     });
   });
 });

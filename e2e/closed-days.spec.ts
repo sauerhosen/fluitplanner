@@ -4,6 +4,12 @@ import {
   pollHeading,
   pollOverflowAction,
 } from "./helpers/poll-detail";
+import {
+  createMatch,
+  daysFromToday,
+  deleteMatch,
+  selectMatch,
+} from "./helpers/matches";
 
 /**
  * Closed poll days: the planner closes one day of an open poll and it drops
@@ -29,9 +35,7 @@ test.describe("Closed poll days", () => {
   const umpireName = `E2E Closed Umpire ${uniqueId}`;
 
   /** Tomorrow and the day after: in the future, inside the default range. */
-  const days = [1, 2].map((n) =>
-    new Date(Date.now() + n * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
-  );
+  const days = [1, 2].map(daysFromToday);
   const closedDay = days[0];
 
   let matchesCreated = 0;
@@ -72,26 +76,13 @@ test.describe("Closed poll days", () => {
     page,
   }) => {
     for (const [i, t] of teams.entries()) {
-      await page.goto("/protected/matches");
-      await page.getByRole("button", { name: /add match/i }).click();
-      const form = page.getByRole("dialog");
-      await form.getByLabel("Date").fill(days[i]);
-      await form.getByLabel("Time").fill("12:45");
-      await form.getByLabel("Home Team").fill(t.home);
-      await form.getByLabel("Away Team").fill(t.away);
-      await form.getByRole("button", { name: /^add$/i }).click();
-      await expect(form).toBeHidden({ timeout: 10_000 });
+      await createMatch(page, { date: days[i], home: t.home, away: t.away });
       matchesCreated++;
     }
 
     await page.goto("/protected/polls/new");
     await page.getByLabel("Poll Title").fill(pollTitle);
-    for (const t of teams) {
-      await page
-        .locator("label", { hasText: t.home })
-        .getByRole("checkbox")
-        .click();
-    }
+    for (const t of teams) await selectMatch(page, t.home);
     await page.getByRole("button", { name: "Create Poll" }).click();
     await expect(pollHeading(page, pollTitle)).toBeVisible({
       timeout: 10_000,
@@ -200,13 +191,7 @@ test.describe("Closed poll days", () => {
   test("cleanup: delete the test matches", async ({ page }) => {
     test.skip(matchesCreated === 0, "No match was created");
     for (const t of teams.slice(0, matchesCreated)) {
-      await page.goto("/protected/matches");
-      await page.getByPlaceholder(/search teams/i).fill(t.home);
-      const row = page.locator("tr", { hasText: t.home });
-      await expect(row).toBeVisible({ timeout: 10_000 });
-      await row.getByRole("button").last().click();
-      await page.getByRole("menuitem", { name: /delete/i }).click();
-      await expect(page.getByText(t.home)).toBeHidden({ timeout: 10_000 });
+      await deleteMatch(page, t.home);
     }
   });
 });
