@@ -199,6 +199,44 @@ describe("getPollByToken with closed days", () => {
     expect(result!.slots.map((s) => s.id)).toEqual(["sun"]);
     expect(result!.hasClosedDays).toBe(true);
   });
+
+  it("does not blame a stale closed day for a poll with no slots", async () => {
+    const poll = { id: "poll-1", token: "abc123", status: "open" };
+
+    mockFrom.mockImplementation(((table: string) => {
+      if (table === "polls") {
+        const q = {
+          select: () => q,
+          eq: () => q,
+          single: async () => ({ data: poll, error: null }),
+        };
+        return q;
+      }
+      if (table === "poll_slots") {
+        const q = {
+          select: () => q,
+          eq: () => q,
+          order: async () => ({ data: [], error: null }),
+        };
+        return q;
+      }
+      if (table === "poll_closed_days") {
+        // The closed Saturday's matches have since left the poll.
+        return {
+          select: () => ({
+            eq: async () => ({ data: [{ day: "2026-09-05" }], error: null }),
+          }),
+        };
+      }
+      return chainable();
+    }) as never);
+
+    const { getPollByToken } = await import("@/lib/actions/public-polls");
+    const result = await getPollByToken("stale-closed-day-token");
+
+    expect(result!.slots).toEqual([]);
+    expect(result!.hasClosedDays).toBe(false);
+  });
 });
 
 /* ================================================================== */

@@ -31,7 +31,7 @@ export type PublicPollData = {
   poll: Poll;
   /** Slots umpires can still answer: closed days are already left out. */
   slots: PollSlot[];
-  /** Whether the planner closed any day, so an empty poll can say why. */
+  /** Whether a closed day removed any slots, so an empty poll can say why. */
   hasClosedDays: boolean;
   /** Matches the planner chose to reveal, resolved to their slots. */
   featuredMatches: FeaturedMatch[];
@@ -82,7 +82,10 @@ export const getPollByToken = cache(
     return {
       poll,
       slots,
-      hasClosedDays: closedDays.length > 0,
+      // Only a closed day that actually removed slots explains an empty
+      // poll: a stale row for a day whose matches have since left the poll
+      // must not claim "all days are closed" on a poll that simply has none.
+      hasClosedDays: slots.length < (allSlots ?? []).length,
       featuredMatches,
     };
   },

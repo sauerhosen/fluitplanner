@@ -7,17 +7,10 @@
  * club and its umpires think in, whatever timezone the server or browser is in.
  */
 
-const DAY_FORMAT = new Intl.DateTimeFormat("en-CA", {
-  timeZone: "Europe/Amsterdam",
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-});
+import { amsterdamDay } from "@/lib/domain/timezone";
 
-/** "2026-09-05T22:30:00Z" → "2026-09-06" (00:30 in Amsterdam). */
-export function amsterdamDay(iso: string): string {
-  return DAY_FORMAT.format(new Date(iso));
-}
+// Re-exported: it is how a slot is mapped to the day a planner closes.
+export { amsterdamDay };
 
 /** A real ISO calendar date, e.g. "2026-09-05". */
 export function isValidDay(day: string): boolean {
