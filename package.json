@@ -19,7 +19,7 @@
     "supabase:start": "supabase start",
     "supabase:stop": "supabase stop",
     "supabase:reset": "supabase db reset",
-    "supabase:seed": "supabase db dump --data-only -f supabase/seed.sql"
+    "supabase:seed": "supabase db dump --remote --data-only -f supabase/seed.sql"
   },
   "dependencies": {
     "@modelcontextprotocol/server": "^2.4.0",
