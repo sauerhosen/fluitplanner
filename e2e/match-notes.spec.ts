@@ -30,6 +30,15 @@ test.describe("Match notes", () => {
   let matchCreated = false;
   let pollCreated = false;
 
+  /**
+   * This spec's own row. The search filters on the server, so the unfiltered
+   * list can still be on screen when `gotoMatch` returns; other specs running
+   * in parallel add their own note-less matches to it.
+   */
+  function ownRow(page: import("@playwright/test").Page) {
+    return page.locator("tr", { hasText: homeTeam });
+  }
+
   async function gotoMatch(page: import("@playwright/test").Page) {
     await page.goto("/protected/matches");
     await page.getByPlaceholder(/search teams/i).fill(homeTeam);
@@ -106,7 +115,7 @@ test.describe("Match notes", () => {
     });
     // The row falls back to the "add a note" affordance.
     await expect(
-      page.getByRole("button", { name: /add a note/i }),
+      ownRow(page).getByRole("button", { name: /add a note/i }),
     ).toBeVisible();
   });
 
@@ -117,7 +126,9 @@ test.describe("Match notes", () => {
 
     // Put the note back so there is something to find on the poll screen.
     await gotoMatch(page);
-    await page.getByRole("button", { name: /add a note/i }).click();
+    await ownRow(page)
+      .getByRole("button", { name: /add a note/i })
+      .click();
     const textbox = page.getByRole("dialog").getByRole("textbox");
     await textbox.fill(editedNote);
     await page
