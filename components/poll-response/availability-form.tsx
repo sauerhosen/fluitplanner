@@ -25,7 +25,11 @@ type Props = {
   existingResponses: AvailabilityResponse[];
   assignmentContext?: PollAssignmentContext | null;
   featuredMatches?: FeaturedMatch[];
+  /** Slots on days the planner closed: shown in place, but read-only. */
+  closedSlotIds?: string[];
 };
+
+const NO_CLOSED_SLOTS: string[] = [];
 
 export function AvailabilityForm({
   pollId,
@@ -35,6 +39,7 @@ export function AvailabilityForm({
   existingResponses,
   assignmentContext,
   featuredMatches,
+  closedSlotIds = NO_CLOSED_SLOTS,
 }: Props) {
   const t = useTranslations("pollResponse");
   const format = useFormatter();
@@ -69,25 +74,30 @@ export function AvailabilityForm({
     return groups;
   }
 
-  // Partition slots into future (editable) and past (read-only)
-  const futureSlots = useMemo(
-    () => slots.filter((s) => new Date(s.start_time) >= now),
-    [slots, now],
-  );
-  const pastSlots = useMemo(
-    () => slots.filter((s) => new Date(s.start_time) < now),
-    [slots, now],
-  );
-  const futureSlotIds = useMemo(
-    () => new Set(futureSlots.map((s) => s.id)),
-    [futureSlots],
+  // Partition slots into open (editable) and closed (read-only). A slot is
+  // closed once it has passed or the planner closed its day.
+  const closedSet = useMemo(() => new Set(closedSlotIds), [closedSlotIds]);
+  const [openSlots, closedSlots] = useMemo(() => {
+    const open: PollSlot[] = [];
+    const closed: PollSlot[] = [];
+    for (const s of slots) {
+      const isClosed = new Date(s.start_time) < now || closedSet.has(s.id);
+      (isClosed ? closed : open).push(s);
+    }
+    return [open, closed];
+  }, [slots, now, closedSet]);
+  const editableSlotIds = useMemo(
+    () => new Set(openSlots.map((s) => s.id)),
+    [openSlots],
   );
 
-  const futureDateGroups = groupSlotsByDate(futureSlots);
-  const pastDateGroups = groupSlotsByDate(pastSlots);
+  const openDateGroups = groupSlotsByDate(openSlots);
+  const closedDateGroups = groupSlotsByDate(closedSlots);
 
-  const allSlotsInPast = futureSlots.length === 0 && pastSlots.length > 0;
-  const hasPastSlots = pastSlots.length > 0;
+  const noOpenSlots = openSlots.length === 0 && closedSlots.length > 0;
+  const allSlotsInPast =
+    noOpenSlots && slots.every((s) => new Date(s.start_time) < now);
+  const hasClosedSlots = closedSlots.length > 0;
 
   const initialState: Record<string, ResponseValue | null> = {};
   for (const slot of slots) {
@@ -100,7 +110,7 @@ export function AvailabilityForm({
   const [saving, setSaving] = useState(false);
   const [showSavedInBar, setShowSavedInBar] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showPastDates, setShowPastDates] = useState(false);
+  const [showClosedDates, setShowClosedDates] = useState(false);
   const [showOverrideDialog, setShowOverrideDialog] = useState(false);
 
   const [savedBaseline, setSavedBaseline] =
@@ -153,12 +163,12 @@ export function AvailabilityForm({
     return matches;
   }, [pendingOverrideSlots, assignedSlotMap]);
 
-  // Only track dirty state for future (editable) slots
+  // Only track dirty state for editable slots
   const isDirty = useMemo(() => {
-    return Array.from(futureSlotIds).some(
+    return Array.from(editableSlotIds).some(
       (key) => responses[key] !== savedBaseline[key],
     );
-  }, [responses, savedBaseline, futureSlotIds]);
+  }, [responses, savedBaseline, editableSlotIds]);
 
   // Warn on page leave with unsaved changes
   useEffect(() => {
@@ -187,8 +197,8 @@ export function AvailabilityForm({
     setError(null);
   }
 
-  // Only consider future slots for save button enable state
-  const hasSelections = Array.from(futureSlotIds).some(
+  // Only consider editable slots for save button enable state
+  const hasSelections = Array.from(editableSlotIds).some(
     (id) => responses[id] !== null,
   );
 
@@ -208,9 +218,11 @@ export function AvailabilityForm({
     setSaving(true);
     setError(null);
     setShowOverrideDialog(false);
-    // Only submit responses for future slots
+    // Only submit responses for editable slots
     const toSubmit = Object.entries(responses)
-      .filter(([slotId, value]) => value !== null && futureSlotIds.has(slotId))
+      .filter(
+        ([slotId, value]) => value !== null && editableSlotIds.has(slotId),
+      )
       .map(([slotId, response]) => ({ slotId, response: response! }));
     try {
       const result = await submitResponses(
@@ -273,8 +285,8 @@ export function AvailabilityForm({
             const matchLabels = slotMatches?.map(
               (m) => `${m.homeTeam} vs ${m.awayTeam}`,
             );
-            // Withheld in the read-only past section, and on slots this umpire
-            // already has — there is nobody left to entice.
+            // Withheld in the read-only closed section, and on slots this
+            // umpire already has — there is nobody left to entice.
             const featured =
               disabled || isAssigned ? undefined : featuredBySlot.get(slot.id);
 
@@ -300,49 +312,49 @@ export function AvailabilityForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      {/* Edge case: all slots in past */}
-      {allSlotsInPast && (
+      {/* Edge case: nothing left to answer (passed, or closed by the planner) */}
+      {noOpenSlots && (
         <div className="bg-muted text-muted-foreground rounded-md px-3 py-4 text-center text-sm">
-          {t("allDatesInPast")}
+          {allSlotsInPast ? t("allDatesInPast") : t("allDaysClosedDescription")}
         </div>
       )}
 
-      {/* Future date groups (editable) */}
-      {futureDateGroups.map((group) => renderDateGroup(group))}
+      {/* Open date groups (editable) */}
+      {openDateGroups.map((group) => renderDateGroup(group))}
 
-      {/* When all slots are past, show them expanded (no toggle) */}
-      {allSlotsInPast && (
+      {/* When nothing is open, show the closed dates expanded (no toggle) */}
+      {noOpenSlots && (
         <div className="space-y-4">
-          {pastDateGroups.map((group) => renderDateGroup(group, true))}
+          {closedDateGroups.map((group) => renderDateGroup(group, true))}
         </div>
       )}
 
-      {/* Past dates toggle + collapsible section (only when there are also future slots) */}
-      {hasPastSlots && !allSlotsInPast && (
+      {/* Closed dates toggle + collapsible section (past and planner-closed) */}
+      {hasClosedSlots && !noOpenSlots && (
         <div>
           <button
             type="button"
-            onClick={() => setShowPastDates((prev) => !prev)}
+            onClick={() => setShowClosedDates((prev) => !prev)}
             className="text-muted-foreground hover:text-foreground flex items-center gap-1.5 px-3 py-2 text-sm"
           >
-            {showPastDates ? (
+            {showClosedDates ? (
               <ChevronDown className="h-4 w-4" />
             ) : (
               <ChevronRight className="h-4 w-4" />
             )}
-            {t("pastDatesToggle", { count: pastDateGroups.length })}
+            {t("closedDatesToggle", { count: closedDateGroups.length })}
           </button>
 
-          {showPastDates && (
+          {showClosedDates && (
             <div className="space-y-4">
-              {pastDateGroups.map((group) => renderDateGroup(group, true))}
+              {closedDateGroups.map((group) => renderDateGroup(group, true))}
             </div>
           )}
         </div>
       )}
 
-      {/* Save bar — only when there are future slots to save */}
-      {!allSlotsInPast && (
+      {/* Save bar — only when there are open slots to save */}
+      {editableSlotIds.size > 0 && (
         <>
           <div className="h-16" />
           <StickyDirtyBar

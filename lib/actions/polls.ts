@@ -38,7 +38,7 @@ export type PollDetail = Poll & {
   featuredMatchIds: string[];
   /** Matches collapsed out of the planner's grid and left out of exports. */
   hiddenMatchIds: string[];
-  /** Days ("YYYY-MM-DD", Amsterdam) closed to answers; off the public page. */
+  /** Days ("YYYY-MM-DD", Amsterdam) closed to answers; read-only on the public page. */
   closedDays: string[];
 };
 

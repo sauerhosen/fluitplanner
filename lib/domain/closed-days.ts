@@ -1,7 +1,8 @@
 /**
  * Closed poll days: a planner can close single days of an open poll. A closed
- * day drops off the public poll page and its slots take no more answers; the
- * planner still sees it, answers and all.
+ * day stays on the public poll page, greyed out with the answers already
+ * given, but its slots take no more answers; the planner still sees it,
+ * answers and all.
  *
  * A day is the Europe/Amsterdam calendar date of a slot's start — the date the
  * club and its umpires think in, whatever timezone the server or browser is in.
@@ -29,4 +30,16 @@ export function withoutClosedDays<S extends { start_time: string }>(
   if (closedDays.length === 0) return slots;
   const closed = new Set(closedDays);
   return slots.filter((s) => !closed.has(amsterdamDay(s.start_time)));
+}
+
+/** The ids of the slots on a closed day: shown to umpires, but read-only. */
+export function closedDaySlotIds<S extends { id: string; start_time: string }>(
+  slots: S[],
+  closedDays: readonly string[],
+): string[] {
+  if (closedDays.length === 0) return [];
+  const closed = new Set(closedDays);
+  return slots
+    .filter((s) => closed.has(amsterdamDay(s.start_time)))
+    .map((s) => s.id);
 }

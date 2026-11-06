@@ -10,8 +10,8 @@ export type SetDayClosedResult =
 /**
  * Close or reopen one day of a poll.
  *
- * A closed day drops off the public poll page and its slots take no more
- * answers. Answers already given stay, and the planner keeps seeing them.
+ * A closed day stays on the public poll page, greyed out, but its slots take
+ * no more answers. Answers already given stay, for umpire and planner alike.
  * Both directions are idempotent: closing a closed day or reopening an open
  * one is a no-op.
  *

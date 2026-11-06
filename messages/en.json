@@ -398,7 +398,7 @@
     "closeDay": "Close day",
     "reopenDay": "Reopen day",
     "closedDayBadge": "Closed",
-    "closedDayHint": "Umpires no longer see this day and cannot answer for it. Answers already given are kept.",
+    "closedDayHint": "Umpires see this day greyed out and can no longer answer for it. Answers already given are kept.",
     "closeDayError": "Could not update the day. Try again."
   },
   "pollResponse": {
@@ -451,7 +451,7 @@
     "resendCode": "Resend code",
     "couldNotResendCode": "Could not resend code. Please try again later.",
     "useDifferentEmail": "Use a different email",
-    "pastDatesToggle": "{count, plural, one {# past date} other {# past dates}}",
+    "closedDatesToggle": "{count, plural, one {# closed date} other {# closed dates}}",
     "allDatesInPast": "All dates in this poll have passed. Your previous responses are shown below.",
     "slotLockedAssigned": "Locked — you're assigned to a match",
     "assignedToMatch": "You are assigned to {match}",
@@ -463,7 +463,7 @@
     "warningDialogProceed": "Proceed anyway",
     "partialSaveBlocked": "Some changes were blocked because you are assigned to: {matches}. The rest of your changes have been saved.",
     "featuredMatchLabel": "Featured match:",
-    "allDaysClosedDescription": "All days in this poll are closed. Thanks — no more answers are needed."
+    "allDaysClosedDescription": "All days in this poll are closed. Your previous answers are shown below."
   },
   "umpires": {
     "pageTitle": "Umpires",

@@ -398,7 +398,7 @@
     "closeDay": "Dag sluiten",
     "reopenDay": "Dag heropenen",
     "closedDayBadge": "Gesloten",
-    "closedDayHint": "Scheidsrechters zien deze dag niet meer en kunnen er niet meer op antwoorden. Gegeven antwoorden blijven bewaard.",
+    "closedDayHint": "Scheidsrechters zien deze dag grijs en kunnen er niet meer op antwoorden. Gegeven antwoorden blijven bewaard.",
     "closeDayError": "Kon de dag niet bijwerken. Probeer het opnieuw."
   },
   "pollResponse": {
@@ -451,7 +451,7 @@
     "resendCode": "Code opnieuw versturen",
     "couldNotResendCode": "Code opnieuw versturen mislukt. Probeer het later opnieuw.",
     "useDifferentEmail": "Ander e-mailadres gebruiken",
-    "pastDatesToggle": "{count, plural, one {# afgelopen datum} other {# afgelopen datums}}",
+    "closedDatesToggle": "{count, plural, one {# gesloten datum} other {# gesloten datums}}",
     "allDatesInPast": "Alle datums in deze peiling zijn verstreken. Je eerdere reacties staan hieronder.",
     "slotLockedAssigned": "Vergrendeld — je bent ingedeeld voor een wedstrijd",
     "assignedToMatch": "Je bent ingedeeld voor {match}",
@@ -463,7 +463,7 @@
     "warningDialogProceed": "Toch doorgaan",
     "partialSaveBlocked": "Sommige wijzigingen zijn geblokkeerd omdat je bent ingedeeld voor: {matches}. De rest van je wijzigingen is opgeslagen.",
     "featuredMatchLabel": "Uitgelichte wedstrijd:",
-    "allDaysClosedDescription": "Alle dagen in deze peiling zijn gesloten. Bedankt — er zijn geen antwoorden meer nodig."
+    "allDaysClosedDescription": "Alle dagen in deze peiling zijn gesloten. Je eerdere reacties staan hieronder."
   },
   "umpires": {
     "pageTitle": "Scheidsrechters",

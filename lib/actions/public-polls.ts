@@ -4,7 +4,7 @@ import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { mapMatchesToSlots } from "@/lib/domain/match-slot-mapping";
-import { amsterdamDay, withoutClosedDays } from "@/lib/domain/closed-days";
+import { closedDaySlotIds, withoutClosedDays } from "@/lib/domain/closed-days";
 import {
   FEATURED_MATCH_SELECT,
   resolveFeaturedMatches,
@@ -29,10 +29,13 @@ import {
 
 export type PublicPollData = {
   poll: Poll;
-  /** Slots umpires can still answer: closed days are already left out. */
+  /** Every slot in the poll, closed days included. */
   slots: PollSlot[];
-  /** Whether a closed day removed any slots, so an empty poll can say why. */
-  hasClosedDays: boolean;
+  /**
+   * Slots on a day the planner closed: shown greyed out with the answer
+   * already given, but no longer answerable.
+   */
+  closedSlotIds: string[];
   /** Matches the planner chose to reveal, resolved to their slots. */
   featuredMatches: FeaturedMatch[];
 };
@@ -74,18 +77,18 @@ export const getPollByToken = cache(
 
     if (slotsError || !closedDays) return null;
 
-    // Closed days are gone from the umpire's view entirely, featured matches
-    // on them included (they resolve against the remaining slots only).
-    const slots = withoutClosedDays((allSlots ?? []) as PollSlot[], closedDays);
-    const featuredMatches = await getFeaturedMatches(poll.id, slots);
+    // Closed days stay visible but read-only. Featured matches resolve
+    // against the open slots only: nobody is enticed to an unanswerable day.
+    const slots = (allSlots ?? []) as PollSlot[];
+    const featuredMatches = await getFeaturedMatches(
+      poll.id,
+      withoutClosedDays(slots, closedDays),
+    );
 
     return {
       poll,
       slots,
-      // Only a closed day that actually removed slots explains an empty
-      // poll: a stale row for a day whose matches have since left the poll
-      // must not claim "all days are closed" on a poll that simply has none.
-      hasClosedDays: slots.length < (allSlots ?? []).length,
+      closedSlotIds: closedDaySlotIds(slots, closedDays),
       featuredMatches,
     };
   },
@@ -404,11 +407,11 @@ async function withoutClosedDaySlots(
 
   if (error) throw new Error(error.message);
 
-  const closed = new Set(closedDays);
   const closedSlotIds = new Set(
-    ((slots ?? []) as { id: string; start_time: string }[])
-      .filter((s) => closed.has(amsterdamDay(s.start_time)))
-      .map((s) => s.id),
+    closedDaySlotIds(
+      (slots ?? []) as { id: string; start_time: string }[],
+      closedDays,
+    ),
   );
   return responses.filter((r) => !closedSlotIds.has(r.slotId));
 }
