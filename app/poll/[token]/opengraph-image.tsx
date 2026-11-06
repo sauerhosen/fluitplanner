@@ -1,7 +1,6 @@
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
 import { ImageResponse } from "next/og";
-import { getPollMeta } from "@/lib/actions/public-polls";
+import { loadOgIcon } from "@/lib/og/icon";
+import { getPollClubName, type PollClubName } from "@/lib/og/poll-club-name";
 
 export const alt = "Fluitplanner umpire availability poll";
 export const size = { width: 1200, height: 630 };
@@ -11,16 +10,37 @@ type Props = {
   params: Promise<{ token: string }>;
 };
 
+/**
+ * Rendering this PNG is among the most CPU-heavy work the app does, and every
+ * share of a poll link makes chat apps and link scanners fetch it, often more
+ * than once. A public Cache-Control lets Vercel's CDN answer repeats without
+ * invoking the function. Only a definite hit is cached for long: the image
+ * shows just the club name, so a day of staleness is harmless. An unknown
+ * token is cached briefly (a link can be shared before its poll exists), and
+ * a failed lookup not at all, so a transient error never pins the club-less
+ * fallback image.
+ */
+const CACHE_FOUND =
+  "public, max-age=86400, s-maxage=86400, stale-while-revalidate=604800";
+const CACHE_NOT_FOUND = "public, max-age=300, s-maxage=300";
+const CACHE_ERROR = "no-store";
+
 export default async function Image({ params }: Props) {
   const { token } = await params;
-  const meta = await getPollMeta(token);
-  const clubName = meta?.clubName ?? "Fluitplanner";
-
-  const iconFile = await readFile(join(process.cwd(), "app/icon.png"));
-  const iconData = iconFile.buffer.slice(
-    iconFile.byteOffset,
-    iconFile.byteOffset + iconFile.byteLength,
-  );
+  let lookup: PollClubName | null;
+  try {
+    lookup = await getPollClubName(token);
+  } catch (error) {
+    console.error("[poll og-image] club name lookup failed:", error);
+    lookup = null;
+  }
+  const clubName = lookup?.clubName ?? "Fluitplanner";
+  const cacheControl = !lookup
+    ? CACHE_ERROR
+    : lookup.found
+      ? CACHE_FOUND
+      : CACHE_NOT_FOUND;
+  const iconData = await loadOgIcon();
 
   return new ImageResponse(
     <div
@@ -86,6 +106,6 @@ export default async function Image({ params }: Props) {
         Umpire availability poll
       </div>
     </div>,
-    { ...size },
+    { ...size, headers: { "Cache-Control": cacheControl } },
   );
 }

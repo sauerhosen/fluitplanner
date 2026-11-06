@@ -3,7 +3,7 @@ import { LanguageSwitcher } from "@/components/language-switcher";
 import { OrganizationSwitcher } from "@/components/organization-switcher";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 import Image from "next/image";
-import Link from "next/link";
+import { AppLink } from "@/components/shared/app-link";
 import appIcon from "@/app/icon.png";
 import { Suspense } from "react";
 import { getTranslations } from "next-intl/server";
@@ -36,13 +36,13 @@ export default async function ProtectedLayout({
         <nav className="w-full flex justify-center border-b border-b-foreground/10 h-12 sm:h-16">
           <div className="w-full max-w-7xl flex justify-between items-center p-3 px-4 sm:px-5 text-sm">
             <div className="flex gap-3 sm:gap-5 items-center font-semibold">
-              <Link href="/protected">
+              <AppLink href="/protected">
                 <Image
                   src={appIcon}
                   alt="Fluitplanner"
                   className="h-6 w-6 sm:h-7 sm:w-7 rounded"
                 />
-              </Link>
+              </AppLink>
               <OrganizationSwitcher currentSlug={tenantSlug} />
               {role === "viewer" && (
                 <span
@@ -53,47 +53,47 @@ export default async function ProtectedLayout({
                 </span>
               )}
               <div className="flex items-center gap-2 sm:gap-4 text-xs sm:text-sm font-normal">
-                <Link href="/protected/matches" className="hover:underline">
+                <AppLink href="/protected/matches" className="hover:underline">
                   {t("matches")}
-                </Link>
-                <Link href="/protected/polls" className="hover:underline">
+                </AppLink>
+                <AppLink href="/protected/polls" className="hover:underline">
                   {t("polls")}
-                </Link>
-                <Link href="/protected/umpires" className="hover:underline">
+                </AppLink>
+                <AppLink href="/protected/umpires" className="hover:underline">
                   {t("umpires")}
-                </Link>
+                </AppLink>
                 {isMasterAdmin && (
                   <>
-                    <Link
+                    <AppLink
                       href="/protected/organizations"
                       className="hover:underline hidden sm:inline"
                     >
                       {t("organizations")}
-                    </Link>
-                    <Link
+                    </AppLink>
+                    <AppLink
                       href="/protected/users"
                       className="hover:underline hidden sm:inline"
                     >
                       {t("users")}
-                    </Link>
+                    </AppLink>
                   </>
                 )}
-                <Link
+                <AppLink
                   href="/protected/settings"
                   className="hover:underline hidden sm:inline"
                 >
                   {t("settings")}
-                </Link>
+                </AppLink>
                 {/* Account is per-user, so unlike the club pages it stays
                     reachable on mobile — as an icon, to keep the row short. */}
-                <Link
+                <AppLink
                   href="/protected/account"
                   className="hover:underline"
                   aria-label={t("account")}
                 >
                   <UserRound className="size-4 sm:hidden" aria-hidden="true" />
                   <span className="hidden sm:inline">{t("account")}</span>
-                </Link>
+                </AppLink>
               </div>
             </div>
             <div className="flex items-center gap-1">
@@ -113,12 +113,12 @@ export default async function ProtectedLayout({
 
         <footer className="w-full flex items-center justify-center border-t mx-auto text-center text-xs gap-8 py-8">
           <p className="text-muted-foreground">Fluitplanner</p>
-          <Link
+          <AppLink
             href="/privacy"
             className="text-muted-foreground hover:underline"
           >
             {t("privacy")}
-          </Link>
+          </AppLink>
           <ThemeSwitcher />
           <LanguageSwitcher />
         </footer>

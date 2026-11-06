@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { AppLink } from "@/components/shared/app-link";
 import { Button } from "./ui/button";
 import { createClient } from "@/lib/supabase/server";
 import { LogoutButton } from "./logout-button";
@@ -22,15 +22,15 @@ export async function AuthButton({
 
   return user ? (
     <div className="flex items-center gap-2 sm:gap-4">
-      <Link
+      <AppLink
         href="/protected/account"
         className="hidden sm:inline text-sm hover:underline"
       >
         {t("greeting", { email: user.email as string })}
-      </Link>
+      </AppLink>
       {showDashboardLink && (
         <Button asChild size="sm" variant={"default"}>
-          <Link href="/protected">{tNav("dashboard")}</Link>
+          <AppLink href="/protected">{tNav("dashboard")}</AppLink>
         </Button>
       )}
       <LogoutButton />
@@ -38,10 +38,10 @@ export async function AuthButton({
   ) : (
     <div className="flex gap-2">
       <Button asChild size="sm" variant={"outline"}>
-        <Link href="/auth/login">{t("signIn")}</Link>
+        <AppLink href="/auth/login">{t("signIn")}</AppLink>
       </Button>
       <Button asChild size="sm" variant={"default"}>
-        <Link href="/auth/sign-up">{t("signUpLink")}</Link>
+        <AppLink href="/auth/sign-up">{t("signUpLink")}</AppLink>
       </Button>
     </div>
   );

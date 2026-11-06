@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { AppLink } from "@/components/shared/app-link";
 import { ChevronLeft } from "lucide-react";
 import type { ReactNode } from "react";
 
@@ -39,13 +39,13 @@ export function PageHeader({
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
       {backHref && (
-        <Link
+        <AppLink
           href={backHref}
           className="flex shrink-0 items-center text-sm text-muted-foreground transition-colors hover:text-foreground"
         >
           <ChevronLeft className="h-4 w-4" />
           <span className="hidden sm:inline">{backLabel}</span>
-        </Link>
+        </AppLink>
       )}
 
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">

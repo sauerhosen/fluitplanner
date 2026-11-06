@@ -1,18 +1,12 @@
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
 import { ImageResponse } from "next/og";
+import { loadOgIcon } from "@/lib/og/icon";
 
 export const alt = "Fluitplanner — field hockey umpire scheduling";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
 export default async function Image() {
-  const iconFile = await readFile(join(process.cwd(), "app/icon.png"));
-  const iconData = iconFile.buffer.slice(
-    iconFile.byteOffset,
-    iconFile.byteOffset + iconFile.byteLength,
-  );
-
+  const iconData = await loadOgIcon();
   return new ImageResponse(
     <div
       style={{

@@ -1,6 +1,7 @@
 import { createMcpHandler } from "mcp-handler";
 import { authenticateMcpRequest } from "@/lib/mcp/auth";
-import { registerMcpTools, MCP_SERVER_INSTRUCTIONS } from "@/lib/mcp/tools";
+import { registerMcpTools } from "@/lib/mcp/tools";
+import { MCP_SERVER_OPTIONS } from "@/lib/mcp/server-options";
 import { baseUrl } from "@/lib/oauth/metadata";
 
 export const maxDuration = 60;
@@ -32,10 +33,10 @@ async function handler(request: Request) {
     );
   }
 
-  const mcp = createMcpHandler((server) => registerMcpTools(server, ctx), {
-    serverInfo: { name: "fluitplanner", version: "1.0.0" },
-    instructions: MCP_SERVER_INSTRUCTIONS,
-  });
+  const mcp = createMcpHandler(
+    (server) => registerMcpTools(server, ctx),
+    MCP_SERVER_OPTIONS,
+  );
   return mcp(request);
 }
 

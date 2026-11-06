@@ -5,7 +5,7 @@ import type { MatchWithPoll } from "@/lib/actions/matches";
 import { deleteMatch, deleteMatches } from "@/lib/actions/matches";
 import { clearMatchReviewFlags } from "@/lib/actions/hockey-sync";
 import type { MatchReviewReason } from "@/lib/types/domain";
-import Link from "next/link";
+import { AppLink } from "@/components/shared/app-link";
 import {
   Table,
   TableBody,
@@ -353,12 +353,12 @@ export function MatchTable({
                         </TableCell>
                         <TableCell>
                           {match.poll ? (
-                            <Link
+                            <AppLink
                               href={`/protected/polls/${match.poll.id}`}
                               className="text-sm text-primary hover:underline"
                             >
                               {match.poll.title ?? match.poll.id}
-                            </Link>
+                            </AppLink>
                           ) : (
                             "—"
                           )}

@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
+import { AppLink } from "@/components/shared/app-link";
 import type {
   Match,
   RosteredUmpire,
@@ -701,13 +701,13 @@ export function PollDetailClient({
         className="flex-wrap gap-y-2 sm:flex-nowrap"
         compact={
           <>
-            <Link
+            <AppLink
               href="/protected/polls"
               className="flex min-w-0 items-center gap-1 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
             >
               <ChevronLeft className="h-4 w-4 shrink-0" />
               <span className="truncate">{poll.title}</span>
-            </Link>
+            </AppLink>
             <span aria-hidden className="mx-3 h-4 w-px shrink-0 bg-border" />
           </>
         }
