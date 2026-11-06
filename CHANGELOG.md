@@ -1,5 +1,15 @@
 # Changelog
 
+## [2.43.1](https://github.com/sauerhosen/fluitplanner/compare/v2.43.0...v2.43.1) (2026-11-06)
+
+
+### Bug Fixes
+
+* address review of the function CPU changes ([33ff10a](https://github.com/sauerhosen/fluitplanner/commit/33ff10aa983b365d2904e185d5c8a49c1b41993f))
+* cut Vercel function CPU from nav prefetches, MCP listen streams and OG images ([299e02b](https://github.com/sauerhosen/fluitplanner/commit/299e02b2256635796fbd598e0c9e9eeb976e9b63))
+* cut Vercel function CPU from prefetches, MCP listen streams and OG images ([3c318f7](https://github.com/sauerhosen/fluitplanner/commit/3c318f74045e872bdce7bb564a9c2554b9e33bbc))
+* disable viewport prefetch on remaining authenticated-page links ([0448ef8](https://github.com/sauerhosen/fluitplanner/commit/0448ef879b9052c8c2d23e5ef59e7d57b3704ef8))
+
 ## [2.43.0](https://github.com/sauerhosen/fluitplanner/compare/v2.42.0...v2.43.0) (2026-11-06)
 
 
