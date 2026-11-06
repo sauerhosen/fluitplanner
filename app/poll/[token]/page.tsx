@@ -61,7 +61,7 @@ async function PollLoader({ params, searchParams }: Props) {
       <PollResponsePage
         poll={data.poll}
         slots={data.slots}
-        hasClosedDays={data.hasClosedDays}
+        closedSlotIds={data.closedSlotIds}
         featuredMatches={data.featuredMatches}
         pollToken={token}
         verifyToken={verify}

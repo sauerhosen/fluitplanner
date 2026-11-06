@@ -142,10 +142,14 @@ test.describe("Closed poll days", () => {
     );
   });
 
-  test("the umpire no longer sees the closed day", async () => {
+  test("the umpire sees the closed day greyed out", async () => {
     test.skip(!pollCreated, "Poll was not created");
     await umpirePage.reload();
-    await expect(yesButtons()).toHaveCount(1, { timeout: 10_000 });
+    // Still listed, with its answer, but no longer answerable.
+    await expect(yesButtons()).toHaveCount(2, { timeout: 10_000 });
+    await expect(yesButtons().nth(0)).toBeDisabled();
+    await expect(yesButtons().nth(1)).toBeEnabled();
+    await expect(umpirePage.getByText("Closed", { exact: true })).toBeVisible();
   });
 
   test("the grid marks the closed day", async ({ page }) => {
@@ -175,6 +179,7 @@ test.describe("Closed poll days", () => {
 
     await umpirePage.reload();
     await expect(yesButtons()).toHaveCount(2, { timeout: 10_000 });
+    await expect(yesButtons().nth(0)).toBeEnabled();
   });
 
   test("cleanup: delete the test poll", async ({ page }) => {

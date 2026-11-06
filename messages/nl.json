@@ -463,7 +463,8 @@
     "warningDialogProceed": "Toch doorgaan",
     "partialSaveBlocked": "Sommige wijzigingen zijn geblokkeerd omdat je bent ingedeeld voor: {matches}. De rest van je wijzigingen is opgeslagen.",
     "featuredMatchLabel": "Uitgelichte wedstrijd:",
-    "allDaysClosedDescription": "Alle dagen in deze peiling zijn gesloten. Bedankt — er zijn geen antwoorden meer nodig."
+    "dayClosed": "Gesloten",
+    "allDaysClosedDescription": "Alle dagen in deze peiling zijn gesloten. Je eerdere reacties staan hieronder."
   },
   "umpires": {
     "pageTitle": "Scheidsrechters",

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useMemo } from "react";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { CalendarOff, ChevronDown, ChevronRight } from "lucide-react";
 import { SlotRow } from "@/components/poll-response/slot-row";
 import { StickyDirtyBar } from "@/components/poll-response/sticky-dirty-bar";
 import { AssignmentWarningDialog } from "@/components/poll-response/assignment-warning-dialog";
@@ -25,7 +25,11 @@ type Props = {
   existingResponses: AvailabilityResponse[];
   assignmentContext?: PollAssignmentContext | null;
   featuredMatches?: FeaturedMatch[];
+  /** Slots on days the planner closed: shown in place, but read-only. */
+  closedSlotIds?: string[];
 };
+
+const NO_CLOSED_SLOTS: string[] = [];
 
 export function AvailabilityForm({
   pollId,
@@ -35,6 +39,7 @@ export function AvailabilityForm({
   existingResponses,
   assignmentContext,
   featuredMatches,
+  closedSlotIds = NO_CLOSED_SLOTS,
 }: Props) {
   const t = useTranslations("pollResponse");
   const format = useFormatter();
@@ -78,9 +83,12 @@ export function AvailabilityForm({
     () => slots.filter((s) => new Date(s.start_time) < now),
     [slots, now],
   );
-  const futureSlotIds = useMemo(
-    () => new Set(futureSlots.map((s) => s.id)),
-    [futureSlots],
+  const closedSet = useMemo(() => new Set(closedSlotIds), [closedSlotIds]);
+  // Future slots on a closed day stay in place, greyed out like past ones.
+  const editableSlotIds = useMemo(
+    () =>
+      new Set(futureSlots.filter((s) => !closedSet.has(s.id)).map((s) => s.id)),
+    [futureSlots, closedSet],
   );
 
   const futureDateGroups = groupSlotsByDate(futureSlots);
@@ -88,6 +96,7 @@ export function AvailabilityForm({
 
   const allSlotsInPast = futureSlots.length === 0 && pastSlots.length > 0;
   const hasPastSlots = pastSlots.length > 0;
+  const allOpenDaysClosed = !allSlotsInPast && editableSlotIds.size === 0;
 
   const initialState: Record<string, ResponseValue | null> = {};
   for (const slot of slots) {
@@ -153,12 +162,12 @@ export function AvailabilityForm({
     return matches;
   }, [pendingOverrideSlots, assignedSlotMap]);
 
-  // Only track dirty state for future (editable) slots
+  // Only track dirty state for editable slots
   const isDirty = useMemo(() => {
-    return Array.from(futureSlotIds).some(
+    return Array.from(editableSlotIds).some(
       (key) => responses[key] !== savedBaseline[key],
     );
-  }, [responses, savedBaseline, futureSlotIds]);
+  }, [responses, savedBaseline, editableSlotIds]);
 
   // Warn on page leave with unsaved changes
   useEffect(() => {
@@ -187,8 +196,8 @@ export function AvailabilityForm({
     setError(null);
   }
 
-  // Only consider future slots for save button enable state
-  const hasSelections = Array.from(futureSlotIds).some(
+  // Only consider editable slots for save button enable state
+  const hasSelections = Array.from(editableSlotIds).some(
     (id) => responses[id] !== null,
   );
 
@@ -208,9 +217,11 @@ export function AvailabilityForm({
     setSaving(true);
     setError(null);
     setShowOverrideDialog(false);
-    // Only submit responses for future slots
+    // Only submit responses for editable slots
     const toSubmit = Object.entries(responses)
-      .filter(([slotId, value]) => value !== null && futureSlotIds.has(slotId))
+      .filter(
+        ([slotId, value]) => value !== null && editableSlotIds.has(slotId),
+      )
       .map(([slotId, response]) => ({ slotId, response: response! }));
     try {
       const result = await submitResponses(
@@ -258,13 +269,21 @@ export function AvailabilityForm({
     group: { dateKey: string; label: string; slots: PollSlot[] },
     disabled?: boolean,
   ) {
+    const dayClosed = group.slots.every((slot) => closedSet.has(slot.id));
     return (
       <div key={group.dateKey}>
-        <div className="bg-muted text-muted-foreground mb-1 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide">
-          {group.label}
+        <div className="bg-muted text-muted-foreground mb-1 flex items-center justify-between gap-2 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide">
+          <span>{group.label}</span>
+          {dayClosed && (
+            <span className="flex items-center gap-1 normal-case">
+              <CalendarOff className="h-3 w-3" />
+              {t("dayClosed")}
+            </span>
+          )}
         </div>
         <div className="px-3">
           {group.slots.map((slot) => {
+            const slotDisabled = disabled || closedSet.has(slot.id);
             const isAssigned = assignedSlotMap.has(slot.id);
             const isLocked = lockMode === "lock" && isAssigned;
             const isOverriding =
@@ -273,10 +292,12 @@ export function AvailabilityForm({
             const matchLabels = slotMatches?.map(
               (m) => `${m.homeTeam} vs ${m.awayTeam}`,
             );
-            // Withheld in the read-only past section, and on slots this umpire
-            // already has — there is nobody left to entice.
+            // Withheld on read-only (past or closed) slots, and on slots this
+            // umpire already has — there is nobody left to entice.
             const featured =
-              disabled || isAssigned ? undefined : featuredBySlot.get(slot.id);
+              slotDisabled || isAssigned
+                ? undefined
+                : featuredBySlot.get(slot.id);
 
             return (
               <SlotRow
@@ -285,7 +306,7 @@ export function AvailabilityForm({
                 endTime={slot.end_time}
                 value={responses[slot.id]}
                 onChange={(value) => handleChange(slot.id, value)}
-                disabled={disabled}
+                disabled={slotDisabled}
                 locked={isLocked}
                 showWarning={isOverriding}
                 assignedMatchLabels={matchLabels}
@@ -307,7 +328,14 @@ export function AvailabilityForm({
         </div>
       )}
 
-      {/* Future date groups (editable) */}
+      {/* Every future day is closed: nothing left to answer */}
+      {allOpenDaysClosed && (
+        <div className="bg-muted text-muted-foreground rounded-md px-3 py-4 text-center text-sm">
+          {t("allDaysClosedDescription")}
+        </div>
+      )}
+
+      {/* Future date groups (editable, closed days greyed out in place) */}
       {futureDateGroups.map((group) => renderDateGroup(group))}
 
       {/* When all slots are past, show them expanded (no toggle) */}
@@ -341,8 +369,8 @@ export function AvailabilityForm({
         </div>
       )}
 
-      {/* Save bar — only when there are future slots to save */}
-      {!allSlotsInPast && (
+      {/* Save bar — only when there are open slots to save */}
+      {editableSlotIds.size > 0 && (
         <>
           <div className="h-16" />
           <StickyDirtyBar
