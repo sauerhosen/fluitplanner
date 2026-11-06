@@ -4,7 +4,7 @@ import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { mapMatchesToSlots } from "@/lib/domain/match-slot-mapping";
-import { amsterdamDay, withoutClosedDays } from "@/lib/domain/closed-days";
+import { closedDaySlotIds, withoutClosedDays } from "@/lib/domain/closed-days";
 import {
   FEATURED_MATCH_SELECT,
   resolveFeaturedMatches,
@@ -80,14 +80,15 @@ export const getPollByToken = cache(
     // Closed days stay visible but read-only. Featured matches resolve
     // against the open slots only: nobody is enticed to an unanswerable day.
     const slots = (allSlots ?? []) as PollSlot[];
-    const openSlots = withoutClosedDays(slots, closedDays);
-    const openIds = new Set(openSlots.map((s) => s.id));
-    const featuredMatches = await getFeaturedMatches(poll.id, openSlots);
+    const featuredMatches = await getFeaturedMatches(
+      poll.id,
+      withoutClosedDays(slots, closedDays),
+    );
 
     return {
       poll,
       slots,
-      closedSlotIds: slots.filter((s) => !openIds.has(s.id)).map((s) => s.id),
+      closedSlotIds: closedDaySlotIds(slots, closedDays),
       featuredMatches,
     };
   },
@@ -406,11 +407,11 @@ async function withoutClosedDaySlots(
 
   if (error) throw new Error(error.message);
 
-  const closed = new Set(closedDays);
   const closedSlotIds = new Set(
-    ((slots ?? []) as { id: string; start_time: string }[])
-      .filter((s) => closed.has(amsterdamDay(s.start_time)))
-      .map((s) => s.id),
+    closedDaySlotIds(
+      (slots ?? []) as { id: string; start_time: string }[],
+      closedDays,
+    ),
   );
   return responses.filter((r) => !closedSlotIds.has(r.slotId));
 }

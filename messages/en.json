@@ -398,7 +398,7 @@
     "closeDay": "Close day",
     "reopenDay": "Reopen day",
     "closedDayBadge": "Closed",
-    "closedDayHint": "Umpires no longer see this day and cannot answer for it. Answers already given are kept.",
+    "closedDayHint": "Umpires see this day greyed out and can no longer answer for it. Answers already given are kept.",
     "closeDayError": "Could not update the day. Try again."
   },
   "pollResponse": {

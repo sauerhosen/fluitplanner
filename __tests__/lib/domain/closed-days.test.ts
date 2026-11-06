@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   amsterdamDay,
+  closedDaySlotIds,
   isValidDay,
   withoutClosedDays,
 } from "@/lib/domain/closed-days";
@@ -54,5 +55,26 @@ describe("withoutClosedDays", () => {
     // 00:30 on 6 Sep in Amsterdam: closing the 5th leaves it open.
     expect(withoutClosedDays(late, ["2026-09-05"])).toHaveLength(1);
     expect(withoutClosedDays(late, ["2026-09-06"])).toHaveLength(0);
+  });
+});
+
+describe("closedDaySlotIds", () => {
+  const slots = [
+    { id: "sat-1", start_time: "2026-09-05T08:00:00Z" },
+    { id: "sat-late", start_time: "2026-09-05T22:30:00Z" },
+    { id: "sun-1", start_time: "2026-09-06T09:00:00Z" },
+  ];
+
+  it("returns nothing when no day is closed", () => {
+    expect(closedDaySlotIds(slots, [])).toEqual([]);
+  });
+
+  it("returns the ids of the slots on a closed Amsterdam day", () => {
+    // sat-late is 00:30 on 6 Sep in Amsterdam, so it belongs to Sunday.
+    expect(closedDaySlotIds(slots, ["2026-09-05"])).toEqual(["sat-1"]);
+    expect(closedDaySlotIds(slots, ["2026-09-06"])).toEqual([
+      "sat-late",
+      "sun-1",
+    ]);
   });
 });

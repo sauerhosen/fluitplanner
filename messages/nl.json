@@ -398,7 +398,7 @@
     "closeDay": "Dag sluiten",
     "reopenDay": "Dag heropenen",
     "closedDayBadge": "Gesloten",
-    "closedDayHint": "Scheidsrechters zien deze dag niet meer en kunnen er niet meer op antwoorden. Gegeven antwoorden blijven bewaard.",
+    "closedDayHint": "Scheidsrechters zien deze dag grijs en kunnen er niet meer op antwoorden. Gegeven antwoorden blijven bewaard.",
     "closeDayError": "Kon de dag niet bijwerken. Probeer het opnieuw."
   },
   "pollResponse": {
