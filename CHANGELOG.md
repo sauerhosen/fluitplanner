@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.43.0](https://github.com/sauerhosen/fluitplanner/compare/v2.42.0...v2.43.0) (2026-11-06)
+
+
+### Features
+
+* group closed poll days with past dates for umpires ([4faa716](https://github.com/sauerhosen/fluitplanner/commit/4faa7169b8217aaab58b7bae6d19bfcb531ccb55))
+* show closed poll days to umpires greyed out instead of hiding them ([63ee9a6](https://github.com/sauerhosen/fluitplanner/commit/63ee9a6beb7e45dae4738d7ff1e87fea055fe440))
+
+
+### Bug Fixes
+
+* group closed poll days with past dates under "closed dates" ([87f6685](https://github.com/sauerhosen/fluitplanner/commit/87f6685114e2e9752d69a1c9d2e96209c6523b76))
+
 ## [2.42.0](https://github.com/sauerhosen/fluitplanner/compare/v2.41.0...v2.42.0) (2026-11-06)
 
 
