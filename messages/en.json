@@ -463,7 +463,8 @@
     "warningDialogProceed": "Proceed anyway",
     "partialSaveBlocked": "Some changes were blocked because you are assigned to: {matches}. The rest of your changes have been saved.",
     "featuredMatchLabel": "Featured match:",
-    "allDaysClosedDescription": "All days in this poll are closed. Thanks — no more answers are needed."
+    "dayClosed": "Closed",
+    "allDaysClosedDescription": "All days in this poll are closed. Your previous answers are shown below."
   },
   "umpires": {
     "pageTitle": "Umpires",

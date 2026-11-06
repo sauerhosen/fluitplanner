@@ -628,3 +628,82 @@ describe("AvailabilityForm – lock mode", () => {
     });
   });
 });
+
+describe("AvailabilityForm – closed days", () => {
+  const openSlot: PollSlot = {
+    id: "open-1",
+    poll_id: "poll-1",
+    start_time: "2030-02-15T10:00:00Z",
+    end_time: "2030-02-15T12:00:00Z",
+  };
+  const closedSlot: PollSlot = {
+    id: "closed-1",
+    poll_id: "poll-1",
+    start_time: "2030-02-16T10:00:00Z",
+    end_time: "2030-02-16T12:00:00Z",
+  };
+  const closedAnswer: AvailabilityResponse = {
+    id: "resp-closed",
+    poll_id: "poll-1",
+    slot_id: "closed-1",
+    participant_name: "Jan",
+    response: "no",
+    umpire_id: "ump-1",
+    created_at: "2026-02-13T00:00:00Z",
+    updated_at: "2026-02-13T00:00:00Z",
+  };
+  const props = {
+    ...defaultProps,
+    slots: [openSlot, closedSlot],
+    closedSlotIds: ["closed-1"],
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("shows a closed day greyed out in place, not hidden", () => {
+    render(<AvailabilityForm {...props} />);
+
+    const yesButtons = screen.getAllByRole("button", { name: "Yes" });
+    expect(yesButtons).toHaveLength(2);
+    expect(yesButtons[0]).not.toBeDisabled();
+    expect(yesButtons[1]).toBeDisabled();
+    expect(screen.getByText("Closed")).toBeInTheDocument();
+    // Not tucked away behind the past-dates toggle.
+    expect(screen.queryByText(/past date/i)).toBeNull();
+  });
+
+  it("keeps the answer given on a closed day out of the save", async () => {
+    mockSubmit.mockResolvedValue({ status: "saved" });
+    render(<AvailabilityForm {...props} existingResponses={[closedAnswer]} />);
+
+    // Only the open day's answer counts toward enabling save.
+    expect(screen.getByRole("button", { name: "Save changes" })).toBeDisabled();
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Yes" })[0]);
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+
+    await waitFor(() => {
+      expect(mockSubmit).toHaveBeenCalledWith("poll-1", "ump-1", "Jan", [
+        { slotId: "open-1", response: "yes" },
+      ]);
+    });
+  });
+
+  it("says every day is closed and offers no save when none is open", () => {
+    render(
+      <AvailabilityForm
+        {...props}
+        slots={[closedSlot]}
+        existingResponses={[closedAnswer]}
+      />,
+    );
+
+    expect(
+      screen.getByText(/All days in this poll are closed/),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "No" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Save changes" })).toBeNull();
+  });
+});

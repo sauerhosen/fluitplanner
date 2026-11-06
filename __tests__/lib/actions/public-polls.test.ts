@@ -158,7 +158,7 @@ describe("getPollByToken", () => {
 });
 
 describe("getPollByToken with closed days", () => {
-  it("leaves out the slots of a closed day and says days were closed", async () => {
+  it("keeps a closed day's slots and marks them closed", async () => {
     const poll = { id: "poll-1", token: "abc123", status: "open" };
     const slots = [
       // Saturday 5 Sep and Sunday 6 Sep, Amsterdam time.
@@ -196,11 +196,13 @@ describe("getPollByToken with closed days", () => {
     const { getPollByToken } = await import("@/lib/actions/public-polls");
     const result = await getPollByToken("closed-days-token");
 
-    expect(result!.slots.map((s) => s.id)).toEqual(["sun"]);
-    expect(result!.hasClosedDays).toBe(true);
+    // Still shown, greyed out like a past date, so the umpire can see
+    // what they answered.
+    expect(result!.slots.map((s) => s.id)).toEqual(["sat", "sun"]);
+    expect(result!.closedSlotIds).toEqual(["sat"]);
   });
 
-  it("does not blame a stale closed day for a poll with no slots", async () => {
+  it("marks nothing for a closed day with no slots left", async () => {
     const poll = { id: "poll-1", token: "abc123", status: "open" };
 
     mockFrom.mockImplementation(((table: string) => {
@@ -235,7 +237,7 @@ describe("getPollByToken with closed days", () => {
     const result = await getPollByToken("stale-closed-day-token");
 
     expect(result!.slots).toEqual([]);
-    expect(result!.hasClosedDays).toBe(false);
+    expect(result!.closedSlotIds).toEqual([]);
   });
 });
 
