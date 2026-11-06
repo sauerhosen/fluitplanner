@@ -19,6 +19,7 @@ import {
   setAssignmentStatus,
 } from "@/lib/actions/assignments";
 import { mapMatchesToSlots } from "@/lib/domain/match-slot-mapping";
+import { amsterdamDay } from "@/lib/domain/timezone";
 import { collapseHiddenMatches } from "@/lib/domain/hidden-matches";
 import { stripClubPrefix } from "@/lib/domain/team-names";
 import { shortenUmpireName } from "@/lib/domain/umpire-names";
@@ -336,10 +337,30 @@ export function AssignmentGrid({
   }, [sortedMatches, format]);
 
   const hiddenSet = useMemo(() => new Set(hiddenMatchIds), [hiddenMatchIds]);
-  const closedDaySet = useMemo(() => new Set(closedDays), [closedDays]);
+  /**
+   * Match dates whose header gets the closed marker. Days are closed by slot
+   * start, which can fall on the day before the match (a 00:10 match sits in
+   * a 23:45 slot), so look through each match's mapped slot.
+   */
+  const closedGroupDates = useMemo(() => {
+    const marked = new Set<string>();
+    if (closedDays.length === 0) return marked;
+    const closed = new Set(closedDays);
+    const slotDay = new Map(
+      slots.map((slot) => [slot.id, amsterdamDay(slot.start_time)]),
+    );
+    for (const group of dateGroups) {
+      const hasClosedSlot = group.matches.some((match) => {
+        const slotId = matchSlotMap.get(match.id);
+        return slotId !== undefined && closed.has(slotDay.get(slotId) ?? "");
+      });
+      if (hasClosedSlot) marked.add(group.date);
+    }
+    return marked;
+  }, [closedDays, slots, dateGroups, matchSlotMap]);
 
   function renderClosedDayMarker(date: string) {
-    if (!closedDaySet.has(date)) return null;
+    if (!closedGroupDates.has(date)) return null;
     return (
       <span
         role="img"
