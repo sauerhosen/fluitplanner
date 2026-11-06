@@ -1,3 +1,4 @@
+import type { McpHandlerOptions } from "mcp-handler";
 import { MCP_SERVER_INSTRUCTIONS } from "@/lib/mcp/tools";
 
 /**
@@ -20,4 +21,4 @@ export const MCP_SERVER_OPTIONS = {
     tools: { listChanged: false },
     prompts: { listChanged: false },
   },
-};
+} satisfies McpHandlerOptions;

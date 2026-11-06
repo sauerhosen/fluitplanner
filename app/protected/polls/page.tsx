@@ -4,7 +4,7 @@ import { getPolls } from "@/lib/actions/polls";
 import { getMembershipRole } from "@/lib/auth";
 import { PollsPageClient } from "@/components/polls/polls-page-client";
 import { getTranslations } from "next-intl/server";
-import Link from "next/link";
+import { AppLink } from "@/components/shared/app-link";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/shared/page-header";
@@ -31,10 +31,10 @@ export default async function PollsPage() {
         actions={
           canCreate ? (
             <Button asChild size="sm">
-              <Link prefetch={false} href="/protected/polls/new">
+              <AppLink href="/protected/polls/new">
                 <Plus className="mr-2 h-4 w-4" />
                 {t("newPoll")}
-              </Link>
+              </AppLink>
             </Button>
           ) : undefined
         }

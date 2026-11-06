@@ -11,7 +11,7 @@ import { getPollAssignmentContext } from "@/lib/actions/public-poll-assignments"
 import type { PollAssignmentContext } from "@/lib/types/domain";
 import { verifyMagicLink } from "@/lib/actions/verification";
 import { LayoutDashboard } from "lucide-react";
-import Link from "next/link";
+import { AppLink } from "@/components/shared/app-link";
 import { useTranslations } from "next-intl";
 import type {
   AvailabilityResponse,
@@ -250,10 +250,10 @@ export function PollResponsePage({
         <div className="flex items-center gap-1">
           {isPlanner && (
             <Button variant="ghost" size="sm" asChild>
-              <Link prefetch={false} href="/protected">
+              <AppLink href="/protected">
                 <LayoutDashboard className="mr-1 h-4 w-4" />
                 {t("dashboard")}
-              </Link>
+              </AppLink>
             </Button>
           )}
           <Button variant="ghost" size="sm" onClick={handleSwitchUser}>
