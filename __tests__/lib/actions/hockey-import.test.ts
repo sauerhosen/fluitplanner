@@ -61,7 +61,10 @@ function insertedRows(): Array<Record<string, unknown>> {
     .flat() as Array<Record<string, unknown>>;
 }
 
+const { mockReslot } = vi.hoisted(() => ({ mockReslot: vi.fn() }));
+
 vi.mock("@/lib/auth", () => ({ requirePlanner: mockRequirePlanner }));
+vi.mock("@/lib/polls/reslot", () => ({ reslotPollsForMatches: mockReslot }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
 vi.mock("@/lib/hockey/deps", () => ({
@@ -108,6 +111,7 @@ beforeEach(() => {
   vi.resetAllMocks();
   queries = [];
   handler = () => undefined;
+  mockReslot.mockResolvedValue([]);
   mockRequirePlanner.mockResolvedValue({
     supabase: supabaseMock,
     user: { id: "user-1" },
@@ -320,6 +324,38 @@ describe("importTeamFixtures", () => {
     // The planner's own level choice survives the import.
     expect(payload).not.toHaveProperty("required_level");
     expect(argsOf(update!, "eq")).toContainEqual(["id", "match-1"]);
+    // The adopted row got a kick-off: open polls holding it are reslotted.
+    expect(mockReslot).toHaveBeenCalledWith(supabaseMock, "test-org-id", [
+      "match-1",
+    ]);
+  });
+
+  it("reports a failed poll recompute without losing the import", async () => {
+    handler = (query) => {
+      if (query.table !== "matches") return undefined;
+      if (!query.calls.some((call) => call.fn === "select")) return undefined;
+      return {
+        data: [
+          {
+            id: "match-1",
+            date: "2099-09-27",
+            start_time: "2099-09-27T11:00:00+02:00",
+            venue: null,
+            field: null,
+            competition: null,
+            external_id: null,
+            home_team: "VVV D3",
+            away_team: "AMVJ D3",
+          },
+        ],
+      };
+    };
+    mockReslot.mockRejectedValue(new Error("boom"));
+
+    const { importTeamFixtures } = await import("@/lib/actions/hockey-import");
+    const result = await importTeamFixtures({ ...INPUT, matchIds: [2079156] });
+
+    expect(result).toMatchObject({ updated: 1, errors: ["Poll slots: boom"] });
   });
 
   it("keeps a time already on the row when the fixture is back to TBD", async () => {
@@ -365,6 +401,8 @@ describe("importTeamFixtures", () => {
       venue: "Sportpark Kees Boekelaan",
       external_id: 2079156,
     });
+    // The kick-off did not move, so no poll is touched.
+    expect(mockReslot).not.toHaveBeenCalled();
   });
 
   it("writes nothing when a TBD fixture matches a row that already has a time", async () => {

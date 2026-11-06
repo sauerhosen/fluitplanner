@@ -197,14 +197,26 @@ Then, per fixture — through `reconcileFixtures()`, which the club-website dete
 | Cancelled upstream                            | `cancelled_upstream = true` + flagged. Never deleted                                                                                                              |
 | Unchanged                                     | Only `last_synced_at` is touched                                                                                                                                  |
 
+**Poll slots follow a moved kick-off.** After the writes, every match that got a new
+non-null `start_time` has the slots of the open polls holding it recomputed
+(`lib/polls/reslot.ts`, the same diff-and-carry-over a planner's edit to the poll's matches
+runs). Without it, a poll keeps asking umpires about the window the match left and never
+about the one it moved to. Answers carry over onto a window that shifted by at most a
+quarter hour; answers on a window that disappeared are discarded. Closed polls are left
+alone, and so is a poll holding a match without a kick-off — a retraction is not a move, and
+recomputing then would drop that match's slot and its answers until the time returns. A
+failed recompute is one entry in `errors`; `pollsReslotted` counts the polls whose slots
+changed. The match form, file import, the one-off Match Center import, match deletes and MCP
+`update_match` recompute the same way.
+
 Matching an upstream fixture to an existing row goes by `external_id` first, then by the
 natural key `date | home_team | away_team`. The natural key is what lets the sync **adopt**
 matches the planner imported by hand earlier, and re-adopt a fixture the upstream reissued
 under a new match id. `required_level` is deliberately never overwritten — a planner may
 have adjusted it after import.
 
-A run never deletes anything. The result (`inserted` / `updated` / `flagged` / `cancelled` /
-`awaitingTime` / `errors`) is returned in full but only partly persisted to
+A run never deletes a match. The result (`inserted` / `updated` / `flagged` / `cancelled` /
+`awaitingTime` / `pollsReslotted` / `errors`) is returned in full but only partly persisted to
 `hockey_sync_state`: `cancelled` is folded into `last_flagged`, and only the _first_ error is
 kept, as `last_sync_error`. Status is `success` with no errors, `error` when **no tracked
 team** yielded fixtures — with a complete sweep, every team counts as covered — (a failed club detail, a team missing upstream, no current poule, or a

@@ -21,6 +21,7 @@ import type {
   NormalizedFixture,
 } from "./types";
 import type { MatchReviewReason, TrackedTeam } from "@/lib/types/domain";
+import { changedPolls, reslotPollsForMatches } from "@/lib/polls/reslot";
 
 export type SyncResult = {
   inserted: number;
@@ -28,6 +29,8 @@ export type SyncResult = {
   flagged: number;
   cancelled: number;
   awaitingTime: number;
+  /** Open polls whose slots were recomputed because a kick-off moved. */
+  pollsReslotted: number;
   errors: string[];
 };
 
@@ -234,6 +237,7 @@ export async function syncOrganizationMatches(
     flagged: 0,
     cancelled: 0,
     awaitingTime: 0,
+    pollsReslotted: 0,
     errors: [],
   };
 
@@ -463,7 +467,13 @@ export async function syncOrganizationMatches(
 
 export type ReconcileResult = Pick<
   SyncResult,
-  "inserted" | "updated" | "flagged" | "cancelled" | "awaitingTime" | "errors"
+  | "inserted"
+  | "updated"
+  | "flagged"
+  | "cancelled"
+  | "awaitingTime"
+  | "pollsReslotted"
+  | "errors"
 >;
 
 /**
@@ -492,6 +502,7 @@ export async function reconcileFixtures(
     flagged: 0,
     cancelled: 0,
     awaitingTime: 0,
+    pollsReslotted: 0,
     errors: [],
   };
 
@@ -528,6 +539,9 @@ export async function reconcileFixtures(
   }
 
   const unchangedIds: string[] = [];
+  // Matches that moved to a new kick-off: the open polls holding them ask
+  // about the old window until their slots are recomputed.
+  const retimedIds: string[] = [];
   const toInsert: Array<Record<string, unknown>> = [];
 
   for (const { fixture, team } of importable) {
@@ -609,7 +623,12 @@ export async function reconcileFixtures(
       .eq("organization_id", organizationId);
     if (error) {
       result.errors.push(`Match ${fixture.matchId}: ${error.message}`);
-    } else if (reasons.length > 0) {
+      continue;
+    }
+    if (row.start_time && !sameInstant(existing.start_time, row.start_time)) {
+      retimedIds.push(existing.id);
+    }
+    if (reasons.length > 0) {
       result.updated++;
       result.flagged++;
     } else if (silentChange) {
@@ -698,6 +717,22 @@ export async function reconcileFixtures(
       .update({ last_synced_at: syncedAt })
       .eq("organization_id", organizationId)
       .in("id", unchangedIds);
+  }
+
+  // A retracted time (cleared above) is not a move: the poll waits for the
+  // new time rather than dropping the slot and its answers.
+  if (retimedIds.length > 0) {
+    try {
+      const reslotted = await reslotPollsForMatches(
+        supabase,
+        organizationId,
+        retimedIds,
+      );
+      result.pollsReslotted = changedPolls(reslotted).length;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      result.errors.push(`Poll slots: ${message}`);
+    }
   }
 
   return result;

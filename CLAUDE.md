@@ -175,6 +175,7 @@ Machine / integration:
 | `lib/export/`    | Export/day-sheet preparation plus XLSX / HTML / Markdown generators                                       |
 | `lib/hockey/`    | Hockey.nl Match Center sync — see [`docs/hockey-sync.md`](docs/hockey-sync.md)                            |
 | `lib/club-feed/` | LISA club-website change detector feeding the sync — see [`docs/hockey-sync.md`](docs/hockey-sync.md)     |
+| `lib/polls/`     | `reslot.ts`: recompute a poll's slots from its matches' kick-offs (poll edits, moved or deleted matches)  |
 | `lib/mcp/`       | MCP auth, tools, org-scoped data, planning helpers                                                        |
 | `lib/passkey/`   | Passkey ceremony origin rules and the cross-subdomain `next` validator                                    |
 | `lib/oauth/`     | OAuth authorization server: `clients.ts` (DCR/CIMD), `grants.ts` (auth codes), `tokens.ts`, `metadata.ts` |

@@ -14,6 +14,15 @@ vi.mock("@/lib/hockey/discovery", () => ({
 
 const mockSweepHomeVenues = vi.fn();
 
+const { mockReslotPollsForMatches } = vi.hoisted(() => ({
+  mockReslotPollsForMatches: vi.fn(),
+}));
+
+vi.mock("@/lib/polls/reslot", async (importActual) => ({
+  ...(await importActual<typeof import("@/lib/polls/reslot")>()),
+  reslotPollsForMatches: mockReslotPollsForMatches,
+}));
+
 vi.mock("@/lib/hockey/venues", () => ({
   sweepHomeVenues: mockSweepHomeVenues,
 }));
@@ -213,6 +222,7 @@ async function runSync(handler: QueryHandler) {
 
 beforeEach(() => {
   vi.resetAllMocks();
+  mockReslotPollsForMatches.mockResolvedValue([]);
   mockFetchTeamPouleFetchedAt.mockResolvedValue(new Map());
   // No known venues: the poules are the only source, as before the sweep
   mockSweepHomeVenues.mockResolvedValue({
@@ -356,6 +366,112 @@ describe("syncOrganizationMatches", () => {
     expect(updates[0].payload).not.toHaveProperty("required_level");
     expect(result.updated).toBe(1);
     expect(result.flagged).toBe(1);
+  });
+
+  describe("poll slots after a kick-off moves", () => {
+    const stored = {
+      id: "m-1",
+      date: "2026-09-27",
+      start_time: "2026-09-27T10:45:00+00:00",
+      home_team: "VVV D1",
+      away_team: "AMVJ D1",
+      venue: "Sportpark X",
+      field: "Veld 2",
+      competition: "Hoofdklasse",
+      external_id: 9001,
+      cancelled_upstream: false,
+      review_reasons: [],
+    };
+
+    it("recomputes the open polls holding a moved match", async () => {
+      mockFetchTeamPoule.mockResolvedValue({
+        poule: {
+          id: 500,
+          matches: [apiMatch({ date: "2026-09-27T14:00:00+02:00" })],
+        },
+      });
+      mockReslotPollsForMatches.mockResolvedValue([
+        {
+          pollId: "poll-1",
+          slotsAdded: 1,
+          slotsRemoved: 1,
+          carriedResponses: 0,
+          discardedResponses: 3,
+        },
+        { pollId: "poll-2", skipped: "match_without_time" },
+      ]);
+
+      const { result } = await runSync(
+        defaultHandler({ matchesByExternal: [stored] }),
+      );
+
+      expect(mockReslotPollsForMatches).toHaveBeenCalledWith(
+        expect.anything(),
+        ORG,
+        ["m-1"],
+      );
+      expect(result.pollsReslotted).toBe(1);
+      expect(result.errors).toEqual([]);
+    });
+
+    it("leaves polls alone when only the venue changed", async () => {
+      mockFetchTeamPoule.mockResolvedValue({
+        poule: {
+          id: 500,
+          matches: [
+            apiMatch({
+              date: "2026-09-27T12:45:00+02:00",
+              location: {
+                facility: { name: "Sportpark Y" },
+                field: { name: "Veld 2" },
+              },
+            }),
+          ],
+        },
+      });
+
+      const { result } = await runSync(
+        defaultHandler({ matchesByExternal: [stored] }),
+      );
+
+      expect(result.flagged).toBe(1);
+      expect(mockReslotPollsForMatches).not.toHaveBeenCalled();
+    });
+
+    it("waits for a new time when upstream retracts one", async () => {
+      mockFetchTeamPoule.mockResolvedValue({
+        poule: {
+          id: 500,
+          matches: [
+            apiMatch({
+              status: "announced",
+              date: "2026-09-27T00:00:00+02:00",
+            }),
+          ],
+        },
+      });
+
+      await runSync(defaultHandler({ matchesByExternal: [stored] }));
+
+      expect(mockReslotPollsForMatches).not.toHaveBeenCalled();
+    });
+
+    it("records a failed recompute without losing the match writes", async () => {
+      mockFetchTeamPoule.mockResolvedValue({
+        poule: {
+          id: 500,
+          matches: [apiMatch({ date: "2026-09-27T14:00:00+02:00" })],
+        },
+      });
+      mockReslotPollsForMatches.mockRejectedValue(new Error("boom"));
+
+      const { result } = await runSync(
+        defaultHandler({ matchesByExternal: [stored] }),
+      );
+
+      expect(result.updated).toBe(1);
+      expect(result.errors).toEqual(["Poll slots: boom"]);
+    });
   });
 
   it("flags cancelled matches without deleting and skips unknown cancelled ones", async () => {

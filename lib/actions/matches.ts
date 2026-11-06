@@ -7,6 +7,12 @@ import { requirePlanner } from "@/lib/auth";
 import type { Match } from "@/lib/types/domain";
 import type { ParsedMatch } from "@/lib/parsers/types";
 import { normalizeNote } from "@/lib/domain/notes";
+import { sameInstant } from "@/lib/hockey/normalize";
+import {
+  findOpenPollsForMatches,
+  reslotOpenPolls,
+  reslotPollsForMatches,
+} from "@/lib/polls/reslot";
 
 export async function upsertMatches(
   matches: ParsedMatch[],
@@ -15,6 +21,8 @@ export async function upsertMatches(
 
   let inserted = 0;
   let updated = 0;
+  // Rows whose kick-off the import may have moved.
+  const retimedIds: string[] = [];
 
   for (const match of matches) {
     const row = {
@@ -32,7 +40,7 @@ export async function upsertMatches(
 
     const { data: existing } = await supabase
       .from("matches")
-      .select("id, source")
+      .select("id, source, start_time")
       .eq("date", match.date)
       .eq("home_team", match.home_team)
       .eq("away_team", match.away_team)
@@ -59,6 +67,12 @@ export async function upsertMatches(
         .eq("id", existing.id);
       if (error) throw new Error(error.message);
       updated++;
+      if (
+        "start_time" in updates &&
+        !sameInstant(existing.start_time ?? null, row.start_time)
+      ) {
+        retimedIds.push(existing.id);
+      }
     } else {
       const { error } = await supabase
         .from("matches")
@@ -68,6 +82,7 @@ export async function upsertMatches(
     }
   }
 
+  await reslotPollsForMatches(supabase, tenantId, retimedIds);
   return { inserted, updated };
 }
 
@@ -238,15 +253,25 @@ export async function updateMatch(
 ): Promise<Match> {
   const { supabase, tenantId } = await requirePlanner();
 
+  const fields = pickMatchFormFields(updates);
   const { data, error } = await supabase
     .from("matches")
-    .update(pickMatchFormFields(updates))
+    .update(fields)
     .eq("id", id)
     .eq("organization_id", tenantId)
     .select()
     .single();
 
   if (error) throw new Error(error.message);
+  // A moved kick-off moves the slot umpires are asked about. Recomputing is
+  // a no-op when the time did not actually change.
+  if ("start_time" in fields || "date" in fields) {
+    try {
+      await reslotPollsForMatches(supabase, tenantId, [id]);
+    } finally {
+      revalidatePath("/protected/polls");
+    }
+  }
   return data;
 }
 
@@ -265,14 +290,7 @@ export async function updateMatchNotes(
 }
 
 export async function deleteMatch(id: string): Promise<void> {
-  const { supabase, tenantId } = await requirePlanner();
-
-  const { error } = await supabase
-    .from("matches")
-    .delete()
-    .eq("id", id)
-    .eq("organization_id", tenantId);
-  if (error) throw new Error(error.message);
+  return deleteMatches([id]);
 }
 
 export async function deleteMatches(ids: string[]): Promise<void> {
@@ -281,11 +299,21 @@ export async function deleteMatches(ids: string[]): Promise<void> {
     throw new Error("Cannot delete more than 500 items at once");
   const { supabase, tenantId } = await requirePlanner();
 
+  // Deleting cascades the poll_matches rows, so the polls must be found
+  // first; their slots are then recomputed over the matches that remain.
+  const pollIds = await findOpenPollsForMatches(supabase, tenantId, ids);
+
   const { error } = await supabase
     .from("matches")
     .delete()
     .in("id", ids)
     .eq("organization_id", tenantId);
   if (error) throw new Error(error.message);
-  revalidatePath("/protected/matches");
+  // The delete is committed: refresh the pages even if the recompute fails.
+  try {
+    await reslotOpenPolls(supabase, tenantId, pollIds);
+  } finally {
+    revalidatePath("/protected/matches");
+    if (pollIds.length > 0) revalidatePath("/protected/polls");
+  }
 }

@@ -18,6 +18,7 @@ import {
   type ImportableFixture,
 } from "@/lib/hockey/import";
 import { amsterdamDateOf, sameInstant } from "@/lib/hockey/normalize";
+import { reslotPollsForMatches } from "@/lib/polls/reslot";
 
 /**
  * One-off Match Center import: a planner picks individual fixtures of a team
@@ -243,6 +244,9 @@ async function importFixtures(
     fixtures,
   );
   const syncedAt = new Date().toISOString();
+  // Matches whose kick-off this import moved: the open polls holding them ask
+  // about the old window until their slots are recomputed.
+  const retimedIds: string[] = [];
 
   for (const fixture of fixtures) {
     const existing = findExisting(byExternal, byNatural, fixture);
@@ -307,10 +311,22 @@ async function importFixtures(
       result.errors.push(`${fixture.homeTeam}: ${error.message}`);
     } else {
       result.updated++;
+      if (row.start_time && !sameInstant(existing.start_time, row.start_time)) {
+        retimedIds.push(existing.id);
+      }
     }
   }
 
   revalidatePath("/protected/matches");
+  if (retimedIds.length > 0) {
+    try {
+      await reslotPollsForMatches(supabase, tenantId, retimedIds);
+      revalidatePath("/protected/polls");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      result.errors.push(`Poll slots: ${message}`);
+    }
+  }
   return result;
 }
 
