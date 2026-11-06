@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useMemo } from "react";
-import { CalendarOff, ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import { SlotRow } from "@/components/poll-response/slot-row";
 import { StickyDirtyBar } from "@/components/poll-response/sticky-dirty-bar";
 import { AssignmentWarningDialog } from "@/components/poll-response/assignment-warning-dialog";
@@ -74,29 +74,30 @@ export function AvailabilityForm({
     return groups;
   }
 
-  // Partition slots into future (editable) and past (read-only)
-  const futureSlots = useMemo(
-    () => slots.filter((s) => new Date(s.start_time) >= now),
-    [slots, now],
-  );
-  const pastSlots = useMemo(
-    () => slots.filter((s) => new Date(s.start_time) < now),
-    [slots, now],
-  );
+  // Partition slots into open (editable) and closed (read-only). A slot is
+  // closed once it has passed or the planner closed its day.
   const closedSet = useMemo(() => new Set(closedSlotIds), [closedSlotIds]);
-  // Future slots on a closed day stay in place, greyed out like past ones.
+  const [openSlots, closedSlots] = useMemo(() => {
+    const open: PollSlot[] = [];
+    const closed: PollSlot[] = [];
+    for (const s of slots) {
+      const isClosed = new Date(s.start_time) < now || closedSet.has(s.id);
+      (isClosed ? closed : open).push(s);
+    }
+    return [open, closed];
+  }, [slots, now, closedSet]);
   const editableSlotIds = useMemo(
-    () =>
-      new Set(futureSlots.filter((s) => !closedSet.has(s.id)).map((s) => s.id)),
-    [futureSlots, closedSet],
+    () => new Set(openSlots.map((s) => s.id)),
+    [openSlots],
   );
 
-  const futureDateGroups = groupSlotsByDate(futureSlots);
-  const pastDateGroups = groupSlotsByDate(pastSlots);
+  const openDateGroups = groupSlotsByDate(openSlots);
+  const closedDateGroups = groupSlotsByDate(closedSlots);
 
-  const allSlotsInPast = futureSlots.length === 0 && pastSlots.length > 0;
-  const hasPastSlots = pastSlots.length > 0;
-  const allOpenDaysClosed = !allSlotsInPast && editableSlotIds.size === 0;
+  const noOpenSlots = openSlots.length === 0 && closedSlots.length > 0;
+  const allSlotsInPast =
+    noOpenSlots && slots.every((s) => new Date(s.start_time) < now);
+  const hasClosedSlots = closedSlots.length > 0;
 
   const initialState: Record<string, ResponseValue | null> = {};
   for (const slot of slots) {
@@ -109,7 +110,7 @@ export function AvailabilityForm({
   const [saving, setSaving] = useState(false);
   const [showSavedInBar, setShowSavedInBar] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showPastDates, setShowPastDates] = useState(false);
+  const [showClosedDates, setShowClosedDates] = useState(false);
   const [showOverrideDialog, setShowOverrideDialog] = useState(false);
 
   const [savedBaseline, setSavedBaseline] =
@@ -269,21 +270,13 @@ export function AvailabilityForm({
     group: { dateKey: string; label: string; slots: PollSlot[] },
     disabled?: boolean,
   ) {
-    const dayClosed = group.slots.every((slot) => closedSet.has(slot.id));
     return (
       <div key={group.dateKey}>
-        <div className="bg-muted text-muted-foreground mb-1 flex items-center justify-between gap-2 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide">
-          <span>{group.label}</span>
-          {dayClosed && (
-            <span className="flex items-center gap-1 normal-case">
-              <CalendarOff className="h-3 w-3" />
-              {t("dayClosed")}
-            </span>
-          )}
+        <div className="bg-muted text-muted-foreground mb-1 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide">
+          {group.label}
         </div>
         <div className="px-3">
           {group.slots.map((slot) => {
-            const slotDisabled = disabled || closedSet.has(slot.id);
             const isAssigned = assignedSlotMap.has(slot.id);
             const isLocked = lockMode === "lock" && isAssigned;
             const isOverriding =
@@ -292,12 +285,10 @@ export function AvailabilityForm({
             const matchLabels = slotMatches?.map(
               (m) => `${m.homeTeam} vs ${m.awayTeam}`,
             );
-            // Withheld on read-only (past or closed) slots, and on slots this
+            // Withheld in the read-only closed section, and on slots this
             // umpire already has — there is nobody left to entice.
             const featured =
-              slotDisabled || isAssigned
-                ? undefined
-                : featuredBySlot.get(slot.id);
+              disabled || isAssigned ? undefined : featuredBySlot.get(slot.id);
 
             return (
               <SlotRow
@@ -306,7 +297,7 @@ export function AvailabilityForm({
                 endTime={slot.end_time}
                 value={responses[slot.id]}
                 onChange={(value) => handleChange(slot.id, value)}
-                disabled={slotDisabled}
+                disabled={disabled}
                 locked={isLocked}
                 showWarning={isOverriding}
                 assignedMatchLabels={matchLabels}
@@ -321,49 +312,42 @@ export function AvailabilityForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      {/* Edge case: all slots in past */}
-      {allSlotsInPast && (
+      {/* Edge case: nothing left to answer (passed, or closed by the planner) */}
+      {noOpenSlots && (
         <div className="bg-muted text-muted-foreground rounded-md px-3 py-4 text-center text-sm">
-          {t("allDatesInPast")}
+          {allSlotsInPast ? t("allDatesInPast") : t("allDaysClosedDescription")}
         </div>
       )}
 
-      {/* Every future day is closed: nothing left to answer */}
-      {allOpenDaysClosed && (
-        <div className="bg-muted text-muted-foreground rounded-md px-3 py-4 text-center text-sm">
-          {t("allDaysClosedDescription")}
-        </div>
-      )}
+      {/* Open date groups (editable) */}
+      {openDateGroups.map((group) => renderDateGroup(group))}
 
-      {/* Future date groups (editable, closed days greyed out in place) */}
-      {futureDateGroups.map((group) => renderDateGroup(group))}
-
-      {/* When all slots are past, show them expanded (no toggle) */}
-      {allSlotsInPast && (
+      {/* When nothing is open, show the closed dates expanded (no toggle) */}
+      {noOpenSlots && (
         <div className="space-y-4">
-          {pastDateGroups.map((group) => renderDateGroup(group, true))}
+          {closedDateGroups.map((group) => renderDateGroup(group, true))}
         </div>
       )}
 
-      {/* Past dates toggle + collapsible section (only when there are also future slots) */}
-      {hasPastSlots && !allSlotsInPast && (
+      {/* Closed dates toggle + collapsible section (past and planner-closed) */}
+      {hasClosedSlots && !noOpenSlots && (
         <div>
           <button
             type="button"
-            onClick={() => setShowPastDates((prev) => !prev)}
+            onClick={() => setShowClosedDates((prev) => !prev)}
             className="text-muted-foreground hover:text-foreground flex items-center gap-1.5 px-3 py-2 text-sm"
           >
-            {showPastDates ? (
+            {showClosedDates ? (
               <ChevronDown className="h-4 w-4" />
             ) : (
               <ChevronRight className="h-4 w-4" />
             )}
-            {t("pastDatesToggle", { count: pastDateGroups.length })}
+            {t("closedDatesToggle", { count: closedDateGroups.length })}
           </button>
 
-          {showPastDates && (
+          {showClosedDates && (
             <div className="space-y-4">
-              {pastDateGroups.map((group) => renderDateGroup(group, true))}
+              {closedDateGroups.map((group) => renderDateGroup(group, true))}
             </div>
           )}
         </div>

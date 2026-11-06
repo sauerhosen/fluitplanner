@@ -269,8 +269,8 @@ describe("AvailabilityForm – past/future partitioning", () => {
     const yesButtons = screen.getAllByRole("button", { name: "Yes" });
     expect(yesButtons).toHaveLength(2);
 
-    // No past dates toggle
-    expect(screen.queryByText(/past date/i)).toBeNull();
+    // No closed dates toggle
+    expect(screen.queryByText(/closed date/i)).toBeNull();
   });
 
   it("shows 'all dates in past' message when all slots are past", () => {
@@ -313,8 +313,8 @@ describe("AvailabilityForm – past/future partitioning", () => {
     expect(yesButtons).toHaveLength(1);
     expect(yesButtons[0]).not.toBeDisabled();
 
-    // Past dates toggle visible
-    expect(screen.getByText("2 past dates")).toBeTruthy();
+    // Closed dates toggle visible
+    expect(screen.getByText("2 closed dates")).toBeTruthy();
   });
 
   it("reveals past slots as disabled when toggle is clicked", () => {
@@ -327,7 +327,7 @@ describe("AvailabilityForm – past/future partitioning", () => {
 
     expect(screen.getAllByRole("button", { name: "Yes" })).toHaveLength(1);
 
-    fireEvent.click(screen.getByText("1 past date"));
+    fireEvent.click(screen.getByText("1 closed date"));
 
     const yesButtons = screen.getAllByRole("button", { name: "Yes" });
     expect(yesButtons).toHaveLength(2);
@@ -358,7 +358,7 @@ describe("AvailabilityForm – past/future partitioning", () => {
       />,
     );
 
-    fireEvent.click(screen.getByText("1 past date"));
+    fireEvent.click(screen.getByText("1 closed date"));
 
     const yesButtons = screen.getAllByRole("button", { name: "Yes" });
     expect(yesButtons).toHaveLength(2);
@@ -409,7 +409,7 @@ describe("AvailabilityForm – past/future partitioning", () => {
       />,
     );
 
-    expect(screen.getByText("1 past date")).toBeTruthy();
+    expect(screen.getByText("1 closed date")).toBeTruthy();
   });
 
   it("uses plural form for multiple past dates", () => {
@@ -420,7 +420,7 @@ describe("AvailabilityForm – past/future partitioning", () => {
       />,
     );
 
-    expect(screen.getByText("2 past dates")).toBeTruthy();
+    expect(screen.getByText("2 closed dates")).toBeTruthy();
   });
 });
 
@@ -662,16 +662,31 @@ describe("AvailabilityForm – closed days", () => {
     vi.clearAllMocks();
   });
 
-  it("shows a closed day greyed out in place, not hidden", () => {
+  it("groups a closed day with the closed dates, read-only", () => {
     render(<AvailabilityForm {...props} />);
+
+    // Only the open day is answerable up front.
+    expect(screen.getAllByRole("button", { name: "Yes" })).toHaveLength(1);
+
+    fireEvent.click(screen.getByText("1 closed date"));
 
     const yesButtons = screen.getAllByRole("button", { name: "Yes" });
     expect(yesButtons).toHaveLength(2);
     expect(yesButtons[0]).not.toBeDisabled();
     expect(yesButtons[1]).toBeDisabled();
-    expect(screen.getByText("Closed")).toBeInTheDocument();
-    // Not tucked away behind the past-dates toggle.
-    expect(screen.queryByText(/past date/i)).toBeNull();
+  });
+
+  it("counts past and planner-closed dates together", () => {
+    const pastSlot: PollSlot = {
+      id: "past-x",
+      poll_id: "poll-1",
+      start_time: "2020-02-15T10:00:00Z",
+      end_time: "2020-02-15T12:00:00Z",
+    };
+    render(
+      <AvailabilityForm {...props} slots={[pastSlot, openSlot, closedSlot]} />,
+    );
+    expect(screen.getByText("2 closed dates")).toBeInTheDocument();
   });
 
   it("keeps the answer given on a closed day out of the save", async () => {
