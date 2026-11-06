@@ -24,6 +24,7 @@ export async function ActionItemsSection() {
             {items.map((item, i) => (
               <li key={i}>
                 <Link
+                  prefetch={false}
                   href={item.href}
                   className="flex items-center gap-2 rounded-md p-2 hover:bg-accent transition-colors"
                 >

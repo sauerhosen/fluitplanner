@@ -354,6 +354,7 @@ export function MatchTable({
                         <TableCell>
                           {match.poll ? (
                             <Link
+                              prefetch={false}
                               href={`/protected/polls/${match.poll.id}`}
                               className="text-sm text-primary hover:underline"
                             >

@@ -40,6 +40,7 @@ export function PageHeader({
     <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
       {backHref && (
         <Link
+          prefetch={false}
           href={backHref}
           className="flex shrink-0 items-center text-sm text-muted-foreground transition-colors hover:text-foreground"
         >

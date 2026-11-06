@@ -23,6 +23,7 @@ export async function AuthButton({
   return user ? (
     <div className="flex items-center gap-2 sm:gap-4">
       <Link
+        prefetch={false}
         href="/protected/account"
         className="hidden sm:inline text-sm hover:underline"
       >
@@ -30,7 +31,9 @@ export async function AuthButton({
       </Link>
       {showDashboardLink && (
         <Button asChild size="sm" variant={"default"}>
-          <Link href="/protected">{tNav("dashboard")}</Link>
+          <Link prefetch={false} href="/protected">
+            {tNav("dashboard")}
+          </Link>
         </Button>
       )}
       <LogoutButton />

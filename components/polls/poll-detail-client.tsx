@@ -702,6 +702,7 @@ export function PollDetailClient({
         compact={
           <>
             <Link
+              prefetch={false}
               href="/protected/polls"
               className="flex min-w-0 items-center gap-1 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
             >

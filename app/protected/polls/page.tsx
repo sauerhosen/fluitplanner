@@ -31,7 +31,7 @@ export default async function PollsPage() {
         actions={
           canCreate ? (
             <Button asChild size="sm">
-              <Link href="/protected/polls/new">
+              <Link prefetch={false} href="/protected/polls/new">
                 <Plus className="mr-2 h-4 w-4" />
                 {t("newPoll")}
               </Link>

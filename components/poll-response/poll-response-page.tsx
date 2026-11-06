@@ -250,7 +250,7 @@ export function PollResponsePage({
         <div className="flex items-center gap-1">
           {isPlanner && (
             <Button variant="ghost" size="sm" asChild>
-              <Link href="/protected">
+              <Link prefetch={false} href="/protected">
                 <LayoutDashboard className="mr-1 h-4 w-4" />
                 {t("dashboard")}
               </Link>
