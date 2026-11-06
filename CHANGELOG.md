@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.42.0](https://github.com/sauerhosen/fluitplanner/compare/v2.41.0...v2.42.0) (2026-11-06)
+
+
+### Features
+
+* close individual days in an open poll ([a5ac3d4](https://github.com/sauerhosen/fluitplanner/commit/a5ac3d460a4c1788f091181eb41c49e65f05f560))
+* close individual days in an open poll ([cf98efd](https://github.com/sauerhosen/fluitplanner/commit/cf98efd9b92ec9c699933e777fdba1fba1eed2b9))
+
+
+### Bug Fixes
+
+* build closed-day keys from date parts, not a locale pattern ([00a9667](https://github.com/sauerhosen/fluitplanner/commit/00a96674c656c86378b71dd425ffb53e51938b46))
+* mark the grid date whose match falls in a closed day's slot ([adf5835](https://github.com/sauerhosen/fluitplanner/commit/adf5835a000d97fa8e152e694d446d65b6d4bcab))
+
 ## [2.41.0](https://github.com/sauerhosen/fluitplanner/compare/v2.40.0...v2.41.0) (2026-11-02)
 
 
