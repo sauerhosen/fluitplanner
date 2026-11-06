@@ -1,5 +1,6 @@
 import type { ApiMatchSummary, NormalizedFixture } from "./types";
 import type { ParsedMatch } from "@/lib/parsers/types";
+import { amsterdamDay } from "@/lib/domain/timezone";
 
 /** Matches already played or in an unusable state — never imported. */
 const SKIPPED_STATUSES = new Set([
@@ -56,15 +57,7 @@ export function normalizeMatch(m: ApiMatchSummary): NormalizedFixture {
 }
 
 /** Calendar date of an instant in Europe/Amsterdam, as YYYY-MM-DD. */
-export function amsterdamDateOf(iso: string): string {
-  // en-CA formats as YYYY-MM-DD
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Europe/Amsterdam",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date(iso));
-}
+export const amsterdamDateOf = amsterdamDay;
 
 export function fixtureToMatchRow(
   fixture: NormalizedFixture,

@@ -1,11 +1,19 @@
 import { test, expect } from "@playwright/test";
 import { pollHeading, pollOverflowAction } from "./helpers/poll-detail";
+import {
+  createMatch,
+  daysFromToday,
+  deleteMatch,
+  selectMatch,
+} from "./helpers/matches";
 
 test.describe("Polls page", () => {
   test.describe.configure({ mode: "serial" });
 
   const uniqueId = Date.now();
   const pollTitle = `E2E Poll ${uniqueId}`;
+  const homeTeam = `E2E Polls Home ${uniqueId}`;
+  let matchCreated = false;
   let pollCreated = false;
 
   test("shows polls page", async ({ page }) => {
@@ -14,6 +22,13 @@ test.describe("Polls page", () => {
   });
 
   test("can create a poll with matches", async ({ page }) => {
+    await createMatch(page, {
+      date: daysFromToday(1),
+      home: homeTeam,
+      away: `E2E Polls Away ${uniqueId}`,
+    });
+    matchCreated = true;
+
     // Navigate to create poll
     await page.goto("/protected/polls/new");
     await expect(page.getByRole("heading", { name: "New Poll" })).toBeVisible();
@@ -21,15 +36,7 @@ test.describe("Polls page", () => {
     // Fill title
     await page.getByLabel("Poll Title").fill(pollTitle);
 
-    // Select first available match (if any)
-    const checkboxes = page.getByRole("checkbox");
-    const count = await checkboxes.count();
-    if (count === 0) {
-      test.skip(true, "No matches available to create a poll");
-      return;
-    }
-
-    await checkboxes.first().click();
+    await selectMatch(page, homeTeam);
 
     // Verify slot preview appears
     await expect(page.getByText(/time slot/i).first()).toBeVisible();
@@ -43,13 +50,13 @@ test.describe("Polls page", () => {
   });
 
   test("can view poll in list", async ({ page }) => {
-    test.skip(!pollCreated, "Poll was not created — no matches available");
+    test.skip(!pollCreated, "Poll was not created");
     await page.goto("/protected/polls");
     await expect(page.getByText(pollTitle)).toBeVisible({ timeout: 10000 });
   });
 
   test("can toggle poll status", async ({ page }) => {
-    test.skip(!pollCreated, "Poll was not created — no matches available");
+    test.skip(!pollCreated, "Poll was not created");
     await page.goto("/protected/polls");
 
     // Click on the poll title to go to detail
@@ -66,7 +73,7 @@ test.describe("Polls page", () => {
   });
 
   test("can delete poll", async ({ page }) => {
-    test.skip(!pollCreated, "Poll was not created — no matches available");
+    test.skip(!pollCreated, "Poll was not created");
     await page.goto("/protected/polls");
     await page.getByText(pollTitle).click();
     // Wait for the detail page: the list rows carry their own overflow menus.
@@ -80,5 +87,10 @@ test.describe("Polls page", () => {
     // Should redirect to polls list
     await page.waitForURL(/\/protected\/polls$/);
     await expect(page.getByText(pollTitle)).not.toBeVisible();
+  });
+
+  test("cleanup: delete the test match", async ({ page }) => {
+    test.skip(!matchCreated, "Match was not created");
+    await deleteMatch(page, homeTeam);
   });
 });

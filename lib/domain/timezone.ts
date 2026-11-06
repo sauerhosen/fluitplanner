@@ -65,3 +65,24 @@ export function composeAmsterdamTimestamp(
 ): string {
   return `${dateISO}T${time}:00${getAmsterdamOffset(dateISO, time)}`;
 }
+
+const DAY_FORMAT = new Intl.DateTimeFormat("en-US", {
+  timeZone: "Europe/Amsterdam",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+/**
+ * "2026-09-05T22:30:00Z" → "2026-09-06" (00:30 in Amsterdam).
+ *
+ * Assembled from parts rather than trusting a locale's pattern: this also runs
+ * in the browser, where locale data varies (Chrome 110 briefly formatted en-CA
+ * as "9/6/2026"), and the result must match the stored `date` exactly.
+ */
+export function amsterdamDay(iso: string): string {
+  const parts = DAY_FORMAT.formatToParts(new Date(iso));
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((p) => p.type === type)?.value ?? "";
+  return `${part("year")}-${part("month")}-${part("day")}`;
+}

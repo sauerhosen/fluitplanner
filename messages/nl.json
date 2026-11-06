@@ -394,7 +394,12 @@
     "exportAllAssignments": "Alle indelingen exporteren",
     "exportAllResponses": "Reacties exporteren",
     "shareVia": "Delen via…",
-    "umpiresSelected": "{count, plural, one {# scheidsrechter} other {# scheidsrechters}}"
+    "umpiresSelected": "{count, plural, one {# scheidsrechter} other {# scheidsrechters}}",
+    "closeDay": "Dag sluiten",
+    "reopenDay": "Dag heropenen",
+    "closedDayBadge": "Gesloten",
+    "closedDayHint": "Scheidsrechters zien deze dag niet meer en kunnen er niet meer op antwoorden. Gegeven antwoorden blijven bewaard.",
+    "closeDayError": "Kon de dag niet bijwerken. Probeer het opnieuw."
   },
   "pollResponse": {
     "loadingPoll": "Peiling laden...",
@@ -457,7 +462,8 @@
     "warningDialogCancel": "Terug",
     "warningDialogProceed": "Toch doorgaan",
     "partialSaveBlocked": "Sommige wijzigingen zijn geblokkeerd omdat je bent ingedeeld voor: {matches}. De rest van je wijzigingen is opgeslagen.",
-    "featuredMatchLabel": "Uitgelichte wedstrijd:"
+    "featuredMatchLabel": "Uitgelichte wedstrijd:",
+    "allDaysClosedDescription": "Alle dagen in deze peiling zijn gesloten. Bedankt — er zijn geen antwoorden meer nodig."
   },
   "umpires": {
     "pageTitle": "Scheidsrechters",

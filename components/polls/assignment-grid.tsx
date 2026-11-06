@@ -10,7 +10,7 @@ import {
   type ReactNode,
   type SetStateAction,
 } from "react";
-import { Check, Ban, AlertTriangle, EyeOff } from "lucide-react";
+import { Check, Ban, AlertTriangle, EyeOff, CalendarOff } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -19,6 +19,7 @@ import {
   setAssignmentStatus,
 } from "@/lib/actions/assignments";
 import { mapMatchesToSlots } from "@/lib/domain/match-slot-mapping";
+import { amsterdamDay } from "@/lib/domain/timezone";
 import { collapseHiddenMatches } from "@/lib/domain/hidden-matches";
 import { stripClubPrefix } from "@/lib/domain/team-names";
 import { shortenUmpireName } from "@/lib/domain/umpire-names";
@@ -72,6 +73,11 @@ type Props = {
    * workload counts still see their assignments; only their columns collapse.
    */
   hiddenMatchIds?: string[];
+  /**
+   * Days ("YYYY-MM-DD") closed to answers. Only marked in the date header:
+   * a closed day is still planned here, it is just off the umpires' page.
+   */
+  closedDays?: string[];
   /** Hide or unhide matches; absent means the grid offers no such control. */
   onSetHidden?: (matchIds: string[], hidden: boolean) => void;
   /**
@@ -88,6 +94,7 @@ type Props = {
 };
 
 const NO_HIDDEN: string[] = [];
+const NO_CLOSED_DAYS: string[] = [];
 
 const AVAILABILITY_COLORS: Record<string, string> = {
   yes: "bg-green-100 dark:bg-green-900/30",
@@ -114,6 +121,7 @@ export function AssignmentGrid({
   onNoteSaved,
   onUmpireNoteSaved,
   hiddenMatchIds = NO_HIDDEN,
+  closedDays = NO_CLOSED_DAYS,
   onSetHidden,
   corner,
   bulkPending = false,
@@ -329,6 +337,42 @@ export function AssignmentGrid({
   }, [sortedMatches, format]);
 
   const hiddenSet = useMemo(() => new Set(hiddenMatchIds), [hiddenMatchIds]);
+  /**
+   * Match dates whose header gets the closed marker. Days are closed by slot
+   * start, which can fall on the day before the match (a 00:10 match sits in
+   * a 23:45 slot), so look through each match's mapped slot.
+   */
+  const closedGroupDates = useMemo(() => {
+    const marked = new Set<string>();
+    if (closedDays.length === 0) return marked;
+    const closed = new Set(closedDays);
+    const slotDay = new Map(
+      slots.map((slot) => [slot.id, amsterdamDay(slot.start_time)]),
+    );
+    for (const group of dateGroups) {
+      const hasClosedSlot = group.matches.some((match) => {
+        const slotId = matchSlotMap.get(match.id);
+        return slotId !== undefined && closed.has(slotDay.get(slotId) ?? "");
+      });
+      if (hasClosedSlot) marked.add(group.date);
+    }
+    return marked;
+  }, [closedDays, slots, dateGroups, matchSlotMap]);
+
+  function renderClosedDayMarker(date: string) {
+    if (!closedGroupDates.has(date)) return null;
+    return (
+      <span
+        role="img"
+        aria-label={t("closedDayBadge")}
+        title={t("closedDayHint")}
+        data-testid={`closed-day-${date}`}
+        className="inline-flex shrink-0 text-muted-foreground"
+      >
+        <CalendarOff className="h-3.5 w-3.5" />
+      </span>
+    );
+  }
   const dateSegments = useMemo(
     () =>
       dateGroups.map((group) => ({
@@ -624,8 +668,11 @@ export function AssignmentGrid({
                 <Fragment key={group.date}>
                   <tr>
                     <td className="pt-4 pb-1 px-2 bg-background sticky left-0 z-10">
-                      <span className="text-sm font-semibold capitalize whitespace-nowrap">
-                        {group.label}
+                      <span className="flex items-center gap-1.5">
+                        <span className="text-sm font-semibold capitalize whitespace-nowrap">
+                          {group.label}
+                        </span>
+                        {renderClosedDayMarker(group.date)}
                       </span>
                     </td>
                     <td
@@ -685,7 +732,10 @@ export function AssignmentGrid({
                   colSpan={group.segments.length}
                   className={`bg-background p-1 pb-0 text-center font-semibold text-xs capitalize ${gi > 0 ? "border-l-2 border-border" : ""}`}
                 >
-                  {group.label}
+                  <span className="inline-flex items-center gap-1">
+                    {group.label}
+                    {renderClosedDayMarker(group.date)}
+                  </span>
                 </th>
               ))}
             </tr>

@@ -4,6 +4,7 @@ import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { mapMatchesToSlots } from "@/lib/domain/match-slot-mapping";
+import { amsterdamDay, withoutClosedDays } from "@/lib/domain/closed-days";
 import {
   FEATURED_MATCH_SELECT,
   resolveFeaturedMatches,
@@ -28,7 +29,10 @@ import {
 
 export type PublicPollData = {
   poll: Poll;
+  /** Slots umpires can still answer: closed days are already left out. */
   slots: PollSlot[];
+  /** Whether a closed day removed any slots, so an empty poll can say why. */
+  hasClosedDays: boolean;
   /** Matches the planner chose to reveal, resolved to their slots. */
   featuredMatches: FeaturedMatch[];
 };
@@ -58,19 +62,46 @@ export const getPollByToken = cache(
 
     if (pollError || !poll) return null;
 
-    const { data: slots, error: slotsError } = await supabase
-      .from("poll_slots")
-      .select("*")
-      .eq("poll_id", poll.id)
-      .order("start_time");
+    const [{ data: allSlots, error: slotsError }, closedDays] =
+      await Promise.all([
+        supabase
+          .from("poll_slots")
+          .select("*")
+          .eq("poll_id", poll.id)
+          .order("start_time"),
+        getClosedDays(poll.id).catch(() => null),
+      ]);
 
-    if (slotsError) return null;
+    if (slotsError || !closedDays) return null;
 
-    const featuredMatches = await getFeaturedMatches(poll.id, slots ?? []);
+    // Closed days are gone from the umpire's view entirely, featured matches
+    // on them included (they resolve against the remaining slots only).
+    const slots = withoutClosedDays((allSlots ?? []) as PollSlot[], closedDays);
+    const featuredMatches = await getFeaturedMatches(poll.id, slots);
 
-    return { poll, slots: slots ?? [], featuredMatches };
+    return {
+      poll,
+      slots,
+      // Only a closed day that actually removed slots explains an empty
+      // poll: a stale row for a day whose matches have since left the poll
+      // must not claim "all days are closed" on a poll that simply has none.
+      hasClosedDays: slots.length < (allSlots ?? []).length,
+      featuredMatches,
+    };
   },
 );
+
+/** The days the planner closed in this poll, as "YYYY-MM-DD". */
+async function getClosedDays(pollId: string): Promise<string[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("poll_closed_days")
+    .select("day")
+    .eq("poll_id", pollId);
+
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as { day: string }[]).map((r) => r.day);
+}
 
 /**
  * Match details the planner chose to reveal in this poll.
@@ -282,22 +313,28 @@ export async function submitResponses(
   if (pollError || !poll) throw new Error("Poll not found");
   if (poll.status === "closed") throw new Error("Poll is closed");
 
+  // A day the planner closed takes no more answers, even from a page that
+  // was opened before it closed. Those answers are dropped, not refused: the
+  // rest of the form is still worth saving.
+  const answerable = await withoutClosedDaySlots(supabase, pollId, responses);
+  if (answerable.length === 0) return { status: "saved" };
+
   // Check for assignment conflicts (uses service client to bypass RLS)
   const conflictResult = await checkAssignmentConflicts(
     pollId,
     umpireId,
-    responses,
+    answerable,
   );
 
   // Determine which responses to actually save
-  let toSave = responses;
+  let toSave = answerable;
   if (conflictResult) {
     if (conflictResult.lockMode === "lock") {
       // Partial save: filter out blocked slots, save the rest
       const blockedSlotIds = new Set(
         conflictResult.conflicts.map((c) => c.slotId),
       );
-      toSave = responses.filter((r) => !blockedSlotIds.has(r.slotId));
+      toSave = answerable.filter((r) => !blockedSlotIds.has(r.slotId));
     }
     // In warn mode, save everything (user already confirmed via dialog)
   }
@@ -346,6 +383,34 @@ export async function submitResponses(
   }
 
   return { status: "saved" };
+}
+
+/* ------------------------------------------------------------------ */
+/*  withoutClosedDaySlots (internal)                                   */
+/* ------------------------------------------------------------------ */
+
+async function withoutClosedDaySlots(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  pollId: string,
+  responses: ResponseInput[],
+): Promise<ResponseInput[]> {
+  const closedDays = await getClosedDays(pollId);
+  if (closedDays.length === 0) return responses;
+
+  const { data: slots, error } = await supabase
+    .from("poll_slots")
+    .select("id, start_time")
+    .eq("poll_id", pollId);
+
+  if (error) throw new Error(error.message);
+
+  const closed = new Set(closedDays);
+  const closedSlotIds = new Set(
+    ((slots ?? []) as { id: string; start_time: string }[])
+      .filter((s) => closed.has(amsterdamDay(s.start_time)))
+      .map((s) => s.id),
+  );
+  return responses.filter((r) => !closedSlotIds.has(r.slotId));
 }
 
 /* ------------------------------------------------------------------ */

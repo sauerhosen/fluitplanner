@@ -758,3 +758,93 @@ describe("AssignmentGrid hidden matches", () => {
     expect(screen.queryByTestId("hidden-assigned-dot")).not.toBeInTheDocument();
   });
 });
+
+describe("AssignmentGrid closed days", () => {
+  const props = {
+    pollId: "poll-1",
+    matches: mockMatches,
+    slots: mockSlots,
+    responses: mockResponses,
+    assignments: [] as Assignment[],
+    umpires: mockUmpires,
+  };
+
+  it.each([true, false])(
+    "marks a closed day in its date header (transposed: %s)",
+    (transposed) => {
+      render(
+        <AssignmentGrid
+          {...props}
+          transposed={transposed}
+          closedDays={["2026-03-15"]}
+        />,
+      );
+
+      expect(screen.getByTestId("closed-day-2026-03-15")).toHaveAccessibleName(
+        "Closed",
+      );
+      // Still plannable: the day's cells stay in the grid.
+      expect(screen.getByTestId("cell-m1-u1")).toBeInTheDocument();
+    },
+  );
+
+  it("marks nothing when no day is closed", () => {
+    render(<AssignmentGrid {...props} />);
+    expect(screen.queryByTestId("closed-day-2026-03-15")).toBeNull();
+  });
+
+  it.each([true, false])(
+    "marks a match date whose slot falls on a closed day (transposed: %s)",
+    (transposed) => {
+      // 00:10 Amsterdam on the 16th: its slot starts 23:45 on the 15th.
+      const afterMidnight: Match = {
+        ...mockMatches[0],
+        id: "m3",
+        date: "2026-03-16",
+        start_time: "2026-03-15T23:10:00Z",
+      };
+      const lateSlot: PollSlot = {
+        id: "slot-3",
+        poll_id: "poll-1",
+        start_time: "2026-03-15T22:45:00Z",
+        end_time: "2026-03-16T00:45:00Z",
+      };
+      render(
+        <AssignmentGrid
+          {...props}
+          matches={[afterMidnight]}
+          slots={[lateSlot]}
+          transposed={transposed}
+          closedDays={["2026-03-15"]}
+        />,
+      );
+
+      expect(screen.getByTestId("closed-day-2026-03-16")).toBeInTheDocument();
+    },
+  );
+
+  it("does not mark a match date whose slot is on an open day", () => {
+    const afterMidnight: Match = {
+      ...mockMatches[0],
+      id: "m3",
+      date: "2026-03-16",
+      start_time: "2026-03-15T23:10:00Z",
+    };
+    const lateSlot: PollSlot = {
+      id: "slot-3",
+      poll_id: "poll-1",
+      start_time: "2026-03-15T22:45:00Z",
+      end_time: "2026-03-16T00:45:00Z",
+    };
+    render(
+      <AssignmentGrid
+        {...props}
+        matches={[afterMidnight]}
+        slots={[lateSlot]}
+        closedDays={["2026-03-16"]}
+      />,
+    );
+
+    expect(screen.queryByTestId("closed-day-2026-03-16")).toBeNull();
+  });
+});

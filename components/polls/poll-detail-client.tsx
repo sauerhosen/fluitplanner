@@ -23,6 +23,8 @@ import { countDiscardedResponses } from "@/lib/domain/carry-over-responses";
 import { withoutHidden } from "@/lib/domain/hidden-matches";
 import { onlyRespondingUmpires } from "@/lib/domain/responding-umpires";
 import { setPollMatchesHidden } from "@/lib/actions/hidden-matches";
+import { setPollDayClosed } from "@/lib/actions/closed-days";
+import { amsterdamDay } from "@/lib/domain/closed-days";
 import { toast } from "sonner";
 import { MatchSelector } from "./match-selector";
 import { SlotPreview } from "./slot-preview";
@@ -60,6 +62,8 @@ import {
   ChevronLeft,
   Eye,
   EyeOff,
+  CalendarCheck,
+  CalendarOff,
 } from "lucide-react";
 import { DateRangeMenu } from "./date-range-menu";
 import { TentativeActions } from "./tentative-actions";
@@ -302,6 +306,36 @@ export function PollDetailClient({
         });
     },
     [poll.id, t, liveAssignments],
+  );
+
+  const closedDays = useMemo(() => new Set(poll.closedDays), [poll.closedDays]);
+
+  // Optimistic, like hiding a match: the day flips on click and is read back
+  // from the database if the write did not take.
+  const handleSetDayClosed = useCallback(
+    (day: string, closed: boolean) => {
+      const apply = (prev: PollDetail, on: boolean) => ({
+        ...prev,
+        closedDays: on
+          ? [...new Set([...prev.closedDays, day])].sort()
+          : prev.closedDays.filter((d) => d !== day),
+      });
+      setPoll((prev) => apply(prev, closed));
+      setPollDayClosed(poll.id, day, closed)
+        .then((result) => {
+          if (!result.ok) throw new Error(result.reason);
+        })
+        .catch(async () => {
+          toast.error(t("closeDayError"));
+          try {
+            const fresh = await getPoll(poll.id);
+            setPoll((prev) => ({ ...prev, closedDays: fresh.closedDays }));
+          } catch {
+            setPoll((prev) => apply(prev, !closed));
+          }
+        });
+    },
+    [poll.id, t],
   );
 
   // Umpires arrive as a prop from the server, so an umpire note edited in the
@@ -827,13 +861,15 @@ export function PollDetailClient({
                       new Date(a.start_time).getTime() -
                       new Date(b.start_time).getTime(),
                   );
+                // Keyed by the Amsterdam date: that is the day a planner
+                // closes, whatever timezone the browser is in.
                 const dateGroups: {
                   dateKey: string;
                   label: string;
                   slots: typeof sortedSlots;
                 }[] = [];
                 for (const slot of sortedSlots) {
-                  const dateKey = new Date(slot.start_time).toDateString();
+                  const dateKey = amsterdamDay(slot.start_time);
                   const last = dateGroups[dateGroups.length - 1];
                   if (last && last.dateKey === dateKey) {
                     last.slots.push(slot);
@@ -849,139 +885,187 @@ export function PollDetailClient({
                     });
                   }
                 }
-                return dateGroups.map((group) => (
-                  <div key={group.dateKey}>
-                    <div className="text-muted-foreground mb-2 text-xs font-semibold uppercase tracking-wide">
-                      {group.label}
-                    </div>
-                    <div className="flex flex-col gap-2">
-                      {group.slots.map((slot) => {
-                        const slotMatches = filteredMatches.filter(
-                          (m) => slotByMatch.get(m.id) === slot.id,
-                        );
-                        return (
-                          <div key={slot.id} className="rounded-lg border">
-                            <div className="bg-muted px-3 py-2 text-sm font-medium">
-                              {format.dateTime(new Date(slot.start_time), {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                                hour12: false,
-                              })}
-                              {" – "}
-                              {format.dateTime(new Date(slot.end_time), {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                                hour12: false,
-                              })}
-                            </div>
-                            {slotMatches.length > 0 ? (
-                              <div className="divide-y px-3">
-                                {slotMatches.map((match) => {
-                                  const isHidden = hiddenMatchIds.has(match.id);
-                                  const toggleHiddenLabel = isHidden
-                                    ? t("unhideMatch")
-                                    : t("hideMatch");
-                                  return (
-                                    <div
-                                      key={match.id}
-                                      data-hidden={isHidden || undefined}
-                                      className="flex items-center justify-between gap-2 py-1.5 text-sm"
-                                    >
-                                      <span
-                                        className={
-                                          isHidden
-                                            ? "flex items-center gap-2 text-muted-foreground"
-                                            : undefined
-                                        }
+                return dateGroups.map((group) => {
+                  const isClosed = closedDays.has(group.dateKey);
+                  return (
+                    <div
+                      key={group.dateKey}
+                      data-testid={`day-${group.dateKey}`}
+                      data-closed={isClosed || undefined}
+                    >
+                      <div className="mb-2 flex min-h-7 items-center gap-2">
+                        <span className="text-muted-foreground text-xs font-semibold uppercase tracking-wide">
+                          {group.label}
+                        </span>
+                        {isClosed && (
+                          <Badge
+                            variant="outline"
+                            className="font-normal"
+                            title={t("closedDayHint")}
+                          >
+                            <CalendarOff className="h-3 w-3" />
+                            {t("closedDayBadge")}
+                          </Badge>
+                        )}
+                        {canEdit && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="ml-auto h-7 px-2 text-xs text-muted-foreground"
+                            aria-pressed={isClosed}
+                            title={t("closedDayHint")}
+                            data-testid={`toggle-day-closed-${group.dateKey}`}
+                            onClick={() =>
+                              handleSetDayClosed(group.dateKey, !isClosed)
+                            }
+                          >
+                            {isClosed ? (
+                              <CalendarCheck className="h-3.5 w-3.5" />
+                            ) : (
+                              <CalendarOff className="h-3.5 w-3.5" />
+                            )}
+                            {isClosed ? t("reopenDay") : t("closeDay")}
+                          </Button>
+                        )}
+                      </div>
+                      <div
+                        className={cn(
+                          "flex flex-col gap-2",
+                          isClosed && "opacity-60",
+                        )}
+                      >
+                        {group.slots.map((slot) => {
+                          const slotMatches = filteredMatches.filter(
+                            (m) => slotByMatch.get(m.id) === slot.id,
+                          );
+                          return (
+                            <div key={slot.id} className="rounded-lg border">
+                              <div className="bg-muted px-3 py-2 text-sm font-medium">
+                                {format.dateTime(new Date(slot.start_time), {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                  hour12: false,
+                                })}
+                                {" – "}
+                                {format.dateTime(new Date(slot.end_time), {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                  hour12: false,
+                                })}
+                              </div>
+                              {slotMatches.length > 0 ? (
+                                <div className="divide-y px-3">
+                                  {slotMatches.map((match) => {
+                                    const isHidden = hiddenMatchIds.has(
+                                      match.id,
+                                    );
+                                    const toggleHiddenLabel = isHidden
+                                      ? t("unhideMatch")
+                                      : t("hideMatch");
+                                    return (
+                                      <div
+                                        key={match.id}
+                                        data-hidden={isHidden || undefined}
+                                        className="flex items-center justify-between gap-2 py-1.5 text-sm"
                                       >
                                         <span
                                           className={
                                             isHidden
-                                              ? "line-through"
+                                              ? "flex items-center gap-2 text-muted-foreground"
                                               : undefined
                                           }
                                         >
-                                          {match.home_team} – {match.away_team}
-                                        </span>
-                                        {isHidden && (
-                                          <Badge
-                                            variant="outline"
-                                            className="font-normal"
-                                          >
-                                            {t("hiddenBadge")}
-                                          </Badge>
-                                        )}
-                                      </span>
-                                      <div className="flex items-center gap-1">
-                                        {match.start_time && (
-                                          <span className="text-muted-foreground text-xs">
-                                            {format.dateTime(
-                                              new Date(match.start_time),
-                                              {
-                                                hour: "2-digit",
-                                                minute: "2-digit",
-                                                hour12: false,
-                                              },
-                                            )}
-                                          </span>
-                                        )}
-                                        {canEdit && (
-                                          <Button
-                                            type="button"
-                                            variant="ghost"
-                                            size="icon"
-                                            className="h-7 w-7"
-                                            aria-pressed={isHidden}
-                                            aria-label={toggleHiddenLabel}
-                                            title={toggleHiddenLabel}
-                                            data-testid={`toggle-hidden-${match.id}`}
-                                            onClick={() =>
-                                              handleSetHidden(
-                                                [match.id],
-                                                !isHidden,
-                                              )
+                                          <span
+                                            className={
+                                              isHidden
+                                                ? "line-through"
+                                                : undefined
                                             }
                                           >
-                                            {isHidden ? (
-                                              <Eye className="h-3.5 w-3.5 text-muted-foreground" />
-                                            ) : (
-                                              <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />
-                                            )}
-                                          </Button>
-                                        )}
-                                        <FeatureMatchButton
-                                          pollId={poll.id}
-                                          matchId={match.id}
-                                          featured={featuredMatchIds.has(
-                                            match.id,
+                                            {match.home_team} –{" "}
+                                            {match.away_team}
+                                          </span>
+                                          {isHidden && (
+                                            <Badge
+                                              variant="outline"
+                                              className="font-normal"
+                                            >
+                                              {t("hiddenBadge")}
+                                            </Badge>
                                           )}
-                                          disabled={!match.start_time}
-                                          onToggled={handleFeatureToggled}
-                                        />
-                                        <MatchNoteButton
-                                          match={match}
-                                          variant={
-                                            canEdit ? "editor" : "indicator"
-                                          }
-                                          readOnly={!canEdit}
-                                          onSaved={refreshPoll}
-                                        />
+                                        </span>
+                                        <div className="flex items-center gap-1">
+                                          {match.start_time && (
+                                            <span className="text-muted-foreground text-xs">
+                                              {format.dateTime(
+                                                new Date(match.start_time),
+                                                {
+                                                  hour: "2-digit",
+                                                  minute: "2-digit",
+                                                  hour12: false,
+                                                },
+                                              )}
+                                            </span>
+                                          )}
+                                          {canEdit && (
+                                            <Button
+                                              type="button"
+                                              variant="ghost"
+                                              size="icon"
+                                              className="h-7 w-7"
+                                              aria-pressed={isHidden}
+                                              aria-label={toggleHiddenLabel}
+                                              title={toggleHiddenLabel}
+                                              data-testid={`toggle-hidden-${match.id}`}
+                                              onClick={() =>
+                                                handleSetHidden(
+                                                  [match.id],
+                                                  !isHidden,
+                                                )
+                                              }
+                                            >
+                                              {isHidden ? (
+                                                <Eye className="h-3.5 w-3.5 text-muted-foreground" />
+                                              ) : (
+                                                <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />
+                                              )}
+                                            </Button>
+                                          )}
+                                          <FeatureMatchButton
+                                            pollId={poll.id}
+                                            matchId={match.id}
+                                            featured={featuredMatchIds.has(
+                                              match.id,
+                                            )}
+                                            disabled={!match.start_time}
+                                            onToggled={handleFeatureToggled}
+                                          />
+                                          <MatchNoteButton
+                                            match={match}
+                                            variant={
+                                              canEdit ? "editor" : "indicator"
+                                            }
+                                            readOnly={!canEdit}
+                                            onSaved={refreshPoll}
+                                          />
+                                        </div>
                                       </div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            ) : (
-                              <div className="text-muted-foreground px-3 py-1.5 text-sm">
-                                {t("noMatchesInSlot")}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
+                                    );
+                                  })}
+                                </div>
+                              ) : (
+                                <div className="text-muted-foreground px-3 py-1.5 text-sm">
+                                  {t("noMatchesInSlot")}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
-                ));
+                  );
+                });
               })()}
             </div>
           )}
@@ -1023,6 +1107,7 @@ export function PollDetailClient({
             onNoteSaved={refreshPoll}
             onUmpireNoteSaved={refreshUmpires}
             hiddenMatchIds={poll.hiddenMatchIds}
+            closedDays={poll.closedDays}
             onSetHidden={canEdit ? handleSetHidden : undefined}
             bulkPending={bulkPending}
             corner={
