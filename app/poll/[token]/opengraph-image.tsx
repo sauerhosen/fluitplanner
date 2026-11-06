@@ -3,6 +3,13 @@ import { join } from "node:path";
 import { ImageResponse } from "next/og";
 import { getPollMeta } from "@/lib/actions/public-polls";
 
+// Request-independent, so read once per instance rather than per render.
+const iconFile = await readFile(join(process.cwd(), "app/icon.png"));
+const iconData = iconFile.buffer.slice(
+  iconFile.byteOffset,
+  iconFile.byteOffset + iconFile.byteLength,
+);
+
 export const alt = "Fluitplanner umpire availability poll";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
@@ -11,16 +18,20 @@ type Props = {
   params: Promise<{ token: string }>;
 };
 
+/**
+ * Rendering this PNG is among the most CPU-heavy work the app does, and
+ * every share of a poll link makes chat apps and link scanners fetch it — often
+ * more than once. The poll lookup reads cookies, so Next serves it dynamically;
+ * these headers let Vercel's CDN answer repeats without invoking the function.
+ * The image only shows the club name, so a day of staleness is harmless.
+ */
+const CACHE_CONTROL =
+  "public, max-age=86400, s-maxage=86400, stale-while-revalidate=604800";
+
 export default async function Image({ params }: Props) {
   const { token } = await params;
   const meta = await getPollMeta(token);
   const clubName = meta?.clubName ?? "Fluitplanner";
-
-  const iconFile = await readFile(join(process.cwd(), "app/icon.png"));
-  const iconData = iconFile.buffer.slice(
-    iconFile.byteOffset,
-    iconFile.byteOffset + iconFile.byteLength,
-  );
 
   return new ImageResponse(
     <div
@@ -86,6 +97,6 @@ export default async function Image({ params }: Props) {
         Umpire availability poll
       </div>
     </div>,
-    { ...size },
+    { ...size, headers: { "Cache-Control": CACHE_CONTROL } },
   );
 }
