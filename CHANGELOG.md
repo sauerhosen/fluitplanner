@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.44.0](https://github.com/sauerhosen/fluitplanner/compare/v2.43.1...v2.44.0) (2026-11-08)
+
+
+### Features
+
+* add "Open days only" date filter to polls and make it the default ([9324670](https://github.com/sauerhosen/fluitplanner/commit/932467011f67082239a908b7845e2893ac51cf1b))
+* add "Open days only" date filter to polls and make it the default ([f73e512](https://github.com/sauerhosen/fluitplanner/commit/f73e51265eb7d32fd33dd8a44a312e269cf4af5c))
+
 ## [2.43.1](https://github.com/sauerhosen/fluitplanner/compare/v2.43.0...v2.43.1) (2026-11-06)
 
 
