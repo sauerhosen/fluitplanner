@@ -397,6 +397,8 @@
     "reopenDay": "Reopen day",
     "closedDayBadge": "Closed",
     "closedDayHint": "Umpires see this day greyed out and can no longer answer for it. Answers already given are kept.",
+    "dayBenchLabel": "{count, plural, one {# available umpire without an assignment} other {# available umpires without an assignment}}",
+    "dayBenchHint": "Said they can make this day, but are not on any of its matches yet.",
     "closeDayError": "Could not update the day. Try again."
   },
   "pollResponse": {
