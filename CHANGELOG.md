@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.45.0](https://github.com/sauerhosen/fluitplanner/compare/v2.44.0...v2.45.0) (2026-11-08)
+
+
+### Features
+
+* show available-but-unassigned umpires per day on the poll grid ([5e0071e](https://github.com/sauerhosen/fluitplanner/commit/5e0071e5afbd877a41e233c58080943344779ac2))
+* show available-but-unassigned umpires per day on the poll grid ([caa1ca6](https://github.com/sauerhosen/fluitplanner/commit/caa1ca6ba1a8f8d2d116879ef49defd697666c26))
+
 ## [2.44.0](https://github.com/sauerhosen/fluitplanner/compare/v2.43.1...v2.44.0) (2026-11-08)
 
 
