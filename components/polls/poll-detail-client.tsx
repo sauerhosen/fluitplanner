@@ -74,10 +74,7 @@ import { useTranslations, useFormatter } from "next-intl";
 import { DateRangePicker } from "@/components/shared/date-range-picker";
 import type { DateRange } from "react-day-picker";
 import { format as fnsFormat } from "date-fns";
-import {
-  dayRangePredicate,
-  nextTwoWeeksRange,
-} from "@/hooks/use-date-range-presets";
+import { dayRangePredicate } from "@/hooks/use-date-range-presets";
 
 type Props = {
   initialPoll: PollDetail;
@@ -144,11 +141,11 @@ export function PollDetailClient({
   // Hide the rows of umpires who left the days in view blank, so the grid
   // shows only the people a planner can actually plan with.
   const [hideSilentUmpires, setHideSilentUmpires] = useState(false);
-  // Opens on the next two weeks, the same range as the "next two weeks" preset
-  // (midnight bounds, so the toolbar can tell the preset is active).
-  const [dateRange, setDateRange] = useState<DateRange | undefined>(() =>
-    nextTwoWeeksRange(),
-  );
+  // Opens on the days umpires can still answer for: a past day or one the
+  // planner closed is done with, so it stays out of the way until a date
+  // range is picked.
+  const [openDaysOnly, setOpenDaysOnly] = useState(true);
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
   const [liveAssignments, setLiveAssignments] = useState<Assignment[]>(
     initialPoll.assignments,
   );
@@ -178,19 +175,32 @@ export function PollDetailClient({
     return combined;
   }, [poll.matches, availableMatches]);
 
+  // An open day is one umpires can still answer for: not closed by the
+  // planner, and not yet over — the poll page greys out past slots. Today
+  // stays in view whole, even once its first slots have started.
+  const isOpenDay = useMemo(() => {
+    const today = amsterdamDay(new Date().toISOString());
+    const closed = new Set(poll.closedDays);
+    return (day: string) => day >= today && !closed.has(day);
+  }, [poll.closedDays]);
+
   const filteredMatches = useMemo(() => {
+    if (openDaysOnly) return poll.matches.filter((m) => isOpenDay(m.date));
     if (!dateRange?.from) return poll.matches;
     const inRange = dayRangePredicate(dateRange);
     return poll.matches.filter((m) => inRange(m.date));
-  }, [poll.matches, dateRange]);
+  }, [poll.matches, isOpenDay, openDaysOnly, dateRange]);
 
   const filteredSlots = useMemo(() => {
+    if (openDaysOnly) {
+      return poll.slots.filter((s) => isOpenDay(amsterdamDay(s.start_time)));
+    }
     if (!dateRange?.from) return poll.slots;
     const inRange = dayRangePredicate(dateRange);
     return poll.slots.filter((s) =>
       inRange(fnsFormat(new Date(s.start_time), "yyyy-MM-dd")),
     );
-  }, [poll.slots, dateRange]);
+  }, [poll.slots, isOpenDay, openDaysOnly, dateRange]);
 
   // Slots overlap, so a kick-off falls inside several windows; list each
   // match under the one slot it belongs to, as the grid and poll page do.
@@ -489,13 +499,32 @@ export function PollDetailClient({
 
   // One date control, never both: the picker's two-month calendar has nowhere
   // to open on a phone, which gets the presets as a menu instead.
+  // "Open days only" sits with the date presets but is not a range: picking
+  // any range replaces it, and picking it clears the range.
+  const handleDateRangeChange = (range: DateRange | undefined) => {
+    setOpenDaysOnly(false);
+    setDateRange(range);
+  };
+  const openDaysFilter = {
+    label: tCommon("presetOpenDays"),
+    active: openDaysOnly,
+    onSelect: () => {
+      setOpenDaysOnly(true);
+      setDateRange(undefined);
+    },
+  };
   const dateControls = isSmUp ? (
-    <DateRangePicker value={dateRange} onChange={setDateRange} />
+    <DateRangePicker
+      value={dateRange}
+      onChange={handleDateRangeChange}
+      dayFilter={openDaysFilter}
+    />
   ) : (
     <DateRangeMenu
       className="shrink-0"
       dateRange={dateRange}
-      onDateRangeChange={setDateRange}
+      onDateRangeChange={handleDateRangeChange}
+      dayFilter={openDaysFilter}
     />
   );
 

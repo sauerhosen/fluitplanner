@@ -11,10 +11,12 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useDateRangePresets } from "@/hooks/use-date-range-presets";
 import { useTranslations } from "next-intl";
+import type { DayFilterOption } from "@/components/shared/date-range-picker";
 
 type Props = {
   dateRange: DateRange | undefined;
   onDateRangeChange: (range: DateRange | undefined) => void;
+  dayFilter?: DayFilterOption;
   className?: string;
 };
 
@@ -25,17 +27,20 @@ type Props = {
 export function DateRangeMenu({
   dateRange,
   onDateRangeChange,
+  dayFilter,
   className,
 }: Props) {
   const tCommon = useTranslations("common");
   const presets = useDateRangePresets();
 
-  const activePresetLabel = presets.find((preset) =>
-    preset.range?.from
-      ? dateRange?.from?.getTime() === preset.range.from.getTime() &&
-        dateRange?.to?.getTime() === preset.range.to?.getTime()
-      : !dateRange?.from,
-  )?.label;
+  const activePresetLabel = dayFilter?.active
+    ? undefined
+    : presets.find((preset) =>
+        preset.range?.from
+          ? dateRange?.from?.getTime() === preset.range.from.getTime() &&
+            dateRange?.to?.getTime() === preset.range.to?.getTime()
+          : !dateRange?.from,
+      )?.label;
 
   return (
     <DropdownMenu>
@@ -51,6 +56,14 @@ export function DateRangeMenu({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start">
+        {dayFilter && (
+          <DropdownMenuCheckboxItem
+            checked={dayFilter.active}
+            onCheckedChange={dayFilter.onSelect}
+          >
+            {dayFilter.label}
+          </DropdownMenuCheckboxItem>
+        )}
         {presets.map((preset) => (
           <DropdownMenuCheckboxItem
             key={preset.label}
