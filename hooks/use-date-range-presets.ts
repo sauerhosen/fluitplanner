@@ -7,9 +7,6 @@ import {
   endOfWeek,
   startOfMonth,
   endOfMonth,
-  addDays,
-  addMonths,
-  subMonths,
   format,
 } from "date-fns";
 import { useTranslations } from "next-intl";
@@ -19,14 +16,6 @@ export type DateRangePreset = {
   label: string;
   range: DateRange | undefined;
 };
-
-/**
- * The "next two weeks" range: midnight bounds, so a range set from one place
- * compares equal to the preset held by another.
- */
-export function nextTwoWeeksRange(today = startOfDay(new Date())): DateRange {
-  return { from: today, to: addDays(today, 14) };
-}
 
 /**
  * A test for `yyyy-MM-dd` days against a picked range, bounds formatted once.
@@ -67,29 +56,14 @@ export function useDateRangePresets(): DateRangePreset[] {
         },
       },
       {
-        label: t("presetNextTwoWeeks"),
-        range: nextTwoWeeksRange(today),
-      },
-      {
         label: t("presetThisMonth"),
         range: { from: startOfMonth(today), to: endOfMonth(today) },
-      },
-      {
-        label: t("presetNextTwoMonths"),
-        range: { from: today, to: addMonths(today, 2) },
       },
       {
         // Open-ended: no `to` means "and everything after". The calendar
         // never yields that shape itself (a first click sets both ends).
         label: t("presetUpcoming"),
         range: { from: today, to: undefined },
-      },
-      {
-        label: t("presetPastMonth"),
-        range: {
-          from: startOfMonth(subMonths(today, 1)),
-          to: endOfMonth(subMonths(today, 1)),
-        },
       },
       { label: t("presetAll"), range: undefined },
     ],

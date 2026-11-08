@@ -24,7 +24,7 @@ Two rows, and only two:
 
 ```
 ‹ Polls   Seizoen '26-'27 - tot herfstvakantie  (Open)  11 matches · 15 responses   [Share ▾] [⋯]
-[📅 Next 2 weeks] [Responders only ×]          [Confirmed | Tentative]  3 tentative [Confirm all] [Clear]
+[📅 Open days only] [Responders only ×]       [Confirmed | Tentative]  3 tentative [Confirm all] [Clear]
 ```
 
 **Row 1 — identity.** Where you are, what state it is in, and the one action you

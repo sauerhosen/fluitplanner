@@ -3,6 +3,7 @@ import {
   openMatchList,
   pollHeading,
   pollOverflowAction,
+  showAllDates,
 } from "./helpers/poll-detail";
 import {
   createMatch,
@@ -34,7 +35,7 @@ test.describe("Closed poll days", () => {
   const umpireEmail = `e2e-closed-${uniqueId}@test.com`;
   const umpireName = `E2E Closed Umpire ${uniqueId}`;
 
-  /** Tomorrow and the day after: in the future, inside the default range. */
+  /** Tomorrow and the day after: in the future, so both start out open. */
   const days = [1, 2].map(daysFromToday);
   const closedDay = days[0];
 
@@ -53,6 +54,8 @@ test.describe("Closed poll days", () => {
     await page.getByText(pollTitle).click();
     await page.waitForURL(/\/protected\/polls\//);
     await openMatchList(page);
+    // The page opens on open days only; a closed day needs every date shown.
+    await showAllDates(page);
   }
 
   /** Click the day toggle and wait for its Server Action to land. */
@@ -135,6 +138,7 @@ test.describe("Closed poll days", () => {
     // Read back from the database, not from the optimistic toggle.
     await page.reload();
     await openMatchList(page);
+    await showAllDates(page);
     await expect(page.getByTestId(`day-${closedDay}`)).toHaveAttribute(
       "data-closed",
       "true",
@@ -160,6 +164,7 @@ test.describe("Closed poll days", () => {
     await page.getByText(pollTitle).click();
     await page.waitForURL(/\/protected\/polls\//);
     await openMatchList(page);
+    await showAllDates(page);
     await page.getByTestId("back-to-assignments").click();
 
     await expect(page.getByTestId(`closed-day-${closedDay}`)).toBeVisible({

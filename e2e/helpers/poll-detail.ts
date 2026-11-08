@@ -60,3 +60,17 @@ export async function openMatchList(page: Page) {
     await expect(back).toBeVisible({ timeout: 1000 });
   }).toPass({ timeout: 10000 });
 }
+
+/**
+ * The poll page opens on open days only, which hides past and closed days.
+ * Switches the date filter to every date, through the desktop picker.
+ */
+export async function showAllDates(page: Page) {
+  const trigger = page.getByRole("button", { name: "Date range" });
+  await trigger.click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "All", exact: true })
+    .click();
+  await expect(trigger).toHaveText("All");
+}

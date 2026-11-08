@@ -97,9 +97,8 @@ const POLL: PollDetail = {
 };
 
 describe("PollDetailClient answering for a new respondent", () => {
-  // The page opens on the next two weeks; pin "today" next to the fixture's
-  // match so it stays inside that window. Only Date is faked, so user-event's
-  // timers keep running.
+  // Pin "today" next to the fixture's match. Only Date is faked, so
+  // user-event's timers keep running.
   beforeEach(() => {
     vi.useFakeTimers({
       toFake: ["Date"],
@@ -659,7 +658,9 @@ describe("PollDetailClient closing a day", () => {
     vi.useRealTimers();
   });
 
-  function renderMatchesView(poll: PollDetail = POLL) {
+  // The page opens on open days only, which would hide a closed day; these
+  // tests are about the day itself, so they look at every date.
+  async function renderMatchesView(poll: PollDetail = POLL) {
     const user = userEvent.setup();
     render(
       <PollDetailClient
@@ -668,11 +669,59 @@ describe("PollDetailClient closing a day", () => {
         umpires={[ALICE]}
       />,
     );
+    await user.click(screen.getByTestId("date-range-menu"));
+    await user.click(screen.getByRole("menuitemcheckbox", { name: "All" }));
     return user;
   }
 
+  it("hides closed days until a date range is picked", async () => {
+    const user = userEvent.setup();
+    render(
+      <PollDetailClient
+        initialPoll={{ ...POLL, closedDays: ["2026-03-01"] }}
+        availableMatches={[]}
+        umpires={[ALICE]}
+      />,
+    );
+    await user.click(screen.getByTestId("view-matches"));
+    expect(screen.queryByTestId("day-2026-03-01")).not.toBeInTheDocument();
+
+    await user.click(screen.getByTestId("date-range-menu"));
+    await user.click(screen.getByRole("menuitemcheckbox", { name: "All" }));
+    expect(screen.getByTestId("day-2026-03-01")).toBeInTheDocument();
+  });
+
+  it("hides past days until a date range is picked", async () => {
+    const user = userEvent.setup();
+    render(
+      <PollDetailClient
+        initialPoll={{
+          ...POLL,
+          slots: [
+            {
+              id: "slot-past",
+              poll_id: "poll-1",
+              start_time: "2026-02-21T10:00:00Z",
+              end_time: "2026-02-21T12:00:00Z",
+            },
+            ...POLL.slots,
+          ],
+        }}
+        availableMatches={[]}
+        umpires={[ALICE]}
+      />,
+    );
+    await user.click(screen.getByTestId("view-matches"));
+    expect(screen.queryByTestId("day-2026-02-21")).not.toBeInTheDocument();
+    expect(screen.getByTestId("day-2026-03-01")).toBeInTheDocument();
+
+    await user.click(screen.getByTestId("date-range-menu"));
+    await user.click(screen.getByRole("menuitemcheckbox", { name: "All" }));
+    expect(screen.getByTestId("day-2026-02-21")).toBeInTheDocument();
+  });
+
   it("closes a day from the match view", async () => {
-    const user = renderMatchesView();
+    const user = await renderMatchesView();
     await user.click(screen.getByTestId("view-matches"));
     await user.click(screen.getByTestId("toggle-day-closed-2026-03-01"));
 
@@ -687,7 +736,10 @@ describe("PollDetailClient closing a day", () => {
   });
 
   it("reopens a closed day", async () => {
-    const user = renderMatchesView({ ...POLL, closedDays: ["2026-03-01"] });
+    const user = await renderMatchesView({
+      ...POLL,
+      closedDays: ["2026-03-01"],
+    });
     await user.click(screen.getByTestId("view-matches"));
     expect(screen.getByText("Closed")).toBeInTheDocument();
 
@@ -707,7 +759,7 @@ describe("PollDetailClient closing a day", () => {
     vi.mocked(setPollDayClosed).mockRejectedValueOnce(new Error("boom"));
     vi.mocked(getPoll).mockResolvedValueOnce(POLL);
 
-    const user = renderMatchesView();
+    const user = await renderMatchesView();
     await user.click(screen.getByTestId("view-matches"));
     await user.click(screen.getByTestId("toggle-day-closed-2026-03-01"));
 

@@ -15,12 +15,24 @@ import type { DateRange } from "react-day-picker";
 
 const subscribeToNothing = () => () => {};
 
+/**
+ * A filter offered beside the date presets that is not a range of dates, such
+ * as a poll's open days. While active it labels the button; picking any date
+ * range is the page's cue to switch it off.
+ */
+export type DayFilterOption = {
+  label: string;
+  active: boolean;
+  onSelect: () => void;
+};
+
 type Props = {
   value: DateRange | undefined;
   onChange: (range: DateRange | undefined) => void;
+  dayFilter?: DayFilterOption;
 };
 
-export function DateRangePicker({ value, onChange }: Props) {
+export function DateRangePicker({ value, onChange, dayFilter }: Props) {
   const t = useTranslations("common");
   const format = useFormatter();
   const [open, setOpen] = useState(false);
@@ -57,11 +69,13 @@ export function DateRangePicker({ value, onChange }: Props) {
     });
   }
 
-  const buttonText = value?.from
-    ? value.to
-      ? `${formatDate(value.from)} – ${formatDate(value.to)}`
-      : t("rangeFrom", { date: formatDate(value.from) })
-    : t("presetAll");
+  const buttonText = dayFilter?.active
+    ? dayFilter.label
+    : value?.from
+      ? value.to
+        ? `${formatDate(value.from)} – ${formatDate(value.to)}`
+        : t("rangeFrom", { date: formatDate(value.from) })
+      : t("presetAll");
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -74,6 +88,19 @@ export function DateRangePicker({ value, onChange }: Props) {
       <PopoverContent className="w-auto p-0" align="start">
         <div className="flex flex-col gap-2 border-b p-3">
           <div className="flex flex-wrap gap-1">
+            {dayFilter && (
+              <Button
+                variant={dayFilter.active ? "secondary" : "ghost"}
+                size="sm"
+                aria-pressed={dayFilter.active}
+                onClick={() => {
+                  dayFilter.onSelect();
+                  setOpen(false);
+                }}
+              >
+                {dayFilter.label}
+              </Button>
+            )}
             {presets.map((preset) => (
               <Button
                 key={preset.label}
@@ -88,7 +115,7 @@ export function DateRangePicker({ value, onChange }: Props) {
         </div>
         <Calendar
           mode="range"
-          selected={value}
+          selected={dayFilter?.active ? undefined : value}
           onSelect={handleCalendarSelect}
           numberOfMonths={2}
           defaultMonth={value?.from ?? today}

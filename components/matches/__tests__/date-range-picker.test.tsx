@@ -79,4 +79,30 @@ describe("DateRangePicker", () => {
       screen.getByRole("button", { name: /date range/i }),
     ).toHaveTextContent(/^From Nov 2$/);
   });
+
+  it("offers a day filter beside the presets and labels the button with it while active", () => {
+    const onSelect = vi.fn();
+    render(
+      <DateRangePicker
+        value={undefined}
+        onChange={onChange}
+        dayFilter={{ label: "Open days only", active: true, onSelect }}
+      />,
+    );
+    const trigger = screen.getByRole("button", { name: /date range/i });
+    expect(trigger).toHaveTextContent("Open days only");
+
+    fireEvent.click(trigger);
+    fireEvent.click(screen.getByRole("button", { name: "Open days only" }));
+    expect(onSelect).toHaveBeenCalledTimes(1);
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("offers no day filter unless the page passes one", () => {
+    render(<DateRangePicker value={undefined} onChange={onChange} />);
+    fireEvent.click(screen.getByRole("button", { name: /date range/i }));
+    expect(
+      screen.queryByRole("button", { name: /open days/i }),
+    ).not.toBeInTheDocument();
+  });
 });

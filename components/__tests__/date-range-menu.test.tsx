@@ -22,4 +22,27 @@ describe("DateRangeMenu", () => {
     await user.click(items[0]);
     expect(onDateRangeChange).toHaveBeenCalledTimes(1);
   });
+
+  it("checks the day filter, and no date preset, while it is active", async () => {
+    const user = userEvent.setup();
+    const onSelect = vi.fn();
+    render(
+      <DateRangeMenu
+        dateRange={undefined}
+        onDateRangeChange={vi.fn()}
+        dayFilter={{ label: "Open days only", active: true, onSelect }}
+      />,
+    );
+
+    await user.click(screen.getByTestId("date-range-menu"));
+    const checked = screen
+      .getAllByRole("menuitemcheckbox")
+      .filter((item) => item.getAttribute("aria-checked") === "true");
+    expect(checked.map((item) => item.textContent)).toEqual(["Open days only"]);
+
+    await user.click(
+      screen.getByRole("menuitemcheckbox", { name: "Open days only" }),
+    );
+    expect(onSelect).toHaveBeenCalledTimes(1);
+  });
 });
