@@ -848,3 +848,69 @@ describe("AssignmentGrid closed days", () => {
     expect(screen.queryByTestId("closed-day-2026-03-16")).toBeNull();
   });
 });
+
+describe("AssignmentGrid available-but-unassigned umpires", () => {
+  const props = {
+    pollId: "poll-1",
+    matches: mockMatches,
+    slots: mockSlots,
+    responses: mockResponses,
+    assignments: [] as Assignment[],
+    umpires: mockUmpires,
+  };
+
+  const assignment = (umpireId: string): Assignment => ({
+    id: `a-${umpireId}`,
+    poll_id: "poll-1",
+    match_id: "m1",
+    umpire_id: umpireId,
+    created_at: "2026-01-01T00:00:00Z",
+    organization_id: "test-org-id",
+    status: "tentative",
+  });
+
+  it.each([true, false])(
+    "counts the day's available umpires without an assignment (transposed: %s)",
+    (transposed) => {
+      render(<AssignmentGrid {...props} transposed={transposed} />);
+      const marker = screen.getByTestId("day-bench-2026-03-15");
+      expect(marker).toHaveTextContent("2");
+      expect(marker).toHaveAccessibleName(
+        "2 available umpires without an assignment",
+      );
+    },
+  );
+
+  it("lists them by name, flagging 'if need be' answers", async () => {
+    const user = userEvent.setup();
+    render(
+      <AssignmentGrid
+        {...props}
+        responses={mockResponses.filter((r) => r.id !== "r4")}
+      />,
+    );
+    await user.click(screen.getByTestId("day-bench-2026-03-15"));
+    const list = await screen.findByTestId("day-bench-list-2026-03-15");
+    expect(list).toHaveTextContent("Jan de Vries");
+    expect(list).toHaveTextContent("Piet Bakker");
+    expect(screen.getByTestId("day-bench-u2")).toHaveAttribute(
+      "data-availability",
+      "if_need_be",
+    );
+  });
+
+  it("drops an umpire once they have an assignment that day", () => {
+    render(<AssignmentGrid {...props} assignments={[assignment("u1")]} />);
+    expect(screen.getByTestId("day-bench-2026-03-15")).toHaveTextContent("1");
+  });
+
+  it("shows no marker when everyone available is assigned", () => {
+    render(
+      <AssignmentGrid
+        {...props}
+        assignments={[assignment("u1"), assignment("u2")]}
+      />,
+    );
+    expect(screen.queryByTestId("day-bench-2026-03-15")).toBeNull();
+  });
+});

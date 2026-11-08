@@ -397,6 +397,8 @@
     "reopenDay": "Dag heropenen",
     "closedDayBadge": "Gesloten",
     "closedDayHint": "Scheidsrechters zien deze dag grijs en kunnen er niet meer op antwoorden. Gegeven antwoorden blijven bewaard.",
+    "dayBenchLabel": "{count, plural, one {# beschikbare scheidsrechter zonder indeling} other {# beschikbare scheidsrechters zonder indeling}}",
+    "dayBenchHint": "Kunnen deze dag, maar staan nog bij geen enkele wedstrijd ingedeeld.",
     "closeDayError": "Kon de dag niet bijwerken. Probeer het opnieuw."
   },
   "pollResponse": {

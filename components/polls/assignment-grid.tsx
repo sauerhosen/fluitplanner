@@ -41,6 +41,8 @@ import { useTranslations, useFormatter } from "next-intl";
 import { usePinnedTableHeader } from "@/hooks/use-pinned-table-header";
 import { useIsPlanner } from "@/components/shared/role-provider";
 import { HiddenMatchesMarker } from "./hidden-matches-marker";
+import { DayBenchMarker } from "./day-bench-marker";
+import { findAvailableUnassigned } from "@/lib/domain/available-unassigned";
 
 type Props = {
   pollId: string;
@@ -337,6 +339,18 @@ export function AssignmentGrid({
   }, [sortedMatches, format]);
 
   const hiddenSet = useMemo(() => new Set(hiddenMatchIds), [hiddenMatchIds]);
+  /** Per day, who said they can come but is not on any match yet. */
+  const benchByDate = useMemo(
+    () =>
+      findAvailableUnassigned({
+        matches,
+        matchSlotMap,
+        responses,
+        assignments,
+        hiddenMatchIds: hiddenSet,
+      }),
+    [matches, matchSlotMap, responses, assignments, hiddenSet],
+  );
   /**
    * Match dates whose header gets the closed marker. Days are closed by slot
    * start, which can fall on the day before the match (a 00:10 match sits in
@@ -673,6 +687,11 @@ export function AssignmentGrid({
                           {group.label}
                         </span>
                         {renderClosedDayMarker(group.date)}
+                        <DayBenchMarker
+                          date={group.date}
+                          umpires={umpires}
+                          bench={benchByDate.get(group.date)}
+                        />
                       </span>
                     </td>
                     <td
@@ -735,6 +754,11 @@ export function AssignmentGrid({
                   <span className="inline-flex items-center gap-1">
                     {group.label}
                     {renderClosedDayMarker(group.date)}
+                    <DayBenchMarker
+                      date={group.date}
+                      umpires={umpires}
+                      bench={benchByDate.get(group.date)}
+                    />
                   </span>
                 </th>
               ))}
